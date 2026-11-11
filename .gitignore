@@ -1,0 +1,23 @@
+# Dependencies & build outputs
+node_modules/
+/.next/
+/out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment variables & secrets
+.env
+.env*.local
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+
+# Temporary verification screenshots & test output
+/public/*_view_full.png
+/public/clean_desktop_shot.png
+/public/current_view.png
+/public/current_view_full.png
+/public/reference_24_rendered.png
+/public/test-tw.css

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="28" fill="#2C3437"/>
+  <!-- Head Dot (Volt Lime #B0FE09) -->
+  <circle cx="72" cy="26" r="11" fill="#B0FE09"/>
+  <!-- Kinetic Athlete & C Mark -->
+  <path d="M42 52C48 44 59 42 69 47L79 53" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <path d="M78 55C66 49 52 55 52 68C52 81 66 86 78 79" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M52 72L35 92" stroke="#B0FE09" stroke-width="9" stroke-linecap="round"/>
+</svg>

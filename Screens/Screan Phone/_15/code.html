@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&amp;family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;font-family:'Cairo',sans-serif;}body{overscroll-behavior:none;background-color:#F4F5F2;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-container-low": "#f3f4f1", "surface-dim": "#d9dad7", "status-warning": "#D97706", "status-success": "#16A34A", "surface-container-high": "#e7e8e6", "on-tertiary-container": "#9de400", "on-secondary-container": "#5c6467", "text-muted": "#5A6569", "on-tertiary": "#ffffff", "deep-olive": "#3F6212", "on-surface-variant": "#43493b", "surface-snow": "#F8FAFC", "on-error-container": "#93000a", "tertiary-fixed-dim": "#96da00", "surface-card": "#FFFFFF", "on-primary-fixed-variant": "#2e4f00", "error-container": "#ffdad6", "surface-tint": "#456818", "secondary": "#576063", "inverse-surface": "#2e312f", "on-primary": "#ffffff", "on-tertiary-fixed": "#121f00", "border-hairline": "#E4E7E5", "tertiary-container": "#416200", "inverse-primary": "a9d477", "on-tertiary-fixed-variant": "#344e00", "surface-container-lowest": "#ffffff", "tertiary-fixed": "#acf900", "secondary-container": "#d9e1e5", "electric-volt": "#B0FE09", "dark-slate": "#2C3437", "secondary-fixed-dim": "#c0c8cb", "outline-variant": "#c4c9b7", "surface": "#f9faf7", "on-error": "#ffffff", "tertiary": "#2f4800", "surface-variant": "#e2e3e0", "surface-container": "#edeeeb", "primary-fixed": "#c5f090", "on-primary-fixed": "#102000", "action-whatsapp": "#25D366", "on-background": "#191c1b", "canvas-alabaster": "#F4F5F2", "deep-carbon": "#1A1F21", "outline": "#74796a", "on-secondary-fixed-variant": "#40484b", "inverse-on-surface": "#f0f1ee", "on-secondary-fixed": "#151d20", "primary-container": "#3f6212", "athletic-olive": "#65A30D", "on-secondary": "#ffffff", "status-danger": "#DC2626", "lime-tint": "#ECFCCB", "background": "#f9faf7", "error": "#ba1a1a", "surface-bright": "#f9faf7", "primary": "#2a4900", "secondary-fixed": "#dce4e7", "surface-container-highest": "#e2e3e0", "on-primary-container": "#b2dd7f", "on-surface": "#191c1b", "primary-fixed-dim": "#a9d477" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "gutter": "1rem", "space-md": "1rem", "space-xs": "0.25rem", "margin": "1rem", "gutter-desktop": "1.5rem", "space-sm": "0.5rem", "space-lg": "1.5rem", "margin-desktop": "2rem", "space-xl": "2rem" }, fontFamily: { "card-title-sm": ["Cairo"], "micro-caption": ["Cairo"], "badge-label": ["Cairo"], "hero-headline": ["Cairo"], "hero-headline-mobile": ["Cairo"], "section-title-mobile": ["Cairo"], "card-title": ["Cairo"], "metric-headline": ["Inter"], "body-default": ["Cairo"], "price-tag": ["Inter"], "section-title": ["Cairo"], "body-compact": ["Cairo"] }, fontSize: { "card-title-sm": ["16px", { lineHeight: "22px", fontWeight: "700" }], "micro-caption": ["11px", { lineHeight: "15px", fontWeight: "400" }], "badge-label": ["12px", { lineHeight: "16px", fontWeight: "600" }], "hero-headline": ["36px", { lineHeight: "45px", fontWeight: "700" }], "hero-headline-mobile": ["28px", { lineHeight: "36px", fontWeight: "700" }], "section-title-mobile": ["20px", { lineHeight: "28px", fontWeight: "700" }], "card-title": ["18px", { lineHeight: "25px", fontWeight: "700" }], "metric-headline": ["24px", { lineHeight: "28px", fontWeight: "700" }], "body-default": ["15px", { lineHeight: "24px", fontWeight: "400" }], "price-tag": ["18px", { lineHeight: "22px", fontWeight: "700" }], "section-title": ["22px", { lineHeight: "30px", fontWeight: "700" }], "body-compact": ["14px", { lineHeight: "22px", fontWeight: "400" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-canvas-alabaster text-on-surface antialiased flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-canvas-alabaster/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(44,52,55,0.04)] pt-safe"><div class="h-20 px-4 flex flex-col justify-center gap-1.5"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><div class="flex items-center gap-1.5 select-none"><span class="font-['Cairo'] font-extrabold text-[19px] tracking-tight text-dark-slate">captenly</span><span class="w-1.5 h-1.5 rounded-full bg-deep-olive"></span><span class="font-['Cairo'] font-bold text-[17px] text-deep-olive">كابتنلي</span></div></div><div class="flex items-center gap-2"><button aria-label="المفضلة" class="w-11 h-11 rounded-full bg-surface-card flex items-center justify-center text-dark-slate transition-colors hover:bg-surface-container"><span class="material-symbols-outlined text-[20px]">bookmark</span></button><button aria-label="التنبيهات" class="w-11 h-11 rounded-full bg-surface-card flex items-center justify-center text-dark-slate relative transition-colors hover:bg-surface-container"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-2.5 start-2.5 w-2 h-2 rounded-full bg-deep-olive"></span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div><div class="flex items-center justify-between"><button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-card text-dark-slate hover:bg-surface-container"><span class="material-symbols-outlined text-[15px] text-deep-olive">location_on</span><span class="font-badge-label text-badge-label text-dark-slate font-bold">المحلة الكبرى، الغربية</span><span class="material-symbols-outlined text-[14px] text-text-muted">expand_more</span></button><div class="flex items-center gap-1.5"><span class="inline-flex items-center px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-micro-caption text-micro-caption font-bold">منصة الرياضة الأولى بمصر</span></div></div></div></header><main class="flex flex-col relative w-full pt-20 pb-24 bg-canvas-alabaster min-h-screen"><div class="flex flex-col w-full relative">
+<!-- Backdrop scrim representation for bottom-sheet modal context -->
+<div class="w-full bg-deep-carbon/50 pt-3 pb-1 px-4 flex items-center justify-between rounded-t-3xl">
+<div class="flex items-center gap-1.5 py-1 px-3 bg-surface-card/90 rounded-full shadow-sm">
+<span class="font-['Cairo'] font-extrabold text-[15px] text-dark-slate">captenly</span>
+<span class="w-1.5 h-1.5 rounded-full bg-deep-olive"></span>
+<span class="font-['Cairo'] font-bold text-[13px] text-deep-olive">كابتنلي</span>
+</div>
+<span class="font-micro-caption text-micro-caption text-surface-card font-medium">نافذة التصفية الذكية</span>
+</div>
+<!-- Main Sheet Container -->
+<div class="w-full bg-surface-card rounded-t-3xl shadow-2xl flex flex-col relative overflow-hidden">
+<!-- Drag Handle Indicator -->
+<div class="w-full flex justify-center pt-3 pb-1">
+<div class="w-12 h-1.5 rounded-full bg-surface-container-high"></div>
+</div>
+<!-- Modal Header -->
+<header class="px-4 py-3 bg-surface-card flex items-center justify-between border-b-0">
+<div class="flex items-center gap-2">
+<button aria-label="إغلاق" class="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-dark-slate hover:bg-surface-container transition-colors" id="closeSheetBtn">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+<div class="flex items-center gap-2">
+<h1 class="font-section-title-mobile text-section-title-mobile text-dark-slate">تصفية النتائج الذكية</h1>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label font-bold" id="activeCountBadge">
+            3 فلاتر نشطة
+          </span>
+</div>
+</div>
+<button class="font-body-compact text-body-compact font-bold text-text-muted hover:text-status-danger transition-colors" id="resetAllBtn">
+        إعادة ضبط الكل
+      </button>
+</header>
+<!-- Scrollable Filter Content -->
+<div class="px-4 py-3 flex flex-col gap-6 overflow-y-auto max-h-[636px] pb-32">
+<!-- Section 1: Sports & Specialties -->
+<section class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-deep-olive text-[20px]">sports</span>
+<h2 class="font-card-title text-card-title text-dark-slate">الرياضة والتخصص الدقيق</h2>
+</div>
+<span class="font-micro-caption text-micro-caption text-text-muted">اختر رياضة وتخصص</span>
+</div>
+<!-- Sport Tabs -->
+<div class="flex gap-2 overflow-x-auto pb-1">
+<button class="flex items-center gap-2 px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label shadow-sm flex-shrink-0 transition-transform active:scale-95">
+<span class="w-2 h-2 rounded-full bg-electric-volt"></span>
+<span>🏊 السباحة (9 تخصصات)</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2.5 rounded-full bg-surface-snow text-text-muted font-badge-label text-badge-label flex-shrink-0 hover:bg-surface-container-low transition-colors">
+<span>🏋️ الجيم واللياقة البدنية (7 تخصصات)</span>
+</button>
+</div>
+<!-- Sub-specialties Grid -->
+<div class="grid grid-cols-2 gap-2 mt-1">
+<!-- Active chip 1 -->
+<button class="filter-toggle-chip is-active flex items-center justify-between p-2.5 rounded-xl bg-lime-tint text-deep-olive font-badge-label text-badge-label text-right shadow-xs">
+<span class="truncate">تأسيس وبراعم أطفال</span>
+<span class="material-symbols-outlined text-deep-olive text-[18px]">check_circle</span>
+</button>
+<!-- Active chip 2 -->
+<button class="filter-toggle-chip is-active flex items-center justify-between p-2.5 rounded-xl bg-lime-tint text-deep-olive font-badge-label text-badge-label text-right shadow-xs">
+<span class="truncate">سباحة سيدات فقط (خصوصية)</span>
+<span class="material-symbols-outlined text-deep-olive text-[18px]">check_circle</span>
+</button>
+<!-- Inactive chips -->
+<button class="filter-toggle-chip flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low text-dark-slate font-badge-label text-badge-label text-right hover:bg-surface-container transition-colors">
+<span class="truncate">تجهيز بطولات وتنافسي</span>
+<span class="material-symbols-outlined text-text-muted text-[18px]">add_circle</span>
+</button>
+<button class="filter-toggle-chip flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low text-dark-slate font-badge-label text-badge-label text-right hover:bg-surface-container transition-colors">
+<span class="truncate">إنقاذ مائي وغوص حر</span>
+<span class="material-symbols-outlined text-text-muted text-[18px]">add_circle</span>
+</button>
+<button class="filter-toggle-chip flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low text-dark-slate font-badge-label text-badge-label text-right hover:bg-surface-container transition-colors">
+<span class="truncate">تأهيل حركي وعلاج مائي</span>
+<span class="material-symbols-outlined text-text-muted text-[18px]">add_circle</span>
+</button>
+<button class="filter-toggle-chip flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low text-dark-slate font-badge-label text-badge-label text-right hover:bg-surface-container transition-colors">
+<span class="truncate">سباحة حرة لكبار السن</span>
+<span class="material-symbols-outlined text-text-muted text-[18px]">add_circle</span>
+</button>
+</div>
+</section>
+<!-- Section 2: Pool & Facility Specs -->
+<section class="flex flex-col gap-3 pt-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-deep-olive text-[20px]">pool</span>
+<h2 class="font-card-title text-card-title text-dark-slate">مواصفات المسبح والمنشأة الرياضية</h2>
+</div>
+<span class="font-micro-caption text-micro-caption text-status-success font-bold">معايير السلامة والجودة</span>
+</div>
+<div class="flex flex-col gap-2">
+<!-- Active Feature 1 -->
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-lime-tint text-deep-olive cursor-pointer transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-deep-olive text-[20px] flex-shrink-0">thermostat</span>
+<span class="font-badge-label text-badge-label font-bold truncate">حمام سباحة مدفأ شتاءً (28°C-30°C)</span>
+</div>
+<span class="material-symbols-outlined text-deep-olive text-[20px]">check_box</span>
+</div>
+<!-- Active Feature 2 -->
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-lime-tint text-deep-olive cursor-pointer transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-deep-olive text-[20px] flex-shrink-0">roofing</span>
+<span class="font-badge-label text-badge-label font-bold truncate">حمام مغطى بالكامل وسقف عازل</span>
+</div>
+<span class="material-symbols-outlined text-deep-olive text-[20px]">check_box</span>
+</div>
+<!-- Active Feature 3 -->
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-lime-tint text-deep-olive cursor-pointer transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-deep-olive text-[20px] flex-shrink-0">health_and_safety</span>
+<span class="font-badge-label text-badge-label font-bold truncate">منقذ معتمد متواجد باستمرار طوال الحصة</span>
+</div>
+<span class="material-symbols-outlined text-deep-olive text-[20px]">check_box</span>
+</div>
+<!-- Active Feature 4 -->
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-lime-tint text-deep-olive cursor-pointer transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-deep-olive text-[20px] flex-shrink-0">verified</span>
+<span class="font-badge-label text-badge-label font-bold truncate">شامل تذكرة الدخول والمرافق (بدون رسوم خفية)</span>
+</div>
+<span class="material-symbols-outlined text-deep-olive text-[20px]">check_box</span>
+</div>
+<!-- Inactive Features -->
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-surface-container-low text-dark-slate cursor-pointer hover:bg-surface-container transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-text-muted text-[20px] flex-shrink-0">straighten</span>
+<span class="font-badge-label text-badge-label truncate">حمام أوليمبي قياسي 50 متر</span>
+</div>
+<span class="material-symbols-outlined text-text-muted text-[20px]">check_box_outline_blank</span>
+</div>
+<div class="spec-toggle-row flex items-center justify-between p-3 rounded-2xl bg-surface-container-low text-dark-slate cursor-pointer hover:bg-surface-container transition-all">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-text-muted text-[20px] flex-shrink-0">lock</span>
+<span class="font-badge-label text-badge-label truncate">غرف تبديل ملابس وخزائن أمان إلكترونية</span>
+</div>
+<span class="material-symbols-outlined text-text-muted text-[20px]">check_box_outline_blank</span>
+</div>
+</div>
+</section>
+<!-- Section 3: Monthly All-Inclusive Price Range -->
+<section class="flex flex-col gap-3 pt-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-deep-olive text-[20px]">payments</span>
+<h2 class="font-card-title text-card-title text-dark-slate">نطاق الاشتراك الشهري الشامل</h2>
+</div>
+<span class="font-price-tag text-price-tag text-deep-olive font-extrabold dir-ltr">600 - 1,200 EGP</span>
+</div>
+<!-- Dynamic Price Display Card -->
+<div class="p-3.5 rounded-2xl bg-surface-container-low flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-body-compact text-body-compact text-text-muted">الاشتراك المعتمد شهرياً:</span>
+<span class="font-section-title-mobile text-section-title-mobile text-deep-olive font-bold">
+              من 600 ج.م إلى 1,200 ج.م / شهرياً
+            </span>
+</div>
+<!-- Dual-handle Visual Range Slider -->
+<div class="relative py-3 px-2 flex flex-col justify-center">
+<!-- Inactive full track -->
+<div class="w-full h-2.5 bg-surface-container-high rounded-full relative overflow-hidden">
+<!-- Active highlight span (30% to 70%) -->
+<div class="absolute right-[20%] left-[35%] h-full bg-deep-olive rounded-full"></div>
+</div>
+<!-- Grabber Right (Min: 600) -->
+<div class="absolute right-[20%] top-1/2 -translate-y-1/2 translate-x-1/2 w-6 h-6 rounded-full bg-dark-slate shadow-md flex items-center justify-center cursor-pointer">
+<div class="w-2 h-2 rounded-full bg-electric-volt"></div>
+</div>
+<!-- Grabber Left (Max: 1200) -->
+<div class="absolute left-[35%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-dark-slate shadow-md flex items-center justify-center cursor-pointer">
+<div class="w-2 h-2 rounded-full bg-electric-volt"></div>
+</div>
+</div>
+<div class="flex items-center justify-between font-badge-label text-badge-label text-text-muted">
+<span>400 ج.م (الحد الأدنى)</span>
+<span>2,500 ج.م+ (أكاديميات دولية)</span>
+</div>
+<!-- Quick Presets -->
+<div class="grid grid-cols-3 gap-2 pt-1">
+<button class="py-2 px-2 rounded-xl bg-surface-card text-text-muted font-badge-label text-badge-label hover:bg-surface-container transition-colors">
+              الأقل سعراً
+            </button>
+<button class="py-2 px-2 rounded-xl bg-lime-tint text-deep-olive font-badge-label text-badge-label font-bold shadow-xs">
+              المتوسط (600-1000)
+            </button>
+<button class="py-2 px-2 rounded-xl bg-surface-card text-text-muted font-badge-label text-badge-label hover:bg-surface-container transition-colors">
+              باقات VIP النخبة
+            </button>
+</div>
+</div>
+</section>
+<!-- Section 4: Age Group & Class Density -->
+<section class="flex flex-col gap-3 pt-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-deep-olive text-[20px]">groups</span>
+<h2 class="font-card-title text-card-title text-dark-slate">الفئة العمرية وكثافة الحارة</h2>
+</div>
+<div class="flex flex-col gap-2">
+<span class="font-body-compact text-body-compact text-text-muted">الفئة المستهدفة للتدريب:</span>
+<div class="flex flex-wrap gap-2">
+<button class="px-3.5 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label font-bold shadow-xs flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">child_care</span>
+<span>أطفال وبراعم (4 - 12 سنة) ✓</span>
+</button>
+<button class="px-3.5 py-2 rounded-full bg-surface-container-low text-text-muted font-badge-label text-badge-label hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">face</span>
+<span>ناشئين وشباب (13 - 18)</span>
+</button>
+<button class="px-3.5 py-2 rounded-full bg-surface-container-low text-text-muted font-badge-label text-badge-label hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">person</span>
+<span>بالغين وسيدات</span>
+</button>
+</div>
+<!-- Lane Density Pill -->
+<div class="mt-2 p-3 rounded-2xl bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-full bg-lime-tint flex items-center justify-center text-deep-olive">
+<span class="material-symbols-outlined text-[18px]">reduce_capacity</span>
+</div>
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label font-bold text-dark-slate">ضمان الكثافة المنخفضة</span>
+<span class="font-micro-caption text-micro-caption text-text-muted">حد أقصى 5 سباحين في الحارة مع الكابتن</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-deep-olive flex items-center justify-center text-surface-card">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Distance Radius -->
+<section class="flex flex-col gap-3 pt-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-deep-olive text-[20px]">near_me</span>
+<h2 class="font-card-title text-card-title text-dark-slate">نطاق المسافة الجغرافية</h2>
+</div>
+<span class="font-micro-caption text-micro-caption text-deep-olive font-bold">المحلة الكبرى</span>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<button class="p-3 rounded-xl bg-surface-container-low text-text-muted font-badge-label text-badge-label text-center hover:bg-surface-container transition-colors">
+            أقل من 2 كم
+          </button>
+<button class="p-3 rounded-xl bg-lime-tint text-deep-olive font-badge-label text-badge-label font-bold text-center shadow-xs flex items-center justify-center gap-1">
+<span>في نطاق 5 كم (محدد)</span>
+<span class="material-symbols-outlined text-[16px]">check</span>
+</button>
+<button class="p-3 rounded-xl bg-surface-container-low text-text-muted font-badge-label text-badge-label text-center hover:bg-surface-container transition-colors">
+            في نطاق 10 كم
+          </button>
+<button class="p-3 rounded-xl bg-surface-container-low text-text-muted font-badge-label text-badge-label text-center hover:bg-surface-container transition-colors">
+            المحافظة بالكامل
+          </button>
+</div>
+</section>
+</div>
+<!-- Bottom Sticky CTA Footer -->
+<div class="sticky bottom-0 inset-x-0 bg-surface-card/95 backdrop-blur-xl p-4 flex flex-col gap-2 shadow-[0_-8px_30px_rgba(26,31,33,0.08)] z-30">
+<!-- Main Action Button -->
+<button class="w-full h-12 rounded-full bg-dark-slate text-electric-volt flex items-center justify-between px-5 font-['Cairo'] font-bold text-[16px] shadow-lg active:scale-[0.99] transition-transform" id="applyFiltersBtn">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px] text-electric-volt">task_alt</span>
+<span>عرض 14 نتيجة مطابقة الآن</span>
+</div>
+<div class="flex items-center gap-1 font-['Inter'] font-bold text-[14px]">
+<span>14</span>
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+</div>
+</button>
+<!-- Trust Assurance Note -->
+<div class="flex items-center justify-center gap-1.5 text-center">
+<span class="material-symbols-outlined text-deep-olive text-[14px]">verified_user</span>
+<p class="font-micro-caption text-micro-caption text-text-muted">
+          جميع الأسعار المعروضة شاملة ومعتمدة من المنشآت مباشرة بدون وسيط
+        </p>
+</div>
+</div>
+</div>
+</div>
+<script>
+  (function () {
+    const chips = document.querySelectorAll('.filter-toggle-chip, .spec-toggle-row');
+    const badge = document.getElementById('activeCountBadge');
+    const resetBtn = document.getElementById('resetAllBtn');
+    const applyBtn = document.getElementById('applyFiltersBtn');
+
+    chips.forEach(chip => {
+      chip.addEventListener('click', function () {
+        const isSelected = this.classList.contains('bg-lime-tint');
+        if (isSelected) {
+          this.classList.remove('bg-lime-tint', 'text-deep-olive');
+          this.classList.add('bg-surface-container-low', 'text-dark-slate');
+          const icon = this.querySelector('.material-symbols-outlined');
+          if (icon && icon.textContent.includes('check')) {
+            icon.textContent = this.classList.contains('spec-toggle-row') ? 'check_box_outline_blank' : 'add_circle';
+            icon.classList.remove('text-deep-olive');
+            icon.classList.add('text-text-muted');
+          }
+        } else {
+          this.classList.remove('bg-surface-container-low', 'text-dark-slate');
+          this.classList.add('bg-lime-tint', 'text-deep-olive');
+          const icon = this.querySelector('.material-symbols-outlined');
+          if (icon) {
+            icon.textContent = this.classList.contains('spec-toggle-row') ? 'check_box' : 'check_circle';
+            icon.classList.remove('text-text-muted');
+            icon.classList.add('text-deep-olive');
+          }
+        }
+        updateCount();
+      });
+    });
+
+    function updateCount() {
+      const activeCount = document.querySelectorAll('.bg-lime-tint').length;
+      if (badge) {
+        badge.textContent = activeCount + ' فلاتر نشطة';
+      }
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        chips.forEach(chip => {
+          chip.classList.remove('bg-lime-tint', 'text-deep-olive');
+          chip.classList.add('bg-surface-container-low', 'text-dark-slate');
+          const icon = chip.querySelector('.material-symbols-outlined');
+          if (icon) {
+            icon.textContent = chip.classList.contains('spec-toggle-row') ? 'check_box_outline_blank' : 'add_circle';
+            icon.classList.remove('text-deep-olive');
+            icon.classList.add('text-text-muted');
+          }
+        });
+        if (badge) badge.textContent = '0 فلاتر نشطة';
+      });
+    }
+
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function () {
+        this.classList.add('opacity-90');
+        setTimeout(() => this.classList.remove('opacity-90'), 150);
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-3 inset-x-3 max-w-[420px] mx-auto z-50 pb-safe bg-surface-card/95 backdrop-blur-xl rounded-full shadow-[0_12px_36px_rgba(26,31,33,0.12)]" data-active-classes="text-deep-olive font-bold after:content-[''] after:w-1 after:h-1 after:bg-deep-olive after:rounded-full after:mt-0.5"><div class="flex justify-between items-center h-16 px-3"><a class="flex flex-col items-center justify-center min-w-[56px] h-12 text-text-muted transition-all duration-200 hover:text-dark-slate" data-path="home" href="#"><span class="material-symbols-outlined text-[22px]">home</span><span class="font-micro-caption text-micro-caption">الرئيسية</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] h-12 transition-all duration-200 text-deep-olive font-bold after:content-[''] after:w-1 after:h-1 after:bg-deep-olive after:rounded-full after:mt-0.5" data-path="explore" href="#"><span class="material-symbols-outlined text-[22px]">explore</span><span class="font-micro-caption text-micro-caption">استكشف</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 text-text-muted transition-all duration-200 hover:text-dark-slate" data-path="favorites" href="#"><span class="material-symbols-outlined text-[22px]">bookmark</span><span class="font-micro-caption text-micro-caption">المفضلة 🔖</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 text-text-muted transition-all duration-200 hover:text-dark-slate" data-path="my-sessions" href="#"><span class="material-symbols-outlined text-[22px]">sports_score</span><span class="font-micro-caption text-micro-caption">حصصي</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 text-text-muted transition-all duration-200 hover:text-dark-slate" data-path="profile" href="#"><span class="material-symbols-outlined text-[22px]">person</span><span class="font-micro-caption text-micro-caption">حسابي</span></a></div></nav></body></html>

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&amp;family=Inter:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#d9dad7", "background": "#f9faf7", "surface-snow": "#F8FAFC", "primary-fixed": "#c5f090", "action-whatsapp": "#25D366", "on-tertiary": "#ffffff", "canvas-alabaster": "#F4F5F2", "lime-tint": "#ECFCCB", "on-primary": "#ffffff", "on-secondary": "#ffffff", "outline-variant": "#c4c9b7", "secondary-fixed-dim": "#c0c8cb", "on-error": "#ffffff", "surface-container-high": "#e7e8e6", "on-secondary-fixed": "#151d20", "on-secondary-container": "#5c6467", "tertiary": "#2f4800", "primary-container": "#3f6212", "on-tertiary-container": "#9de400", "error": "#ba1a1a", "surface": "#f9faf7", "status-success": "#16A34A", "surface-container": "#edeeeb", "on-tertiary-fixed-variant": "#344e00", "secondary-container": "#d9e1e5", "primary-fixed-dim": "#a9d477", "on-tertiary-fixed": "#121f00", "outline": "#74796a", "surface-tint": "#456818", "on-primary-container": "#b2dd7f", "tertiary-fixed-dim": "#96da00", "on-secondary-fixed-variant": "#40484b", "secondary-fixed": "#dce4e7", "on-primary-fixed": "#102000", "tertiary-container": "#416200", "status-danger": "#DC2626", "status-warning": "#D97706", "tertiary-fixed": "#acf900", "surface-container-low": "#f3f4f1", "electric-volt": "#B0FE09", "on-primary-fixed-variant": "#2e4f00", "error-container": "#ffdad6", "on-surface-variant": "#43493b", "surface-container-lowest": "#ffffff", "inverse-surface": "#2e312f", "dark-slate": "#2C3437", "primary": "#2a4900", "text-muted": "#5A6569", "surface-bright": "#f9faf7", "deep-carbon": "#1A1F21", "athletic-olive": "#65A30D", "surface-container-highest": "#e2e3e0", "deep-olive": "#3F6212", "inverse-on-surface": "#f0f1ee", "surface-variant": "#e2e3e0", "border-hairline": "#E4E7E5", "secondary": "#576063", "inverse-primary": "#a9d477", "on-error-container": "#93000a", "on-surface": "#191c1b", "on-background": "#191c1b", "surface-card": "#FFFFFF" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "gutter-desktop": "1.5rem", "space-sm": "0.5rem", "space-xs": "0.25rem", "space-md": "1rem", "margin": "1rem", "gutter": "1rem", "margin-desktop": "2rem", "space-xl": "2rem" }, "fontFamily": { "metric-headline": ["Inter"], "section-title": ["Cairo"], "card-title": ["Cairo"], "body-default": ["Cairo"], "hero-headline-mobile": ["Cairo"], "card-title-sm": ["Cairo"], "section-title-mobile": ["Cairo"], "hero-headline": ["Cairo"], "price-tag": ["Inter"], "body-compact": ["Cairo"], "badge-label": ["Cairo"], "micro-caption": ["Cairo"] }, "fontSize": { "metric-headline": ["24px", { "lineHeight": "28px", "fontWeight": "700" }], "section-title": ["22px", { "lineHeight": "30px", "fontWeight": "700" }], "card-title": ["18px", { "lineHeight": "25px", "fontWeight": "700" }], "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "hero-headline-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "card-title-sm": ["16px", { "lineHeight": "22px", "fontWeight": "700" }], "section-title-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "700" }], "hero-headline": ["36px", { "lineHeight": "45px", "fontWeight": "700" }], "price-tag": ["18px", { "lineHeight": "22px", "fontWeight": "700" }], "body-compact": ["14px", { "lineHeight": "22px", "fontWeight": "400" }], "badge-label": ["12px", { "lineHeight": "16px", "fontWeight": "600" }], "micro-caption": ["11px", { "lineHeight": "15px", "fontWeight": "400" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-canvas-alabaster text-on-surface font-body-default min-h-screen flex flex-col antialiased selection:bg-lime-tint selection:text-deep-olive"><header class="fixed top-0 inset-x-0 z-50 bg-canvas-alabaster/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs shrink-0"><img alt="Captenly_minimalist_logo_design_90b98823_2K.jpg" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrCEVUnDqvXUxyMnHbl5RBoEXrqeOh1hrcTACQ0issmcfo3EchvWnGNQPL6YwcWZgJsF3-u4dYS9yIGoR_w-TospBKIUSJ9MfDI6PcDBAIonFw0e5XqGIbyNR_QMkly1k1c-1B4xBhiOQN0HX7Pm-gsaxCa-8sZ9-OzmzXsEbhPPYXaNHTr12bU-uYL1iA-9T6IwX0EEjvM2YhBiK1O9soyQqNWzWDiT6hQl9Z6ySf9QpLZlofzbmlNNhV-s"/><span class="font-section-title text-card-title text-dark-slate font-bold hidden sm:inline">كابتنلي</span></div><div class="flex-1 flex justify-center max-w-[200px] sm:max-w-xs"><button class="min-h-[44px] px-space-sm py-space-xs rounded-full bg-surface-snow/90 flex items-center gap-1 shadow-[0_1px_4px_rgba(44,52,55,0.05)] hover:bg-surface-container-lowest transition-colors" type="button"><span class="material-symbols-outlined text-deep-olive text-[16px]">location_on</span><span class="font-badge-label text-badge-label text-dark-slate truncate">المحلة الكبرى، الغربية</span><span class="material-symbols-outlined text-text-muted text-[14px]">arrow_drop_down</span></button></div><div class="flex items-center gap-space-xs shrink-0"><button class="w-11 h-11 rounded-full flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">bookmark</span></button><button class="w-11 h-11 rounded-full flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors relative" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-status-danger"></span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-28 bg-canvas-alabaster"><div class="flex flex-col w-full pb-8">
+<!-- Header & Intro Block -->
+<section class="px-margin pt-space-sm pb-space-md flex flex-col gap-space-xs">
+<div class="flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-xs">
+<h1 class="font-hero-headline-mobile text-hero-headline-mobile text-dark-slate tracking-tight">
+          المفضلة المحفوظة 🔖
+        </h1>
+</div>
+<button class="h-9 px-space-sm rounded-full bg-surface-card shadow-sm flex items-center gap-1 text-dark-slate hover:bg-surface-snow active:scale-95 transition-all text-badge-label font-badge-label shrink-0" id="sortDropdownBtn" type="button">
+<span class="material-symbols-outlined text-[16px] text-deep-olive">swap_vert</span>
+<span>الأحدث حفظاً</span>
+<span class="material-symbols-outlined text-[14px] text-text-muted">keyboard_arrow_down</span>
+</button>
+</div>
+<p class="font-body-compact text-body-compact text-text-muted leading-relaxed">
+      كل البروفايلات، كروت المدارس التعليمية، والمقالات التي حفظتها للرجوع إليها في أي وقت.
+    </p>
+<!-- Quick Stats Bar (Moments of Delight / Tactical Overview) -->
+<div class="mt-space-xs p-space-sm rounded-xl bg-surface-snow flex items-center justify-between gap-space-xs shadow-sm">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-lime-tint flex items-center justify-center text-deep-olive">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+</div>
+<div class="flex flex-col">
+<span class="font-card-title-sm text-card-title-sm text-dark-slate leading-none">15 عنصراً محفوظاً</span>
+<span class="font-micro-caption text-micro-caption text-text-muted">محدّثة مع توافر المواعيد المباشرة</span>
+</div>
+</div>
+<button class="px-space-xs py-1 rounded-full bg-canvas-alabaster text-deep-olive font-badge-label text-badge-label flex items-center gap-1 active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+<span>تصفية</span>
+</button>
+</div>
+</section>
+<!-- Segmented Sticky Filter Bar -->
+<section class="sticky top-16 z-40 bg-canvas-alabaster/90 backdrop-blur-md px-margin py-space-xs mb-space-sm">
+<div class="flex items-center gap-space-xs overflow-x-auto no-scrollbar py-1" role="tablist">
+<!-- Tab 1 Active -->
+<button aria-selected="true" class="tab-btn min-h-[42px] px-space-md py-1.5 rounded-full bg-dark-slate text-lime-tint shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all" data-tab="coaches" role="tab">
+<span class="w-2 h-2 rounded-full bg-electric-volt shrink-0 animate-pulse"></span>
+<span class="font-badge-label text-badge-label">الكباتن والمنشآت</span>
+<span class="px-1.5 py-0.5 rounded-full bg-surface-card/20 text-electric-volt font-metric-headline text-micro-caption">6</span>
+</button>
+<!-- Tab 2 -->
+<button aria-selected="false" class="tab-btn min-h-[42px] px-space-md py-1.5 rounded-full bg-surface-card text-text-muted hover:text-dark-slate shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all" data-tab="schools" role="tab">
+<span class="font-badge-label text-badge-label">كروت المدارس التعليمية</span>
+<span class="px-1.5 py-0.5 rounded-full bg-surface-container text-text-muted font-metric-headline text-micro-caption">4</span>
+</button>
+<!-- Tab 3 -->
+<button aria-selected="false" class="tab-btn min-h-[42px] px-space-md py-1.5 rounded-full bg-surface-card text-text-muted hover:text-dark-slate shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all" data-tab="articles" role="tab">
+<span class="font-badge-label text-badge-label">المقالات المحفوظة</span>
+<span class="px-1.5 py-0.5 rounded-full bg-surface-container text-text-muted font-metric-headline text-micro-caption">5</span>
+</button>
+</div>
+</section>
+<!-- Tab Panel 1: Coaches & Facilities -->
+<section class="tab-content flex flex-col gap-space-md px-margin" data-content="coaches">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-4 rounded-full bg-deep-olive"></span>
+<h2 class="font-section-title-mobile text-section-title-mobile text-dark-slate">الكباتن والأكاديميات</h2>
+</div>
+<span class="font-badge-label text-badge-label text-text-muted">عرض 6 من 6</span>
+</div>
+<!-- Coach Card 1 -->
+<article class="bg-surface-card rounded-2xl p-space-md shadow-sm relative flex flex-col gap-space-sm hover:shadow-md transition-shadow">
+<!-- Card Media & Top Actions -->
+<div class="relative w-full h-44 rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Egyptian certified swimming head coach leading an energetic youth swim squad in a pristine sunlit Olympic swimming pool with clear turquoise water and crisp architectural lane lines in daylight style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4idYoFfwiRqp6u45HVHdym5mTdJ3ktUUhCUmAV6k8ji6-AsVSCt_BebWt-FNkl0CFuQWMO0xG_zQOnFhMjgHLxflyBB3AX7ITIMTTEIAxmAc509SQ9SgsoGkzHdCvLIkyFyLul9cqTb-LEPKFQuwPTE8fpumow1MsoZyuTowr2Nij22oEpY8jJQ24USohKzufLg0WmpQvOfrMcNqvnBdCGP9Hac-nH_1J9YP1Urqe"/>
+<!-- Top Badges Overlay -->
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+<span class="px-2 py-1 rounded-full bg-surface-card/95 backdrop-blur-md font-badge-label text-badge-label text-deep-olive flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-athletic-olive" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span>مدرب معتمد</span>
+</span>
+<span class="px-2 py-1 rounded-full bg-lime-tint/95 backdrop-blur-md font-badge-label text-badge-label text-deep-olive shadow-sm">
+            نخبة الغربية
+          </span>
+</div>
+<!-- Active Saved Bookmark Pill (Interactive Feedback) -->
+<button aria-label="إزالة من المفضلة" class="favorite-toggle-btn absolute top-2.5 left-2.5 w-9 h-9 rounded-full bg-lime-tint text-deep-olive shadow-md flex items-center justify-center hover:scale-105 active:scale-90 transition-transform" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+<!-- Availability Indicator Pill -->
+<div class="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-dark-slate/90 backdrop-blur-md text-lime-tint font-badge-label text-micro-caption flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-electric-volt animate-ping"></span>
+<span>متاح للحجز: هذا الأسبوع</span>
+</div>
+</div>
+<!-- Content Info -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<h3 class="font-card-title text-card-title text-dark-slate">
+            أكاديمية وكابتن محمود الشناوي للسباحة
+          </h3>
+<div class="flex items-center gap-1 bg-surface-snow px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-status-warning text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-metric-headline text-badge-label text-dark-slate">4.9</span>
+<span class="font-micro-caption text-micro-caption text-text-muted">(+128)</span>
+</div>
+</div>
+<p class="font-body-compact text-body-compact text-text-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-athletic-olive">location_on</span>
+<span>مجمع حمامات السباحة الأوليمبي، المحلة الكبرى</span>
+</p>
+<!-- Specialties Tags -->
+<div class="flex flex-wrap gap-1.5 mt-1">
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            تأسيس أطفال
+          </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            سباحة متقدمة وتجهيز بطولات
+          </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            تدريب خاص (1:1)
+          </span>
+</div>
+</div>
+<!-- Price & Actions CTA Row -->
+<div class="pt-space-xs mt-space-xs bg-surface-snow -mx-space-md -mb-space-md p-space-md rounded-b-2xl flex items-center justify-between gap-space-xs">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">الاشتراك الشهري يبدأ من</span>
+<div class="flex items-baseline gap-1">
+<span class="font-metric-headline text-price-tag text-deep-olive">950</span>
+<span class="font-body-compact text-micro-caption text-deep-olive">ج.م / 8 حصص</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<a class="h-10 px-3.5 rounded-full bg-surface-card hover:bg-canvas-alabaster text-dark-slate font-badge-label text-badge-label shadow-sm flex items-center justify-center transition-colors" href="#">
+            عرض البروفايل
+          </a>
+<a class="h-10 px-3.5 rounded-full bg-action-whatsapp text-on-primary font-badge-label text-badge-label shadow-sm flex items-center gap-1 active:scale-95 transition-transform" href="https://wa.me/201000000000?text=مرحباً%20كابتن%20محمود،%20وجدت%20بروفايلك%20في%20مفضلتي%20على%20كابتنلي" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>واتساب مباشر</span>
+</a>
+</div>
+</div>
+</article>
+<!-- Facility Card 2 -->
+<article class="bg-surface-card rounded-2xl p-space-md shadow-sm relative flex flex-col gap-space-sm hover:shadow-md transition-shadow">
+<div class="relative w-full h-44 rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="High-end indoor aquatic sports center featuring clean olympic 50m water lanes, warm daylight ceiling windows, polished bleachers and diving blocks in modern architectural aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAW9GsXiaVVhKu93k_pxr1AxF9uMjYtymNtn2FvdPPZxWbwFMFv7vub6ive_tf3FZ5t4FxZ7whUqvcix9DyJ4LXkESVJb80kQO6b8ChzxiuqAc8oLEzbMBCs6RsJ3_xe-jJ3fgbdoSwbEAO8c4-PKLniec3-Inh1gwl9kp4lNQZtRCSBEe5MDfT6zpIbx4DHyr98ijAOPKDdC4GGZ3R5d7vf4nhDJHSCHI5deC6nZC7"/>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+<span class="px-2 py-1 rounded-full bg-surface-card/95 backdrop-blur-md font-badge-label text-badge-label text-deep-olive flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-athletic-olive" style="font-variation-settings: 'FILL' 1;">pool</span>
+<span>منشأة رسمية موثقة</span>
+</span>
+</div>
+<button aria-label="إزالة من المفضلة" class="favorite-toggle-btn absolute top-2.5 left-2.5 w-9 h-9 rounded-full bg-lime-tint text-deep-olive shadow-md flex items-center justify-center hover:scale-105 active:scale-90 transition-transform" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+<div class="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-dark-slate/90 backdrop-blur-md text-lime-tint font-badge-label text-micro-caption flex items-center gap-1">
+<span>حمام تدفئة شتوي متوفر</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<h3 class="font-card-title text-card-title text-dark-slate">
+            نادي وأكاديمية النخبة للسباحة
+          </h3>
+<div class="flex items-center gap-1 bg-surface-snow px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-status-warning text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-metric-headline text-badge-label text-dark-slate">4.8</span>
+<span class="font-micro-caption text-micro-caption text-text-muted">(+94)</span>
+</div>
+</div>
+<p class="font-body-compact text-body-compact text-text-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-athletic-olive">location_on</span>
+<span>طريق طنطا - المحلة السريع، الغربية</span>
+</p>
+<div class="flex flex-wrap gap-1.5 mt-1">
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            حمام أوليمبي مغطى
+          </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            مدربات سيدات مخصصات
+          </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-text-muted font-badge-label text-micro-caption">
+            فحوصات طبية دورية
+          </span>
+</div>
+</div>
+<div class="pt-space-xs mt-space-xs bg-surface-snow -mx-space-md -mb-space-md p-space-md rounded-b-2xl flex items-center justify-between gap-space-xs">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">الاشتراك يبدأ من</span>
+<div class="flex items-baseline gap-1">
+<span class="font-metric-headline text-price-tag text-deep-olive">850</span>
+<span class="font-body-compact text-micro-caption text-deep-olive">ج.م / شهرياً</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<a class="h-10 px-3.5 rounded-full bg-surface-card hover:bg-canvas-alabaster text-dark-slate font-badge-label text-badge-label shadow-sm flex items-center justify-center transition-colors" href="#">
+            تفاصيل المنشأة
+          </a>
+<a class="h-10 px-3.5 rounded-full bg-action-whatsapp text-on-primary font-badge-label text-badge-label shadow-sm flex items-center gap-1 active:scale-95 transition-transform" href="https://wa.me/201000000000?text=مرحباً،%20أستفسر%20عن%20عضوية%20نادي%20النخبة%20للسباحة" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>واتساب</span>
+</a>
+</div>
+</div>
+</article>
+</section>
+<!-- Training School Cards Section (Saved Program Cards) -->
+<section class="mt-space-lg px-margin flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-4 rounded-full bg-athletic-olive"></span>
+<h2 class="font-section-title-mobile text-section-title-mobile text-dark-slate">كروت البرامج والمدارس التعليمية</h2>
+</div>
+<span class="font-badge-label text-badge-label text-deep-olive">4 برامج محفوظة</span>
+</div>
+<!-- Specialized Program Card with Code Reference -->
+<article class="bg-surface-card rounded-2xl p-space-md shadow-sm relative flex flex-col gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-16 h-16 rounded-xl overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="Children swimming instruction lesson with enthusiastic professional coach in crystal blue water, safe flotation kickboards, daylight warmth." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCW1NQLGq7oSBqwFKJqjaAsLCzcvRD7qnBj7jVAoAjW5tpD--uoUC0Q6xB0KDwlrmcX7DLxj8XRTzrCm3Fx_q2GoukbhG_um6Fd0Q0acR1Nndvk2VIYxRtEuRLqH8l_WpTXh-pPiF5SzhkXBp6N8FpW9EMwOobOnZHBkxaoAYZNOBNn6bPr_QPRrderP7yigteoBUy6A_lECN1flyewXtzLlStWtSbRZohVYuyFt8it"/>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption">
+                برنامج تأسيس معتمد
+              </span>
+<span class="font-badge-label text-micro-caption text-text-muted">#CAP-8201</span>
+</div>
+<h3 class="font-card-title-sm text-card-title-sm text-dark-slate truncate mt-0.5">
+              مدرسة تأسيس سباحة الأطفال — 8 حصص شهرياً
+            </h3>
+<span class="font-micro-caption text-micro-caption text-text-muted">أكاديمية الشناوي • سن 4 إلى 12 سنة</span>
+</div>
+</div>
+<button aria-label="إلغاء الحفظ" class="favorite-toggle-btn w-8 h-8 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+<!-- Specs Pills Grid -->
+<div class="grid grid-cols-3 gap-2 bg-surface-snow p-2.5 rounded-xl">
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">عدد الحصص</span>
+<span class="font-card-title-sm text-badge-label text-dark-slate">8 حصص / شهر</span>
+</div>
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">زمن الحصة</span>
+<span class="font-card-title-sm text-badge-label text-dark-slate">50 دقيقة</span>
+</div>
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">المقاعد المتاحة</span>
+<span class="font-card-title-sm text-badge-label text-status-success font-bold">3 مقاعد فقط</span>
+</div>
+</div>
+<!-- Pricing and Instant Reference WhatsApp CTA -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">السعر الشامل (بدون رسوم إضافية)</span>
+<div class="flex items-baseline gap-1">
+<span class="font-metric-headline text-price-tag text-deep-olive">950</span>
+<span class="font-body-compact text-micro-caption text-dark-slate font-bold">ج.م</span>
+</div>
+</div>
+<a class="h-10 px-space-md rounded-full bg-dark-slate text-lime-tint hover:bg-deep-carbon active:scale-95 transition-transform flex items-center gap-1.5 shadow-sm font-badge-label text-badge-label" href="https://wa.me/201000000000?text=أود%20الاشتراك%20في%20كارت%20المدرسة%20التعليمية%20كود%20CAP-8201">
+<span class="material-symbols-outlined text-[18px] text-electric-volt">send</span>
+<span>تواصل واتساب (CAP-8201)</span>
+</a>
+</div>
+</article>
+<!-- Program Card 2 -->
+<article class="bg-surface-card rounded-2xl p-space-md shadow-sm relative flex flex-col gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-16 h-16 rounded-xl overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="Adult male swimmer executing butterfly stroke with dynamic water splashes and sun flare reflection, athletic editorial performance photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlbUk8hDKx0NXF9UQPUEiQ5FRyVOHQ1LN-mP2N5JcKTfJrReWrLNSX-_deLQHlPLoLPRgtW3YZyL3k1EacBvONU4SvLdn9jNCCB1cDjvkk5BsBmR33oyQMewG-ZCfusMEJWTYg2_eNlvisVCoEuQsLFX-aOTOBkD_w5v71M4E14Q9jEzf5WTrwKp8li_avrUr1hGYHISorG_8XsTAEYdwSfOnRgS7Go3d3ShI2cK8h"/>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption">
+                كورس كبار وفتنس
+              </span>
+<span class="font-badge-label text-micro-caption text-text-muted">#CAP-4119</span>
+</div>
+<h3 class="font-card-title-sm text-card-title-sm text-dark-slate truncate mt-0.5">
+              برنامج اللياقة والسباحة الحرة للبالغين
+            </h3>
+<span class="font-micro-caption text-micro-caption text-text-muted">نادي النخبة • فترات مسائية مخصصة</span>
+</div>
+</div>
+<button aria-label="إلغاء الحفظ" class="favorite-toggle-btn w-8 h-8 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+<div class="grid grid-cols-3 gap-2 bg-surface-snow p-2.5 rounded-xl">
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">المواعيد</span>
+<span class="font-card-title-sm text-badge-label text-dark-slate">أيام زوجية (8 م)</span>
+</div>
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">المدرب</span>
+<span class="font-card-title-sm text-badge-label text-dark-slate">كابتن معتمد</span>
+</div>
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-micro-caption text-micro-caption text-text-muted">المستوى</span>
+<span class="font-card-title-sm text-badge-label text-dark-slate">مبتدئ / متوسط</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">السعر الشامل</span>
+<div class="flex items-baseline gap-1">
+<span class="font-metric-headline text-price-tag text-deep-olive">1,100</span>
+<span class="font-body-compact text-micro-caption text-dark-slate font-bold">ج.م / شهر</span>
+</div>
+</div>
+<a class="h-10 px-space-md rounded-full bg-dark-slate text-lime-tint hover:bg-deep-carbon active:scale-95 transition-transform flex items-center gap-1.5 shadow-sm font-badge-label text-badge-label" href="https://wa.me/201000000000?text=أود%20الاستفسار%20عن%20برنامج%20اللياقة%20CAP-4119">
+<span class="material-symbols-outlined text-[18px] text-electric-volt">send</span>
+<span>تواصل واتساب (CAP-4119)</span>
+</a>
+</div>
+</article>
+</section>
+<!-- Saved Articles Section (Editorial Minimal Strip) -->
+<section class="mt-space-lg px-margin flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-4 rounded-full bg-primary-container"></span>
+<h2 class="font-section-title-mobile text-section-title-mobile text-dark-slate">المقالات الرياضية المحفوظة</h2>
+</div>
+<span class="font-badge-label text-badge-label text-text-muted">5 مقالات</span>
+</div>
+<!-- Editorial Article Card 1 -->
+<a class="bg-surface-card rounded-2xl p-space-sm shadow-sm flex items-center gap-space-sm hover:shadow-md transition-all active:scale-[0.99] group" href="#">
+<div class="w-24 h-24 rounded-xl overflow-hidden bg-surface-container shrink-0 relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Parent holding a young confident swimmer by the pool edge during a safe accredited Egyptian swim training session, bright daylight natural tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4F9cAXy3X3Pb4sljgqmPAGCN6lj2zxXDbOxXLk2LFPSML4IUZaJjKv4JBsmXcZdKtpxWL8Bqm3snqzQ290VlEndj3BolrloX5iCVK86v-Y1MX_SvOymlxjT5ar55jZznFJgU5Z6Aj_Qvw_N_-pC5bPV3ZyTThAiQiqWfDrr1CKralgCVrxuXe7OIYG-1STF2AEaFKScMhYQtA86lxFp-ULfi7xHczFplpTTgCCpTd"/>
+</div>
+<div class="flex-1 flex flex-col justify-between h-24 py-0.5 min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption">
+            دليل أولياء الأمور
+          </span>
+<button aria-label="إلغاء الحفظ" class="favorite-toggle-btn w-7 h-7 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" onclick="event.preventDefault(); event.stopPropagation();" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+<h3 class="font-card-title-sm text-card-title-sm text-dark-slate line-clamp-2 leading-tight">
+          كيف تختار أكاديمية سباحة آمنة ومعتمدة لطفلك قبل الاشتراك؟
+        </h3>
+<div class="flex items-center gap-2 text-text-muted font-micro-caption text-micro-caption">
+<span class="flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">schedule</span>
+<span>4 دقائق قراءة</span>
+</span>
+<span>•</span>
+<span>دليل السلامة المائية</span>
+</div>
+</div>
+</a>
+<!-- Editorial Article Card 2 -->
+<a class="bg-surface-card rounded-2xl p-space-sm shadow-sm flex items-center gap-space-sm hover:shadow-md transition-all active:scale-[0.99] group" href="#">
+<div class="w-24 h-24 rounded-xl overflow-hidden bg-surface-container shrink-0 relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Nutrition bowl with fresh energy-rich food and sports water bottle beside swimming goggles on a clean minimalist slate bench, performance diet photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKUZgb9eiyBXtpDzc3cdEM4DVmTimAVKd5Npm0ggP-8SmL-sJA9skg0bqMrMMmNgHHtVMBv4bzV9Qc32hfo6Uv38rhkawAp9ZOqmgrv7wBLpwV72iNidFrvMOmPynstr8MOdRjYRvxZTVklDlpl5ksz_Khtt6He2C_pdgdjrD3LbT4SlVeBNRnIo9xTTlO4CoXspwllezZ7LCbjl74sMYctjI8x0QBUVC-NqAbUaDo"/>
+</div>
+<div class="flex-1 flex flex-col justify-between h-24 py-0.5 min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-dark-slate font-badge-label text-micro-caption">
+            تغذية وأداء رياضي
+          </span>
+<button aria-label="إلغاء الحفظ" class="favorite-toggle-btn w-7 h-7 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" onclick="event.preventDefault(); event.stopPropagation();" title="محفوظ في المفضلة">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+<h3 class="font-card-title-sm text-card-title-sm text-dark-slate line-clamp-2 leading-tight">
+          وجبة ما قبل وبعد تمرين السباحة: أفضل نظام لزيادة طاقة واستشفاء السباح
+        </h3>
+<div class="flex items-center gap-2 text-text-muted font-micro-caption text-micro-caption">
+<span class="flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">schedule</span>
+<span>3 دقائق قراءة</span>
+</span>
+<span>•</span>
+<span>نصائح كابتنلي</span>
+</div>
+</div>
+</a>
+</section>
+<!-- Interactive Delight: Smart Side-by-Side Comparison Dock -->
+<section class="mt-space-lg px-margin">
+<div class="relative overflow-hidden bg-dark-slate rounded-2xl p-space-md text-on-primary shadow-md">
+<!-- Ambient Glow Decorator -->
+<div class="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-electric-volt/15 blur-2xl pointer-events-none"></div>
+<div class="relative z-10 flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-0.5 rounded-full bg-surface-card/15 text-electric-volt font-badge-label text-micro-caption flex items-center gap-1 w-fit">
+<span class="material-symbols-outlined text-[14px]">balance</span>
+<span>ميزة المقارنة الذكية</span>
+</span>
+<span class="font-metric-headline text-micro-caption text-lime-tint">جديد ⚡</span>
+</div>
+<h3 class="font-card-title text-card-title text-on-primary mt-1">
+          هل ترغب في مقارنة الخيارات المحفوظة؟
+        </h3>
+<p class="font-body-compact text-body-compact text-secondary-fixed leading-relaxed">
+          يمكنك تحديد كابتنين أو مدرستين والمقارنة جنباً إلى جنب ⚖️ (الأسعار، المسافة، تقييمات المتدربين، ومواصفات الحمام).
+        </p>
+<div class="mt-space-xs pt-space-xs flex items-center gap-space-sm">
+<button class="h-11 px-space-md rounded-full bg-electric-volt text-dark-slate font-badge-label text-badge-label font-bold shadow-md hover:brightness-105 active:scale-95 transition-all flex items-center gap-1.5" id="activateCompareBtn" type="button">
+<span>بدء المقارنة الآن</span>
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+</button>
+<span class="font-micro-caption text-micro-caption text-secondary-fixed">
+            حدد خيارين للمقارنة
+          </span>
+</div>
+</div>
+</div>
+</section>
+<!-- Delightful Micro-toast element for toggle feedback -->
+<div class="fixed bottom-24 inset-x-6 z-50 pointer-events-none opacity-0 transition-opacity duration-300 flex justify-center" id="toastNotification">
+<div class="bg-dark-slate/95 backdrop-blur-md text-on-primary px-space-md py-2.5 rounded-full shadow-xl flex items-center gap-2">
+<span class="material-symbols-outlined text-electric-volt text-[18px]">check_circle</span>
+<span class="font-badge-label text-badge-label" id="toastMsg">تم تحديث المفضلة بنجاح</span>
+</div>
+</div>
+</div>
+<script>
+  // Simple micro-interactions for tabs and favorite bookmark toggling
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.setAttribute('aria-selected', 'false');
+        b.className = 'tab-btn min-h-[42px] px-space-md py-1.5 rounded-full bg-surface-card text-text-muted hover:text-dark-slate shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all';
+      });
+      btn.setAttribute('aria-selected', 'true');
+      btn.className = 'tab-btn min-h-[42px] px-space-md py-1.5 rounded-full bg-dark-slate text-lime-tint shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all';
+      
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMsg');
+      if (toast && toastMsg) {
+        toastMsg.textContent = 'تم تصفية العرض: ' + btn.innerText.replace(/[0-9()]/g, '').trim();
+        toast.classList.remove('opacity-0');
+        setTimeout(() => toast.classList.add('opacity-0'), 1800);
+      }
+    });
+  });
+
+  // Bookmark icon toggle micro-interaction with toast feedback
+  document.querySelectorAll('.favorite-toggle-btn').forEach(favBtn => {
+    favBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const icon = favBtn.querySelector('.material-symbols-outlined');
+      const isSaved = icon.style.fontVariationSettings.includes("'FILL' 1");
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMsg');
+
+      if (isSaved) {
+        icon.style.fontVariationSettings = "'FILL' 0";
+        favBtn.classList.remove('bg-lime-tint', 'text-deep-olive');
+        favBtn.classList.add('bg-surface-snow', 'text-text-muted');
+        if (toastMsg) toastMsg.textContent = 'تمت إزالة العنصر من المفضلة';
+      } else {
+        icon.style.fontVariationSettings = "'FILL' 1";
+        favBtn.classList.remove('bg-surface-snow', 'text-text-muted');
+        favBtn.classList.add('bg-lime-tint', 'text-deep-olive');
+        if (toastMsg) toastMsg.textContent = 'تم حفظ العنصر في المفضلة 🔖';
+      }
+
+      if (toast) {
+        toast.classList.remove('opacity-0');
+        setTimeout(() => toast.classList.add('opacity-0'), 1600);
+      }
+    });
+  });
+
+  // Compare button interaction
+  const compareBtn = document.getElementById('activateCompareBtn');
+  if (compareBtn) {
+    compareBtn.addEventListener('click', () => {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMsg');
+      if (toast && toastMsg) {
+        toastMsg.textContent = 'انقر على كروت المدربين لاختيار طرفي المقارنة ⚖️';
+        toast.classList.remove('opacity-0');
+        setTimeout(() => toast.classList.add('opacity-0'), 2500);
+      }
+    });
+  }
+</script></main><nav class="fixed bottom-3 inset-x-4 z-50 pb-safe pointer-events-none" data-active-classes="text-deep-olive font-bold"><div class="max-w-md mx-auto h-16 px-space-xs rounded-full bg-surface-card/95 backdrop-blur-xl shadow-[0_12px_36px_rgba(26,31,33,0.12)] flex items-center justify-around pointer-events-auto"><a class="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 text-text-muted hover:text-dark-slate transition-colors" data-path="home-discovery" href="#"><span class="material-symbols-outlined text-[22px]">home</span><span class="font-badge-label text-micro-caption">الرئيسية</span></a><a class="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 text-text-muted hover:text-dark-slate transition-colors" data-path="explore-search" href="#"><span class="material-symbols-outlined text-[22px]">explore</span><span class="font-badge-label text-micro-caption">استكشف</span></a><a class="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 text-text-muted hover:text-dark-slate transition-colors" data-path="saved-favorites" href="#"><span class="material-symbols-outlined text-[22px]">bookmark</span><span class="font-badge-label text-micro-caption">المفضلة</span></a><a class="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 text-text-muted hover:text-dark-slate transition-colors" data-path="my-sessions" href="#"><span class="material-symbols-outlined text-[22px]">sports</span><span class="font-badge-label text-micro-caption">حصصي</span></a><a class="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 text-text-muted hover:text-dark-slate transition-colors" data-path="user-profile" href="#"><span class="material-symbols-outlined text-[22px]">account_circle</span><span class="font-badge-label text-micro-caption">حسابي</span></a></div></nav></body></html>

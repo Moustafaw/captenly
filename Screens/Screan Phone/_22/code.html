@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&amp;family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#F4F5F2;}body{overscroll-behavior:none;font-family:'Cairo',sans-serif;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-primary": "#ffffff", "tertiary": "#2f4800", "surface-container": "#edeeeb", "on-error": "#ffffff", "outline-variant": "#c4c9b7", "primary-fixed": "#c5f090", "on-tertiary-fixed-variant": "#344e00", "athletic-olive": "#65A30D", "surface-snow": "#F8FAFC", "inverse-primary": "#a9d477", "on-primary-fixed": "#102000", "secondary-fixed-dim": "#c0c8cb", "tertiary-container": "#416200", "on-surface-variant": "#43493b", "on-error-container": "#93000a", "action-whatsapp": "#25D366", "secondary": "#576063", "surface-bright": "#f9faf7", "surface-container-high": "#e7e8e6", "lime-tint": "#ECFCCB", "on-background": "#191c1b", "dark-slate": "#2C3437", "status-danger": "#DC2626", "secondary-fixed": "#dce4e7", "primary": "#2a4900", "background": "#f9faf7", "status-success": "#16A34A", "surface-container-lowest": "#ffffff", "inverse-surface": "#2e312f", "surface-dim": "#d9dad7", "on-secondary": "#ffffff", "status-warning": "#D97706", "surface-tint": "#456818", "on-tertiary-fixed": "#121f00", "surface-variant": "#e2e3e0", "tertiary-fixed-dim": "#96da00", "on-secondary-container": "#5c6467", "deep-olive": "#3F6212", "outline": "#74796a", "on-secondary-fixed": "#151d20", "error": "#ba1a1a", "electric-volt": "#B0FE09", "on-primary-fixed-variant": "#2e4f00", "primary-fixed-dim": "#a9d477", "error-container": "#ffdad6", "surface-container-low": "#f3f4f1", "on-surface": "#191c1b", "primary-container": "#3f6212", "tertiary-fixed": "#acf900", "inverse-on-surface": "#f0f1ee", "text-muted": "#5A6569", "on-tertiary-container": "#9de400", "on-secondary-fixed-variant": "#40484b", "border-hairline": "#E4E7E5", "surface-card": "#FFFFFF", "surface-container-highest": "#e2e3e0", "canvas-alabaster": "#F4F5F2", "on-primary-container": "#b2dd7f", "surface": "#f9faf7", "secondary-container": "#d9e1e5", "deep-carbon": "#1A1F21", "on-tertiary": "#ffffff" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-xs": "0.25rem", "margin-desktop": "2rem", "margin": "1rem", "gutter": "1rem", "space-xl": "2rem", "space-lg": "1.5rem", "gutter-desktop": "1.5rem", "space-md": "1rem", "space-sm": "0.5rem" }, fontFamily: { "hero-headline": ["Cairo"], "section-title": ["Cairo"], "card-title": ["Cairo"], "hero-headline-mobile": ["Cairo"], "card-title-sm": ["Cairo"], "micro-caption": ["Cairo"], "body-default": ["Cairo"], "price-tag": ["Inter"], "badge-label": ["Cairo"], "section-title-mobile": ["Cairo"], "body-compact": ["Cairo"], "metric-headline": ["Inter"] }, fontSize: { "hero-headline": ["36px", { "lineHeight": "45px", "fontWeight": "700" }], "section-title": ["22px", { "lineHeight": "30px", "fontWeight": "700" }], "card-title": ["18px", { "lineHeight": "25px", "fontWeight": "700" }], "hero-headline-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "card-title-sm": ["16px", { "lineHeight": "22px", "fontWeight": "700" }], "micro-caption": ["11px", { "lineHeight": "15px", "fontWeight": "400" }], "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "price-tag": ["18px", { "lineHeight": "22px", "fontWeight": "700" }], "badge-label": ["12px", { "lineHeight": "16px", "fontWeight": "600" }], "section-title-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "700" }], "body-compact": ["14px", { "lineHeight": "22px", "fontWeight": "400" }], "metric-headline": ["24px", { "lineHeight": "28px", "fontWeight": "700" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-canvas-alabaster text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-canvas-alabaster/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><button aria-label="رجوع" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-variant transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[22px]">arrow_forward</span></button><h1 class="font-card-title text-card-title text-dark-slate font-bold truncate max-w-[220px]">Coach Profile Detail</h1></div><div class="flex items-center gap-space-xs"><button aria-label="مشاركة" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">share</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-canvas-alabaster min-h-screen"><div class="flex flex-col w-full pb-safe">
+<!-- Floating Sticky Micro Progress Bar -->
+<div class="sticky top-16 z-40 w-full bg-surface-container-high h-1 overflow-hidden">
+<div class="bg-athletic-olive h-full w-1/4 transition-all duration-150" id="read-progress"></div>
+</div>
+<div class="px-margin flex flex-col pt-space-md">
+<!-- Top Action Breadcrumb & Category -->
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs">
+<button class="flex items-center gap-1 text-on-surface-variant hover:text-dark-slate transition-colors py-1 px-2.5 rounded-full bg-surface-container-low text-body-compact font-body-compact" onclick="history.back()">
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+<span>العودة للمقالات</span>
+</button>
+<span class="inline-flex items-center px-3 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label">
+          سلسلة اختر صح 🎯
+        </span>
+</div>
+<!-- Quick Bookmark Action -->
+<button aria-label="حفظ المقال" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center text-dark-slate transition-all active:scale-90" id="bookmark-btn" onclick="toggleBookmark()">
+<span class="material-symbols-outlined text-[20px] text-athletic-olive" id="bookmark-icon" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+<!-- Article Header & Headline Area -->
+<header class="flex flex-col gap-space-xs mb-space-lg">
+<h1 class="font-section-title-mobile text-section-title-mobile text-dark-slate font-bold leading-tight">
+        كيف تختار أكاديمية سباحة آمنة ومعتمدة لطفلك قبل دفع الاشتراك؟
+      </h1>
+<p class="font-body-default text-body-default text-secondary leading-relaxed">
+        7 معايير حاسمة تضمن أمان طفلك المائي وصحة المياه دون إهدار أموالك في إعلانات مضللة.
+      </p>
+<!-- Author & Credibility Strip -->
+<div class="mt-space-xs p-space-sm bg-surface-card rounded-xl shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="relative w-11 h-11 shrink-0 rounded-full bg-surface-container-high overflow-hidden shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Portrait of Dr Ahmed Sami, Egyptian sports consultant, wearing official Egyptian Swimming Federation athletic polo shirt with professional friendly expression indoors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAeDczaTStbWgsX3PElKXKF2dhyjPjlIQ9y3O9Mbfj3-y5JcKrT8oNDuc6HMAjuyj7dOGRF7ZO7IQI3S87JWWvLs74OxJiL7rOGZoo1nx-ZZP9LQHdljJRIj-55X1PFEymZ69zrggdGysq0bMOBcS-EUe5xsz07Yc3h2aD_QEMRwNLKTZFHReYpN0vZo9_CQxJA-gJNPDGLYT3Vu0EhUl3AgCQgmv49mJ7cweQz4ElM"/>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1">
+<span class="font-card-title-sm text-card-title-sm text-dark-slate truncate">د. أحمد سامي</span>
+<span class="material-symbols-outlined text-athletic-olive text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<span class="font-micro-caption text-micro-caption text-text-muted truncate">استشاري تدريب مائي ومحاضر بالاتحاد المصري للسباحة</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs bg-surface-container-low/60 rounded-lg px-2.5 py-1 text-on-surface-variant font-micro-caption text-micro-caption">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>نوفمبر 2026</span>
+<span>•</span>
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span>4 دقائق قراءة</span>
+</div>
+<div class="flex items-center gap-1 text-deep-olive font-price-tag font-semibold">
+<span class="material-symbols-outlined text-[14px]">visibility</span>
+<span>3,420 قراءة</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Editorial Hero Media -->
+<div class="relative w-full aspect-[16/9] rounded-xl overflow-hidden shadow-sm mb-space-lg bg-dark-slate">
+<img class="w-full h-full object-cover" data-alt="Egyptian certified swim coach in blue swimcap gently guiding a young child in indoor heated swimming pool with clear turquoise water and bright daylight reflection" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJut6XW-AE5FDlgvaqKQUTRQJor9b-kqV1w8f06ut_R9ElQNnBgf7HAuOSXd5qXKEM7EiHGMdidDS-wrVv0tpHkF9OZlMXTLowb7pcYLnPV0_wCCl6Nga4R9xtiCpAuXTFfVPC9oTZk6Ts5KpjXUM4XZSVUhg4mpyaJUanmclO4wfOvqkSUopFpOz3qaRRRWueanQnoQZkq_jSDx38hErrK-hUHsNRWkUsy13Nx__o"/>
+<div class="absolute inset-0 bg-gradient-to-t from-dark-slate/80 via-transparent to-transparent flex items-end p-space-sm">
+<span class="text-on-primary bg-dark-slate/70 backdrop-blur-md px-2.5 py-1 rounded-full font-micro-caption text-micro-caption flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-electric-volt">photo_camera</span>
+          توثيق ميداني لأكاديميات السباحة المعتمدة في مصر
+        </span>
+</div>
+</div>
+<!-- Article Body Content -->
+<article class="flex flex-col gap-space-md text-on-surface font-body-default text-body-default leading-loose mb-space-xl">
+<p class="text-dark-slate font-medium bg-surface-container-low/70 p-space-md rounded-xl">
+        يواجه آلاف أولياء الأمور في مصر مطلع كل موسم تدريبي حيرة بالغة أمام مئات الإعلانات البراقة لأكاديميات السباحة؛ حيث يُفاجأ الكثيرون بعد سداد الاشتراكات بتكدس الحارات، أو انخفاض درجة حرارة المسبح شتاءً، أو غياب أطقم الإنقاذ الرسمية. في هذا الدليل الميداني، نلخص أهم المعايير الطبية والفنية المعتمدة لضمان تجربة آمنة لطفلك.
+      </p>
+<!-- Section 1 -->
+<section class="flex flex-col gap-space-xs mt-space-xs">
+<div class="flex items-center gap-2">
+<span class="w-7 h-7 rounded-full bg-deep-olive text-on-primary font-bold flex items-center justify-center font-price-tag text-card-title-sm shrink-0">1</span>
+<h2 class="font-card-title text-card-title text-dark-slate font-bold">
+            درجة حرارة المياه وتدفئة الحمام شتاءً (معيار 28°C)
+          </h2>
+</div>
+<p class="text-secondary text-body-compact font-body-compact">
+          السباحة في درجات حرارة تقل عن 26 درجة مئوية للأطفال دون 12 عاماً تؤدي مباشرة إلى انقباض المسالك التنفسية والتهابات الأذن الوسطى وضعف الاستجابة العضلية. تتطلب اللوائح الفنية استخدام غلايات تسخين غازية أوتوماتيكية تحافظ على دفء المياه بين 27.5°C إلى 29°C طوال ساعات اليوم.
+        </p>
+</section>
+<!-- Highlighted Key Takeaway Box -->
+<div class="bg-lime-tint p-space-md rounded-xl shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs text-deep-olive">
+<span class="text-[22px]">💡</span>
+<h3 class="font-card-title-sm text-card-title-sm font-bold">قاعدة كابتنلي الذهبية لولي الأمر</h3>
+</div>
+<p class="text-deep-olive font-body-compact text-body-compact leading-relaxed">
+          تأكد دائماً قبل الدفع من وجود أمرين حاسمين: <span class="font-bold underline decoration-athletic-olive">كثافة لا تزيد عن 5 إلى 6 أطفال في الحارة الواحدة مع الكابتن</span>، وأن يكون <span class="font-bold underline decoration-athletic-olive">السعر شاملاً تذكرة دخول المسبح بالكامل دون أي رسوم خفية</span> تُطلب لاحقاً عند البوابة.
+        </p>
+</div>
+<!-- Section 2 -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-2">
+<span class="w-7 h-7 rounded-full bg-deep-olive text-on-primary font-bold flex items-center justify-center font-price-tag text-card-title-sm shrink-0">2</span>
+<h2 class="font-card-title text-card-title text-dark-slate font-bold">
+            اعتماد الكابتن وتواجد المنقذ الدائم
+          </h2>
+</div>
+<p class="text-secondary text-body-compact font-body-compact">
+          مهارة السباح الشخصية لا تعني إطلاقاً كفاءته كمعلم للأطفال. يجب التحقق من كارنيه نقابة المهن الرياضية ورخصة الاتحاد المصري للسباحة السارية، إلى جانب اشتراط وجود منقذ متفرغ متمركز على حافة الحمام مستقل تماماً عن طاقم التدريب.
+        </p>
+</section>
+</article>
+<!-- Contextual Platform Conversion Widget -->
+<section class="bg-surface-card rounded-2xl p-space-md shadow-md mb-space-xl flex flex-col gap-space-md">
+<!-- Dark Slate Header Banner -->
+<div class="bg-dark-slate text-on-primary p-space-md rounded-xl flex flex-col gap-1">
+<div class="flex items-center gap-1.5 text-electric-volt font-badge-label text-badge-label">
+<span class="material-symbols-outlined text-[16px]">verified_user</span>
+<span>فحص كابتنلي الميداني المعتمد</span>
+</div>
+<h3 class="font-card-title text-card-title text-on-primary font-bold">
+          منشآت وكباتن معتمدون في المحلة الكبرى يلتزمون بهذه المعايير:
+        </h3>
+<p class="text-micro-caption font-micro-caption text-secondary-fixed-dim">
+          تم فحص وتوثيق مواصفات المسبح وسجلات المنقذين ميدانياً بواسطة فريق كابتنلي ✓
+        </p>
+</div>
+<!-- Recommendation Card 1 -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="relative w-full h-36 rounded-lg overflow-hidden bg-dark-slate">
+<img class="w-full h-full object-cover" data-alt="Indoor heated half-olympic swimming pool facility in Egypt with blue water lanes, safety lane separators, and bright modern illumination" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrXIEyY1H63GWc0bgQ6jAmtGJbPA9IR2sAy7ZgRIrqSNwE4r-EORgrk4TUpQW775PnlqbSGt4mzVqRGK3Vra89I7TngC7ccP5h2vkAj8l6S6XRWY1IBxKSi-OQDihz-xoHlY-RYUWG96K6OXBPe2i0PcTvNwQ-swCTeH_QOxOnAOxB0KTikKBVaWoGG3eScWQ_n6uSSKUVz1yHYtUmr90ZYrzrY3oHRvf-vEUjj9Dv"/>
+<span class="absolute top-2 right-2 bg-deep-olive text-on-primary px-2 py-0.5 rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">device_thermostat</span>
+            حمام مدفأ 28°C
+          </span>
+<span class="absolute bottom-2 left-2 bg-dark-slate/85 text-electric-volt px-2 py-0.5 rounded font-price-tag text-badge-label font-bold">
+            #CAP-7821
+          </span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<h4 class="font-card-title-sm text-card-title-sm text-dark-slate font-bold">أكاديمية وكابتن محمود الشناوي</h4>
+<div class="flex items-center gap-1 bg-surface-card px-2 py-0.5 rounded-full shadow-sm text-micro-caption font-price-tag font-bold text-dark-slate">
+<span class="text-status-warning">★</span>
+<span>4.9</span>
+</div>
+</div>
+<p class="text-text-muted font-micro-caption text-micro-caption">نادي الغزل • المحلة الكبرى</p>
+<p class="text-secondary font-body-compact text-body-compact">تأسيس أطفال • مسبح نصف أوليمبي مدفأ مغطى • حد أقصى 5 أطفال في الحارة</p>
+</div>
+<div class="flex items-center justify-between pt-space-xs bg-surface-card p-2 rounded-lg">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">الاشتراك المعتمد</span>
+<div class="flex items-baseline gap-1 text-deep-olive font-price-tag font-bold text-card-title-sm">
+<span>900</span>
+<span class="text-micro-caption font-body-default">ج.م / 8 حصص</span>
+</div>
+<span class="font-micro-caption text-micro-caption text-athletic-olive font-semibold">شامل التذكرة بدون رسوم خفية</span>
+</div>
+<div class="flex items-center gap-1.5">
+<a class="h-10 px-3 bg-action-whatsapp text-on-primary rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm active:scale-95 transition-transform" href="https://wa.me/201000000000">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>واتساب 💬</span>
+</a>
+<button class="h-10 px-3 bg-dark-slate text-on-primary rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm active:scale-95 transition-transform">
+<span>البروفايل</span>
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Recommendation Card 2 -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="relative w-full h-36 rounded-lg overflow-hidden bg-dark-slate">
+<img class="w-full h-full object-cover" data-alt="Modern sports club swimming facility interior with wide clean deck, warm lighting, life buoys, and professional coaching lanes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQQLJjaV9cxOF2LSLqVgsvz9YCN2SVMpHUtVgCv1QEkc5Si4Oimaj51M8nlL2DBIebxGGiWIdFbYvd8ZPZv2Ytx-PTPvbUQddSEbZFQoTUCA7mddAU4rn4ztpVJAuDS0RYwcueXw9qTXMeJ6EIywZAn9ofqZnCeceZVAkP93x7YKeQrdm6xlSkxnRpYqxChkCGG0NLijeh4N-QhNXpela-jvRBnma1v1HUDNE1ctU5"/>
+<span class="absolute top-2 right-2 bg-athletic-olive text-on-primary px-2 py-0.5 rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+            منشأة رسمية معتمدة
+          </span>
+<span class="absolute bottom-2 left-2 bg-dark-slate/85 text-electric-volt px-2 py-0.5 rounded font-price-tag text-badge-label font-bold">
+            #CAP-9310
+          </span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<h4 class="font-card-title-sm text-card-title-sm text-dark-slate font-bold">نادي وأكاديمية النخبة للسباحة</h4>
+<div class="flex items-center gap-1 bg-surface-card px-2 py-0.5 rounded-full shadow-sm text-micro-caption font-price-tag font-bold text-dark-slate">
+<span class="text-status-warning">★</span>
+<span>4.8</span>
+</div>
+</div>
+<p class="text-text-muted font-micro-caption text-micro-caption">طريق طنطا السريع • المحلة الكبرى</p>
+<p class="text-secondary font-body-compact text-body-compact">8 حارات تدريب • غرف تبديل مدفأة بالكامل • طاقم إنقاذ دائم متفرغ</p>
+</div>
+<div class="flex items-center justify-between pt-space-xs bg-surface-card p-2 rounded-lg">
+<div class="flex flex-col">
+<span class="font-micro-caption text-micro-caption text-text-muted">الاشتراك المعتمد</span>
+<div class="flex items-baseline gap-1 text-deep-olive font-price-tag font-bold text-card-title-sm">
+<span>850</span>
+<span class="text-micro-caption font-body-default">ج.م / 8 حصص</span>
+</div>
+<span class="font-micro-caption text-micro-caption text-athletic-olive font-semibold">ضمان الالتزام بمعايير السلامة</span>
+</div>
+<div class="flex items-center gap-1.5">
+<a class="h-10 px-3 bg-action-whatsapp text-on-primary rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm active:scale-95 transition-transform" href="https://wa.me/201000000000">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>واتساب 💬</span>
+</a>
+<button class="h-10 px-3 bg-dark-slate text-on-primary rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm active:scale-95 transition-transform">
+<span>البروفايل</span>
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Feedback & Author Bio Footer Area -->
+<div class="flex flex-col gap-space-md mb-space-xl">
+<!-- Article Feedback Block -->
+<div class="p-space-md bg-surface-card rounded-xl shadow-sm flex flex-col items-center justify-center text-center gap-space-sm">
+<span class="font-card-title-sm text-card-title-sm text-dark-slate font-bold">هل كان هذا المقال مفيداً لك؟</span>
+<div class="flex items-center gap-space-md">
+<button class="flex items-center gap-1 px-4 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label transition-transform active:scale-95" id="like-btn" onclick="voteFeedback('like')">
+<span>👍 نعم</span>
+<span class="font-price-tag font-bold mr-1" id="like-count">342</span>
+</button>
+<button class="flex items-center gap-1 px-4 py-2 rounded-full bg-surface-container-low text-secondary font-badge-label text-badge-label transition-transform active:scale-95" id="dislike-btn" onclick="voteFeedback('dislike')">
+<span>👎 لا</span>
+</button>
+</div>
+</div>
+<!-- Author Bio Full Card -->
+<div class="bg-surface-card p-space-md rounded-xl shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-12 h-12 rounded-full bg-surface-container-high overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of swimming coach and academic consultant Dr Ahmed Sami smiling with sports credential badge" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDkLjbF897hVzlKFnNNnrA9JbuUVHC4BaiKAGWun_Niu2_FkLXvEauIwORAHVGsTqukKWviZgCwzKDxP2N2iiThTGC2B39owdmCbyhekTe2cWPw-KsLhhSOclMT3iaKTBr0608FqgQV2yh_dNduxwdRZFBXiHAcLw7eJhYrJFOqGHr1ioRbYYjqXASuuX0oHayy2A1p6JEKYQ3k-if0sFsGbj4BKqCQB777jESFCDIP"/>
+</div>
+<div class="flex flex-col">
+<span class="font-card-title-sm text-card-title-sm text-dark-slate font-bold">عن الكاتب: د. أحمد سامي</span>
+<span class="font-micro-caption text-micro-caption text-text-muted">خبير معتمد في تخطيط المنشآت المائية وتأهيل السباحين الناشئين.</span>
+</div>
+</div>
+<p class="font-body-compact text-body-compact text-secondary">
+          يقدم د. أحمد سامي أسبوعياً عبر منصة كابتنلي سلسلة إرشادات علمية لمساعدة العائلات المصرية على اتخاذ قرارات رياضية آمنة ومدروسة.
+        </p>
+<button class="w-full py-2.5 rounded-full bg-surface-container-low text-dark-slate font-badge-label text-badge-label flex items-center justify-center gap-1.5 shadow-sm active:bg-lime-tint active:text-deep-olive transition-colors" onclick="toggleBookmark()">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span>
+<span>أضف المقال للمفضلة للرجوع إليه وقت الحاجة</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Interactive Client-side Script -->
+<script>
+    let isBookmarked = true;
+    function toggleBookmark() {
+      isBookmarked = !isBookmarked;
+      const icon = document.getElementById('bookmark-icon');
+      if (icon) {
+        icon.style.fontVariationSettings = isBookmarked ? "'FILL' 1" : "'FILL' 0";
+        icon.className = isBookmarked ? "material-symbols-outlined text-[20px] text-athletic-olive" : "material-symbols-outlined text-[20px] text-secondary";
+      }
+    }
+
+    let voted = false;
+    function voteFeedback(type) {
+      if (voted) return;
+      voted = true;
+      if (type === 'like') {
+        const count = document.getElementById('like-count');
+        if (count) count.textContent = '343';
+        document.getElementById('like-btn').classList.add('bg-deep-olive', 'text-on-primary');
+      } else {
+        document.getElementById('dislike-btn').classList.add('bg-secondary', 'text-on-primary');
+      }
+    }
+
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+      const bar = document.getElementById('read-progress');
+      if (bar) bar.style.width = scrolled + '%';
+    });
+  </script>
+</div></main></body></html>
