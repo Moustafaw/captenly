@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       ? body.email.trim().toLowerCase()
       : null;
 
-    const record = {
+    const baseRecord = {
       member_code: memberCode,
       email,
       full_name_ar: fullNameAr,
@@ -38,8 +38,22 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    const extendedRecord = {
+      ...baseRecord,
+      ...(typeof body.bioAr === "string" ? { bio_ar: body.bioAr.trim() || null } : {}),
+      ...(body.socialLinks && typeof body.socialLinks === "object"
+        ? { social_links: body.socialLinks }
+        : {}),
+    };
+
     const onConflict = email ? "email" : "member_code";
-    const { error } = await admin.from("captenly_profiles").upsert(record, { onConflict });
+    let { error } = await admin.from("captenly_profiles").upsert(extendedRecord, { onConflict });
+
+    // Graceful fallback if migration 000002 hasn't been executed yet in Supabase
+    if (error && (error.code === "42703" || error.code === "PGRST204")) {
+      const retry = await admin.from("captenly_profiles").upsert(baseRecord, { onConflict });
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({ persisted: false, reason: error.code || "db_error" });

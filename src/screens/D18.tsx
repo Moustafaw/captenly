@@ -11,16 +11,9 @@ export default function Desktop18() {
   const matchingCount = useMemo(() => {
     return facilities.filter((f) => {
       if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
-      if (smartFilters.sportCategory === "swimming" && f.sportSector === "fitness") return false;
-      if (smartFilters.sportCategory === "fitness" && f.sportSector === "swimming") return false;
+      if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
-      if (
-        smartFilters.ladiesOnly &&
-        !f.poolSpecs?.hasLadiesOnlySlots &&
-        !f.gymSpecs?.hasLadiesOnlySlots
-      ) {
-        return false;
-      }
+      if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
       const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
       if (basePrice > smartFilters.maxPriceEgp) return false;
@@ -52,26 +45,10 @@ export default function Desktop18() {
         <section className="bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm flex flex-col gap-6">
           {/* Sport Sector */}
           <div className="flex flex-col gap-2">
-            <label className="font-card-title-sm text-dark-slate">نوع النشاط الرياضي</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: "all", label: "الكل (سباحة وجيم)" },
-                { key: "swimming", label: "مسابح ومدارس سباحة فقط" },
-                { key: "fitness", label: "صالات جيم ولياقة فقط" },
-              ].map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => updateSmartFilters({ sportCategory: s.key })}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                    smartFilters.sportCategory === s.key
-                      ? "bg-dark-slate text-electric-volt"
-                      : "bg-surface-snow text-text-muted hover:text-dark-slate"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <label className="font-card-title-sm text-dark-slate">نطاق المنشآت</label>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-dark-slate text-electric-volt w-fit">
+              <Icon name="pool" className="text-[16px]" />
+              <span>مسابح ومدارس وأكاديميات السباحة</span>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { SWIMMING_SPECIALTIES_9, FITNESS_SPECIALTIES_7 } from "@/data/seedData";
+import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 
 interface ClaimAndVerifyClientProps {
@@ -34,6 +34,8 @@ export function ClaimAndVerifyClient({
   const [roleTitleAr, setRoleTitleAr] = useState("مدير المنشأة / المسؤول الرسمي");
   const [facPhone, setFacPhone] = useState("");
   const [facWhatsapp, setFacWhatsapp] = useState("");
+  const [facFacebook, setFacFacebook] = useState("");
+  const [facInstagram, setFacInstagram] = useState("");
   const [instapayHandle, setInstapayHandle] = useState("");
   const [updatedPrice, setUpdatedPrice] = useState<string>(
     preselected?.pricePackages[0]?.baseMonthlyEgp
@@ -49,9 +51,11 @@ export function ClaimAndVerifyClient({
   const [coachName, setCoachName] = useState("");
   const [coachTitle, setCoachTitle] = useState("مدرب سباحة وإنقاذ مائي معتمد");
   const [coachPhone, setCoachPhone] = useState("");
+  const [coachWhatsapp, setCoachWhatsapp] = useState("");
+  const [coachFacebook, setCoachFacebook] = useState("");
+  const [coachInstagram, setCoachInstagram] = useState("");
   const [coachCity, setCoachCity] = useState("المحلة الكبرى");
   const [coachDistrict, setCoachDistrict] = useState("وسط المدينة");
-  const [coachSector, setCoachSector] = useState<"swimming" | "fitness" | "both">("swimming");
   const [yearsExp, setYearsExp] = useState("6");
   const [coachBio, setCoachBio] = useState(
     "خبرة في تأسيس الأطفال وكسر رهبة الماء وبناء اللياقة البدنية وفق المعايير الرياضية المعتمدة."
@@ -80,7 +84,9 @@ export function ClaimAndVerifyClient({
       managerName: managerName.trim(),
       roleTitleAr,
       phone: facPhone.trim(),
-      whatsappNumber: facWhatsapp.trim() || facPhone.trim(),
+      whatsappNumber: facWhatsapp.trim() || undefined,
+      facebookUrl: facFacebook.trim() || undefined,
+      instagramUrl: facInstagram.trim() || undefined,
       instapayHandle: instapayHandle.trim() || undefined,
       updatedBasePriceEgp: Number(updatedPrice) || undefined,
       commercialRegRef: commercialRef.trim() || undefined,
@@ -100,11 +106,13 @@ export function ClaimAndVerifyClient({
       city: coachCity,
       governorate: "الغربية",
       district: coachDistrict.trim(),
-      sportSector: coachSector,
+      sportSector: "swimming",
       yearsExperience: Number(yearsExp) || 4,
       bioAr: coachBio.trim(),
       avatarUrl: coachAvatarUrl || undefined,
-      whatsappNumber: coachPhone.trim(),
+      whatsappNumber: coachWhatsapp.trim() || undefined,
+      facebookUrl: coachFacebook.trim() || undefined,
+      instagramUrl: coachInstagram.trim() || undefined,
       privatePackage8Egp: Number(pkg8Egp) || 700,
       privatePackage12Egp: Number(pkg12Egp) || 950,
       specialtiesAr: selectedSpecs,
@@ -119,12 +127,7 @@ export function ClaimAndVerifyClient({
     }
   };
 
-  const allSpecOptions =
-    coachSector === "fitness"
-      ? FITNESS_SPECIALTIES_7
-      : coachSector === "both"
-      ? [...SWIMMING_SPECIALTIES_9.slice(0, 5), ...FITNESS_SPECIALTIES_7.slice(0, 4)]
-      : SWIMMING_SPECIALTIES_9;
+  const allSpecOptions = SWIMMING_SPECIALTIES_9;
 
   return (
     <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16">
@@ -302,7 +305,7 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">رقم الواتساب لاستقبال الحجوزات</label>
+                  <label className="font-badge-label text-dark-slate">رقم الواتساب (اختياري)</label>
                   <input
                     type="tel"
                     dir="ltr"
@@ -311,6 +314,34 @@ export function ClaimAndVerifyClient({
                     placeholder="010xxxxxxxx"
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
                   />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">رابط صفحة فيسبوك (اختياري)</label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={facFacebook}
+                    onChange={(e) => setFacFacebook(e.target.value)}
+                    placeholder="https://facebook.com/academy"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">رابط إنستاجرام (اختياري)</label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={facInstagram}
+                    onChange={(e) => setFacInstagram(e.target.value)}
+                    placeholder="https://instagram.com/academy"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
+                  />
+                </div>
+
+                <div className="md:col-span-2 text-[11px] font-semibold text-deep-olive bg-lime-tint/40 rounded-xl px-3.5 py-2">
+                  مطلوب وسيلة تواصل عامة واحدة على الأقل (واتساب أو فيسبوك أو إنستاجرام) ليتمكن السباحون من الوصول إليكم مباشرة.
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -421,7 +452,7 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">رقم الموبايل الشخصي وواتساب *</label>
+                  <label className="font-badge-label text-dark-slate">رقم الموبايل للتوثيق *</label>
                   <input
                     required
                     type="tel"
@@ -434,16 +465,46 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">القطاع الرياضي</label>
-                  <select
-                    value={coachSector}
-                    onChange={(e) => setCoachSector(e.target.value as "swimming" | "fitness" | "both")}
-                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
-                  >
-                    <option value="swimming">سباحة وإنقاذ مائي</option>
-                    <option value="fitness">جيم ولياقة بدنية</option>
-                    <option value="both">سباحة + إعداد بدني</option>
-                  </select>
+                  <label className="font-badge-label text-dark-slate">رقم الواتساب للتواصل (اختياري)</label>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    value={coachWhatsapp}
+                    onChange={(e) => setCoachWhatsapp(e.target.value)}
+                    placeholder="010xxxxxxxx"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">حساب فيسبوك (اختياري)</label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={coachFacebook}
+                    onChange={(e) => setCoachFacebook(e.target.value)}
+                    placeholder="https://facebook.com/coach"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">حساب إنستاجرام (اختياري)</label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={coachInstagram}
+                    onChange={(e) => setCoachInstagram(e.target.value)}
+                    placeholder="https://instagram.com/coach"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive text-right"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">التخصص الرياضي</label>
+                  <div className="rounded-xl bg-surface-snow px-4 py-3 text-deep-olive font-bold border border-surface-container text-sm">
+                    سباحة وإنقاذ مائي (السباحة فقط حالياً)
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">

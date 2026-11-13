@@ -9,6 +9,8 @@ import { FacilityCard, resolveFacilityImage } from "@/components/editorial/Facil
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { getFacilityDistanceKm } from "@/lib/maps";
+import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import type { Facility } from "@/types/captenly";
 
 function Desktop23Inner() {
   const searchParams = useSearchParams();
@@ -20,10 +22,14 @@ function Desktop23Inner() {
     setFilterModalOpen,
     compareFacilityIds,
     userLocation,
+    mergeExternalPlacesFacilities,
   } = useCaptenly();
 
   const [selectedMapFacId, setSelectedMapFacId] = useState<string>(facilities[0]?.id || "");
   const [compareToast, setCompareToast] = useState<string | null>(null);
+  const [googlePlacesResults, setGooglePlacesResults] = useState<Facility[]>([]);
+  const [placesLoading, setPlacesLoading] = useState(false);
+  const [rotationSeed] = useState<number>(() => new Date().getDate());
 
   // Sync URL query params cleanly once / on change
   useEffect(() => {
@@ -41,45 +47,96 @@ function Desktop23Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Hybrid Google Places search on query or city selection
+  useEffect(() => {
+    const q = smartFilters.searchQuery.trim();
+    const city = smartFilters.city;
+    if (q.length < 2 && city === "الكل") {
+      setGooglePlacesResults([]);
+      setPlacesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPlacesLoading(true);
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (city && city !== "الكل") params.set("city", city);
+      fetch(`/api/places/search?${params.toString()}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled) return;
+          const places = Array.isArray(data?.places) ? (data.places as Facility[]) : [];
+          setGooglePlacesResults(places);
+          if (places.length > 0) {
+            mergeExternalPlacesFacilities(places);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setGooglePlacesResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setPlacesLoading(false);
+        });
+    }, 380);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smartFilters.searchQuery, smartFilters.city]);
+
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
     const list = facilities.filter((f) => {
       if (q) {
-        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.specialtiesAr.join(" ")}`.toLowerCase();
+        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
-      if (smartFilters.sportCategory === "swimming" && f.sportSector === "fitness") return false;
-      if (smartFilters.sportCategory === "fitness" && f.sportSector === "swimming") return false;
+      if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
-      if (
-        smartFilters.ladiesOnly &&
-        !f.poolSpecs?.hasLadiesOnlySlots &&
-        !f.gymSpecs?.hasLadiesOnlySlots
-      ) {
-        return false;
-      }
+      if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
       const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
       if (basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     });
 
+    // Merge active Google Places matches when technical boolean filters aren't excluding directory entries
+    const mergedList = [...list];
+    if (!smartFilters.heatedOnly && !smartFilters.ladiesOnly && !smartFilters.lifeguardOnly && googlePlacesResults.length > 0) {
+      const seenIds = new Set(mergedList.map((f) => f.id));
+      const seenPlaceIds = new Set(mergedList.map((f) => f.googlePlaceId).filter(Boolean));
+      for (const ext of googlePlacesResults) {
+        if (seenIds.has(ext.id)) continue;
+        if (ext.googlePlaceId && seenPlaceIds.has(ext.googlePlaceId)) continue;
+        mergedList.push(ext);
+      }
+    }
+
     if (smartFilters.sortBy === "price_asc") {
-      return [...list].sort(
+      return [...mergedList].sort(
         (a, b) =>
           (a.pricePackages[0]?.baseMonthlyEgp || 9999) -
           (b.pricePackages[0]?.baseMonthlyEgp || 9999)
       );
     }
     if (smartFilters.sortBy === "nearest") {
-      return [...list].sort(
+      return [...mergedList].sort(
         (a, b) =>
           getFacilityDistanceKm(a, userLocation) - getFacilityDistanceKm(b, userLocation)
       );
     }
-    return [...list].sort((a, b) => b.rating - a.rating);
-  }, [facilities, smartFilters, userLocation]);
+    return [...mergedList].sort((a, b) => b.rating - a.rating);
+  }, [facilities, googlePlacesResults, smartFilters, userLocation]);
+
+  const partitioned = useMemo(
+    () => partitionFacilities3Tier(filtered, rotationSeed),
+    [filtered, rotationSeed]
+  );
 
   const activeMapFacility =
     filtered.find((f) => f.id === selectedMapFacId) || filtered[0] || facilities[0];
@@ -99,7 +156,7 @@ function Desktop23Inner() {
   }
   if (smartFilters.sportCategory !== "all") {
     activeFilterChips.push({
-      label: smartFilters.sportCategory === "swimming" ? "السباحة" : "الجيم واللياقة",
+      label: "السباحة",
       clear: () => updateSmartFilters({ sportCategory: "all" }),
     });
   }
@@ -124,10 +181,10 @@ function Desktop23Inner() {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <h1 className="font-section-title text-[24px] text-dark-slate">
-                استكشف الأندية والمسابح وصالات اللياقة ({filtered.length} منشأة)
+                استكشف المسابح وأكاديميات السباحة ({filtered.length} منشأة)
               </h1>
               <p className="font-body-compact text-text-muted mt-0.5">
-                قارن الأندية والمسابح وصالات اللياقة المتاحة في نطاقك وتواصل مع الإدارة عبر واتساب مباشرة
+                ابحث في مسابح وأكاديميات كابتنلي المسجلة بالإضافة إلى دليل الأماكن من خرائط Google
               </p>
             </div>
 
@@ -199,24 +256,7 @@ function Desktop23Inner() {
                 }`}
               >
                 <Icon name="pool" className="text-[14px]" />
-                <span>سباحة</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  updateSmartFilters({
-                    sportCategory: smartFilters.sportCategory === "fitness" ? "all" : "fitness",
-                  })
-                }
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                  smartFilters.sportCategory === "fitness"
-                    ? "bg-lime-tint text-deep-olive"
-                    : "bg-surface-snow text-text-muted"
-                }`}
-              >
-                <Icon name="fitness_center" className="text-[14px]" />
-                <span>جيم ولياقة</span>
+                <span>السباحة والمسابح</span>
               </button>
 
               <button
@@ -304,7 +344,14 @@ function Desktop23Inner() {
           </div>
         )}
 
-        {filtered.length === 0 ? (
+        {placesLoading && (
+          <div className="px-4 py-2.5 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-text-muted flex items-center gap-2">
+            <Icon name="travel_explore" className="text-[16px] text-deep-olive animate-pulse" />
+            <span>جاري البحث في مسابح خرائط Google القريبة من نطاقك...</span>
+          </div>
+        )}
+
+        {filtered.length === 0 && !placesLoading ? (
           <DemandRadarFallback
             queryText={smartFilters.searchQuery}
             onResetFilters={resetSmartFilters}
@@ -312,17 +359,73 @@ function Desktop23Inner() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
             {/* Cards Column */}
-            <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
-              {filtered.map((fac) => (
-                <FacilityCard
-                  key={fac.id}
-                  facility={fac}
-                  onSelectCompareFeedback={(msg) => {
-                    setCompareToast(msg);
-                    setTimeout(() => setCompareToast(null), 3000);
-                  }}
-                />
-              ))}
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              {partitioned.featured.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icon name="verified" className="text-[17px] text-deep-olive" />
+                    <h2 className="font-card-title-sm text-dark-slate">ترشيحات كابتنلي المختارة</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
+                    {partitioned.featured.map((fac) => (
+                      <FacilityCard
+                        key={fac.id}
+                        facility={fac}
+                        onSelectCompareFeedback={(msg) => {
+                          setCompareToast(msg);
+                          setTimeout(() => setCompareToast(null), 3000);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {partitioned.registered.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icon name="pool" className="text-[17px] text-dark-slate" />
+                    <h2 className="font-card-title-sm text-dark-slate">
+                      الأندية والأكاديميات المسجلة على كابتنلي ({partitioned.registered.length})
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
+                    {partitioned.registered.map((fac) => (
+                      <FacilityCard
+                        key={fac.id}
+                        facility={fac}
+                        onSelectCompareFeedback={(msg) => {
+                          setCompareToast(msg);
+                          setTimeout(() => setCompareToast(null), 3000);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {partitioned.unclaimedDirectory.length > 0 && (
+                <div className="flex flex-col gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Icon name="explore" className="text-[17px] text-text-muted" />
+                    <h2 className="font-card-title-sm text-text-muted">
+                      دليل الأماكن من خرائط Google — بدون أزرار تواصل ({partitioned.unclaimedDirectory.length})
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
+                    {partitioned.unclaimedDirectory.map((fac) => (
+                      <FacilityCard
+                        key={fac.id}
+                        facility={fac}
+                        onSelectCompareFeedback={(msg) => {
+                          setCompareToast(msg);
+                          setTimeout(() => setCompareToast(null), 3000);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Interactive Sticky Map Column */}

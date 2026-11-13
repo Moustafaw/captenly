@@ -10,29 +10,24 @@ import { FacilityCard } from "@/components/editorial/FacilityCard";
 export default function CoachesDirectoryPage() {
   const { coaches, facilities } = useCaptenly();
   const [cityFilter, setCityFilter] = useState("الكل");
-  const [sectorFilter, setSectorFilter] = useState<"all" | "swimming" | "fitness">("all");
   const [tab, setTab] = useState<"coaches" | "facilities">("coaches");
 
   const verifiedCoaches = useMemo(() => {
     return coaches.filter((c) => {
       if (!c.isVerifiedCoach) return false;
+      if (c.sportSector === "fitness") return false;
       if (cityFilter !== "الكل" && c.city !== cityFilter) return false;
-      if (sectorFilter !== "all" && c.sportSector !== "both" && c.sportSector !== sectorFilter) {
-        return false;
-      }
       return true;
     });
-  }, [coaches, cityFilter, sectorFilter]);
+  }, [coaches, cityFilter]);
 
   const filteredFacilities = useMemo(() => {
     return facilities.filter((f) => {
+      if (f.sportSector === "fitness") return false;
       if (cityFilter !== "الكل" && f.city !== cityFilter) return false;
-      if (sectorFilter !== "all" && f.sportSector !== "both" && f.sportSector !== sectorFilter) {
-        return false;
-      }
       return true;
     });
-  }, [facilities, cityFilter, sectorFilter]);
+  }, [facilities, cityFilter]);
 
   return (
     <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16">
@@ -110,16 +105,6 @@ export default function CoachesDirectoryPage() {
                 {c}
               </button>
             ))}
-
-            <select
-              value={sectorFilter}
-              onChange={(e) => setSectorFilter(e.target.value as "all" | "swimming" | "fitness")}
-              className="rounded-full bg-surface-snow px-3.5 py-1.5 text-xs font-bold text-dark-slate outline-none"
-            >
-              <option value="all">كل الرياضات</option>
-              <option value="swimming">السباحة فقط</option>
-              <option value="fitness">الجيم واللياقة</option>
-            </select>
           </div>
         </div>
 

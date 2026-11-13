@@ -9,6 +9,8 @@ import { FacilityCard, resolveFacilityImage } from "@/components/editorial/Facil
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { getFacilityDistanceKm } from "@/lib/maps";
+import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import type { Facility } from "@/types/captenly";
 
 function Phone6Inner() {
   const pathname = usePathname() || "/explore";
@@ -21,12 +23,16 @@ function Phone6Inner() {
     setFilterModalOpen,
     compareFacilityIds,
     userLocation,
+    mergeExternalPlacesFacilities,
   } = useCaptenly();
 
   const isPoolsRoute = pathname.startsWith("/pools");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [selectedMapId, setSelectedMapId] = useState<string>(facilities[0]?.id || "");
   const [toast, setToast] = useState<string | null>(null);
+  const [googlePlacesResults, setGooglePlacesResults] = useState<Facility[]>([]);
+  const [placesLoading, setPlacesLoading] = useState(false);
+  const [rotationSeed] = useState<number>(() => new Date().getDate());
 
   useEffect(() => {
     const q = searchParams?.get("q");
@@ -41,43 +47,94 @@ function Phone6Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isPoolsRoute]);
 
+  // Hybrid Google Places search on query or city selection
+  useEffect(() => {
+    const q = smartFilters.searchQuery.trim();
+    const city = smartFilters.city;
+    if (q.length < 2 && city === "الكل") {
+      setGooglePlacesResults([]);
+      setPlacesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPlacesLoading(true);
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (city && city !== "الكل") params.set("city", city);
+      fetch(`/api/places/search?${params.toString()}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled) return;
+          const places = Array.isArray(data?.places) ? (data.places as Facility[]) : [];
+          setGooglePlacesResults(places);
+          if (places.length > 0) {
+            mergeExternalPlacesFacilities(places);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setGooglePlacesResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setPlacesLoading(false);
+        });
+    }, 380);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smartFilters.searchQuery, smartFilters.city]);
+
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
     const list = facilities.filter((f) => {
       if (q) {
-        const hay = `${f.nameAr} ${f.city} ${f.district} ${f.specialtiesAr.join(" ")}`.toLowerCase();
+        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
-      if (smartFilters.sportCategory === "swimming" && f.sportSector === "fitness") return false;
-      if (smartFilters.sportCategory === "fitness" && f.sportSector === "swimming") return false;
+      if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
-      if (
-        smartFilters.ladiesOnly &&
-        !f.poolSpecs?.hasLadiesOnlySlots &&
-        !f.gymSpecs?.hasLadiesOnlySlots
-      ) {
-        return false;
-      }
+      if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
       if (basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     });
+
+    const mergedList = [...list];
+    if (!smartFilters.heatedOnly && !smartFilters.ladiesOnly && googlePlacesResults.length > 0) {
+      const seenIds = new Set(mergedList.map((f) => f.id));
+      const seenPlaceIds = new Set(mergedList.map((f) => f.googlePlaceId).filter(Boolean));
+      for (const ext of googlePlacesResults) {
+        if (seenIds.has(ext.id)) continue;
+        if (ext.googlePlaceId && seenPlaceIds.has(ext.googlePlaceId)) continue;
+        mergedList.push(ext);
+      }
+    }
+
     if (smartFilters.sortBy === "price_asc") {
-      return [...list].sort(
+      return [...mergedList].sort(
         (a, b) =>
           (a.pricePackages[0]?.baseMonthlyEgp || 9999) -
           (b.pricePackages[0]?.baseMonthlyEgp || 9999)
       );
     }
     if (smartFilters.sortBy === "nearest") {
-      return [...list].sort(
+      return [...mergedList].sort(
         (a, b) =>
           getFacilityDistanceKm(a, userLocation) - getFacilityDistanceKm(b, userLocation)
       );
     }
-    return [...list].sort((a, b) => b.rating - a.rating);
-  }, [facilities, smartFilters, userLocation]);
+    return [...mergedList].sort((a, b) => b.rating - a.rating);
+  }, [facilities, googlePlacesResults, smartFilters, userLocation]);
+
+  const partitioned = useMemo(
+    () => partitionFacilities3Tier(filtered, rotationSeed),
+    [filtered, rotationSeed]
+  );
 
   const activeMapFac = filtered.find((f) => f.id === selectedMapId) || filtered[0];
 
@@ -86,9 +143,9 @@ function Phone6Inner() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="font-section-title-mobile text-dark-slate">
-            {isPoolsRoute ? "المسابح ومدارس السباحة" : "استكشف المنشآت"} ({filtered.length})
+            {isPoolsRoute ? "المسابح ومدارس السباحة" : "استكشف المسابح والأكاديميات"} ({filtered.length})
           </h1>
-          <p className="text-[11px] text-text-muted">مقارنة شفافة وتواصل مباشر عبر واتساب</p>
+          <p className="text-[11px] text-text-muted">مقارنة شفافة للمسابح والمدربين المعتمدين</p>
         </div>
 
         <div className="flex items-center bg-surface-card p-1 rounded-full shadow-sm border border-surface-container shrink-0">
@@ -187,7 +244,14 @@ function Phone6Inner() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {placesLoading && (
+        <div className="p-2.5 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-text-muted flex items-center gap-2">
+          <Icon name="travel_explore" className="text-[16px] text-deep-olive animate-pulse" />
+          <span>جاري البحث في مسابح خرائط Google القريبة...</span>
+        </div>
+      )}
+
+      {filtered.length === 0 && !placesLoading ? (
         <DemandRadarFallback queryText={smartFilters.searchQuery} onResetFilters={resetSmartFilters} />
       ) : viewMode === "map" ? (
         <div className="flex flex-col gap-4">
@@ -226,17 +290,73 @@ function Phone6Inner() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {filtered.map((fac) => (
-            <FacilityCard
-              key={fac.id}
-              facility={fac}
-              onSelectCompareFeedback={(msg) => {
-                setToast(msg);
-                setTimeout(() => setToast(null), 2800);
-              }}
-            />
-          ))}
+        <div className="flex flex-col gap-5">
+          {partitioned.featured.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <Icon name="verified" className="text-[15px] text-deep-olive" />
+                <span className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {partitioned.featured.map((fac) => (
+                  <FacilityCard
+                    key={fac.id}
+                    facility={fac}
+                    onSelectCompareFeedback={(msg) => {
+                      setToast(msg);
+                      setTimeout(() => setToast(null), 2800);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {partitioned.registered.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <Icon name="pool" className="text-[15px] text-dark-slate" />
+                <span className="text-xs font-bold text-dark-slate">
+                  الحسابات المسجلة على كابتنلي ({partitioned.registered.length})
+                </span>
+              </div>
+              <div className="flex flex-col gap-4">
+                {partitioned.registered.map((fac) => (
+                  <FacilityCard
+                    key={fac.id}
+                    facility={fac}
+                    onSelectCompareFeedback={(msg) => {
+                      setToast(msg);
+                      setTimeout(() => setToast(null), 2800);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {partitioned.unclaimedDirectory.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <Icon name="explore" className="text-[15px] text-text-muted" />
+                <span className="text-xs font-bold text-text-muted">
+                  دليل الأماكن من خرائط Google — بدون أزرار تواصل ({partitioned.unclaimedDirectory.length})
+                </span>
+              </div>
+              <div className="flex flex-col gap-4">
+                {partitioned.unclaimedDirectory.map((fac) => (
+                  <FacilityCard
+                    key={fac.id}
+                    facility={fac}
+                    onSelectCompareFeedback={(msg) => {
+                      setToast(msg);
+                      setTimeout(() => setToast(null), 2800);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -5,9 +5,11 @@ import { Icon } from "@/components/Icon";
 import { Facility } from "@/types/captenly";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { useState } from "react";
+import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 
 export function resolveFacilityImage(heroImage?: string): string {
   if (heroImage && heroImage.startsWith("/")) return heroImage;
+  if (heroImage && heroImage.startsWith("http")) return heroImage;
   return "/screens/20b781f698f9.jpg";
 }
 
@@ -159,7 +161,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
           </Link>
 
           <p className="font-body-compact text-body-compact text-text-muted line-clamp-2">
-            {facility.scheduleSummaryAr || facility.addressAr}
+            {facility.publicDescriptionAr || facility.scheduleSummaryAr || facility.addressAr}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
@@ -178,38 +180,49 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
 
       <div className="px-space-md pb-space-md flex flex-col gap-2.5">
         <div className="bg-surface-snow p-space-sm rounded-xl flex items-center justify-between gap-2">
-          <div className="flex flex-col">
-            <span className="font-micro-caption text-micro-caption text-text-muted">
-              {isUnclaimed ? "الاشتراك الشهري المتداول" : "الاشتراك الشهري الموثق"}
-            </span>
-            <div className="flex items-baseline gap-1">
-              <span className="font-price-tag text-price-tag text-deep-olive">
-                {monthlyPrice.toLocaleString("en-US")}
+          {!isUnclaimed ? (
+            <div className="flex flex-col">
+              <span className="font-micro-caption text-micro-caption text-text-muted">
+                الاشتراك الشهري الموثق
               </span>
-              <span className="font-badge-label text-badge-label text-deep-olive">
-                ج.م {basePackage ? `/ ${basePackage.sessionsCount} حصة` : ""}
+              <div className="flex items-baseline gap-1">
+                <span className="font-price-tag text-price-tag text-deep-olive">
+                  {monthlyPrice.toLocaleString("en-US")}
+                </span>
+                <span className="font-badge-label text-badge-label text-deep-olive">
+                  ج.م {basePackage ? `/ ${basePackage.sessionsCount} حصة` : ""}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              <span className="font-micro-caption text-micro-caption text-text-muted">
+                دليل المواقع والسباحة
+              </span>
+              <span className="font-badge-label text-xs text-dark-slate">
+                {facility.district} • {facility.city}
               </span>
             </div>
-          </div>
+          )}
 
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleShareWhatsapp}
-              title="مشاركة الباقة على واتساب"
-              aria-label="مشاركة الباقة"
+              title="مشاركة الصفحة"
+              aria-label="مشاركة الصفحة"
               className="w-9 h-9 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors shadow-sm"
             >
               <Icon name={shareCopied ? "check" : "share"} className="text-[16px]" />
             </button>
-            <button
-              type="button"
-              onClick={handleWhatsappLead}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-action-whatsapp text-surface-card font-badge-label text-badge-label hover:opacity-90 transition-opacity shadow-sm"
-            >
-              <Icon name="chat" className="text-[15px]" />
-              <span>واتساب</span>
-            </button>
+            <ContactChannelsBar
+              supplyStatus={facility.supplyStatus}
+              whatsappNumber={facility.whatsappNumber}
+              facebookUrl={facility.facebookUrl}
+              instagramUrl={facility.instagramUrl}
+              onWhatsappClick={handleWhatsappLead}
+              compact
+            />
           </div>
         </div>
 
@@ -218,7 +231,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             href={`/academy/${facility.slug}`}
             className="text-deep-olive font-badge-label text-[12px] hover:underline flex items-center gap-1.5"
           >
-            <span>تفاصيل الباقات والمواعيد</span>
+            <span>{isUnclaimed ? "عرض الموقع والتفاصيل" : "تفاصيل الباقات والمواعيد"}</span>
             <Icon name="arrow_back" className="text-[14px]" />
           </Link>
         </div>

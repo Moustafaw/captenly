@@ -28,7 +28,6 @@ function Desktop10Inner() {
   const [fullNameAr, setFullNameAr] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("المحلة الكبرى");
-  const [sportPref, setSportPref] = useState<"swimming" | "fitness" | "both">("swimming");
   const [hasParentSup, setHasParentSup] = useState(false);
 
   // Login fields
@@ -46,7 +45,7 @@ function Desktop10Inner() {
       phone: phone.trim(),
       city,
       governorate: "الغربية",
-      sportPreference: sportPref,
+      sportPreference: "swimming",
       hasParentSupervision: role === "parent" ? true : hasParentSup,
       role,
     });
@@ -185,37 +184,21 @@ function Desktop10Inner() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-dark-slate">نوع الحساب</label>
-                  <select
-                    value={role}
-                    onChange={(e) =>
-                      setRole(
-                        e.target.value as "adult_athlete" | "parent" | "coach" | "facility_manager"
-                      )
-                    }
-                    className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
-                  >
-                    <option value="adult_athlete">سباح / رياضي مستقل</option>
-                    <option value="parent">ولي أمر (خياري لمتابعة الأبناء)</option>
-                    <option value="coach">كابتن (للتوثيق والاعتماد)</option>
-                    <option value="facility_manager">إدارة منشأة / نادي</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-dark-slate">الاهتمام الرياضي</label>
-                  <select
-                    value={sportPref}
-                    onChange={(e) => setSportPref(e.target.value as "swimming" | "fitness" | "both")}
-                    className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
-                  >
-                    <option value="swimming">سباحة</option>
-                    <option value="fitness">جيم ولياقة</option>
-                    <option value="both">سباحة + لياقة</option>
-                  </select>
-                </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-dark-slate">نوع الحساب</label>
+                <select
+                  value={role}
+                  onChange={(e) =>
+                    setRole(
+                      e.target.value as "adult_athlete" | "parent" | "coach" | "facility_manager"
+                    )
+                  }
+                  className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+                >
+                  <option value="adult_athlete">عضو / سبّاح (مع خيار متابعة الأبناء)</option>
+                  <option value="coach">كابتن سباحة (للتوثيق والاعتماد)</option>
+                  <option value="facility_manager">إدارة أكاديمية أو مسبح</option>
+                </select>
               </div>
 
               {role === "adult_athlete" && (
@@ -270,28 +253,6 @@ function Desktop10Inner() {
               >
                 دخول بالرمز المؤكد ←
               </button>
-
-              <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
-                <span className="text-[11px] font-bold text-text-muted">دخول سريع بحساب تجريبي:</span>
-                <div className="flex flex-wrap gap-2">
-                  {allPersonas
-                    .filter((p) => p.role !== "guest")
-                    .slice(0, 3)
-                    .map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          switchPersona(p.id);
-                          router.push("/dashboard/ledger");
-                        }}
-                        className="px-3 py-1.5 rounded-full bg-surface-snow hover:bg-lime-tint text-xs font-bold text-dark-slate"
-                      >
-                        {p.shortLabelAr}
-                      </button>
-                    ))}
-                </div>
-              </div>
             </form>
           )}
         </div>

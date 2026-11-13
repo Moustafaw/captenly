@@ -8,6 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
+import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 
 export default function Phone13() {
   const params = useParams();
@@ -57,7 +58,9 @@ export default function Phone13() {
       requestedSpecialtyAr: pkg?.nameAr || facility.specialtiesAr[0] || "اشتراك",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -116,19 +119,11 @@ export default function Phone13() {
         </div>
         <h1 className="font-section-title-mobile text-dark-slate leading-snug">{facility.nameAr}</h1>
         <p className="text-xs text-text-muted">{facility.addressAr}</p>
-        {facility.scheduleSummaryAr && (
+        {(facility.publicDescriptionAr || facility.scheduleSummaryAr) && (
           <div className="text-[11px] bg-surface-snow p-2.5 rounded-xl text-dark-slate font-semibold flex items-start gap-1.5">
-            <Icon name="schedule" className="text-[14px] text-deep-olive shrink-0 mt-0.5" />
-            <span>{facility.scheduleSummaryAr}</span>
+            <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[14px] text-deep-olive shrink-0 mt-0.5" />
+            <span>{facility.publicDescriptionAr || facility.scheduleSummaryAr}</span>
           </div>
-        )}
-        {isUnclaimed && (
-          <p className="text-[11px] font-bold text-deep-olive leading-relaxed flex items-start gap-1.5 pt-1">
-            <Icon name="info" className="text-[14px] shrink-0 mt-0.5" />
-            <span>
-              لا تتوفر حالياً بيانات أو باقات محدثة مقدمة مباشرة من «{facility.nameAr}» لعدم تفعيل حسابها على المنصة حتى الآن.
-            </span>
-          </p>
         )}
       </div>
 
@@ -165,13 +160,22 @@ export default function Phone13() {
               <div className="text-lg font-black text-deep-olive shrink-0">{p.baseMonthlyEgp} ج.م</div>
             </div>
           ))}
-          {isUnclaimed && (
-            <p className="text-[11px] font-semibold text-text-muted leading-relaxed flex items-start gap-1.5 px-1">
-              <Icon name="info" className="text-[14px] text-deep-olive shrink-0 mt-0.5" />
-              <span>
-                ملحوظة: «{facility.nameAr}» لم تقم بتفعيل حسابها وإدارة بياناتها على كابتنلي حتى الآن، لذا لا تتوفر حالياً باقات أو أسعار محدثة مقدمة مباشرة منها.
-              </span>
-            </p>
+          {facility.schoolPrograms && facility.schoolPrograms.length > 0 && (
+            <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+              <div className="font-card-title-sm text-sm text-dark-slate">مسارات مدارس السباحة</div>
+              {facility.schoolPrograms.map((prog) => (
+                <div key={prog.id} className="rounded-xl bg-surface-snow p-3 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-bold text-deep-olive">
+                      {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+                    </div>
+                    <div className="font-bold text-xs text-dark-slate">{prog.titleAr}</div>
+                    <div className="text-[11px] text-text-muted">{prog.scheduleAr}</div>
+                  </div>
+                  <div className="text-base font-black text-deep-olive shrink-0">{prog.priceEgp} ج.م</div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -197,12 +201,6 @@ export default function Phone13() {
                 </span>
               </div>
             </>
-          )}
-          {facility.gymSpecs && (
-            <div className="flex justify-between py-1.5">
-              <span className="text-text-muted">مساحة الجيم ومواعيد السيدات</span>
-              <span className="font-bold text-dark-slate">{facility.gymSpecs.ladiesScheduleAr}</span>
-            </div>
           )}
         </div>
       )}
@@ -248,22 +246,24 @@ export default function Phone13() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-2 pt-1">
-        <button
-          type="button"
-          onClick={handleWhatsapp}
-          className="py-3 rounded-full bg-action-whatsapp text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow"
-        >
-          <Icon name="chat" className="text-[16px]" />
-          <span>واتساب مباشر</span>
-        </button>
-        <Link
-          href={`/booking?facility=${facility.slug}&pkg=${pkg?.id || ""}`}
-          className="py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center shadow"
-        >
-          تجهيز الحجز ←
-        </Link>
-      </div>
+      {!isUnclaimed && (
+        <div className="flex flex-col gap-2 pt-1">
+          <ContactChannelsBar
+            supplyStatus={facility.supplyStatus}
+            whatsappNumber={facility.whatsappNumber}
+            facebookUrl={facility.facebookUrl}
+            instagramUrl={facility.instagramUrl}
+            onWhatsappClick={handleWhatsapp}
+            fullWidthPrimary
+          />
+          <Link
+            href={`/booking?facility=${facility.slug}&pkg=${pkg?.id || ""}`}
+            className="py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center shadow"
+          >
+            تجهيز الحجز ←
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

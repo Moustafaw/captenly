@@ -3,10 +3,12 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   Coach,
+  CoachSessionOffer,
   DemandRadarEntry,
   DemandRadarSubmission,
   EditorialArticle,
   Facility,
+  FacilitySchoolProgram,
   MemberRegistryEntry,
   MinorAthleteProfile,
   NotificationItem,
@@ -17,6 +19,7 @@ import {
   SkillEvaluation5Point,
   SmartFiltersState,
   UserLocation,
+  UserSocialLinks,
   VerifiedLeadItem,
 } from "@/types/captenly";
 import { EGYPT_CITY_PRESETS, calculateDistanceKm } from "@/lib/maps";
@@ -58,6 +61,14 @@ interface CaptenlyContextType {
   currentPersona: PersonaAccount;
   switchPersona: (personaId: string) => void;
   updateCurrentPersonaAvatar: (avatarDataUrl: string) => void;
+  updateCurrentPersonaProfile: (patch: {
+    fullNameAr?: string;
+    phone?: string;
+    city?: string;
+    bioAr?: string;
+    socialLinks?: UserSocialLinks;
+    hasParentSupervision?: boolean;
+  }) => void;
   allPersonas: PersonaAccount[];
   isOfflineSimulated: boolean;
   isBrowserOffline: boolean;
@@ -174,7 +185,7 @@ interface CaptenlyContextType {
     targetType: "facility" | "coach";
     targetId: string;
     targetNameAr: string;
-    whatsappNumber: string;
+    whatsappNumber?: string;
     inquirerNameAr: string;
     inquirerPhone: string;
     athleteAge: number;
@@ -213,6 +224,16 @@ interface CaptenlyContextType {
   ) => void;
 
   addNewPBRecord: (record: Omit<PersonalBestRecord, "id" | "recordedDateAr">) => void;
+  recordCoachSkillAndPB: (payload: {
+    athleteId?: string;
+    swimmerNameAr: string;
+    eventTitleAr: string;
+    currentValue: number;
+    unitAr?: string;
+    coachNameAr: string;
+    facilityNameAr?: string;
+    skills?: SkillEvaluation5Point;
+  }) => void;
   addMinorAthlete: (child: {
     fullNameAr: string;
     age: number;
@@ -232,7 +253,10 @@ interface CaptenlyContextType {
     yearsExperience: number;
     bioAr: string;
     avatarUrl?: string;
-    whatsappNumber: string;
+    whatsappNumber?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    socialLinks?: UserSocialLinks;
     instapayHandle?: string;
     privatePackage8Egp: number;
     privatePackage12Egp: number;
@@ -241,6 +265,12 @@ interface CaptenlyContextType {
     edlfCertRef?: string;
     facilityId?: string;
   }) => { ok: boolean; coach?: Coach; detectedKeyword?: string; messageAr: string };
+
+  addCoachSessionOffer: (coachId: string, offer: Omit<CoachSessionOffer, "id">) => { ok: boolean; messageAr: string };
+  removeCoachSessionOffer: (coachId: string, offerId: string) => void;
+  addFacilitySchoolProgram: (facilityId: string, program: Omit<FacilitySchoolProgram, "id">) => { ok: boolean; messageAr: string };
+  removeFacilitySchoolProgram: (facilityId: string, programId: string) => void;
+  mergeExternalPlacesFacilities: (externalPlaces: Facility[]) => void;
 
   validateAndSaveCoachBio: (
     coachId: string,
@@ -273,7 +303,9 @@ interface CaptenlyContextType {
       managerName: string;
       roleTitleAr: string;
       phone: string;
-      whatsappNumber: string;
+      whatsappNumber?: string;
+      facebookUrl?: string;
+      instagramUrl?: string;
       instapayHandle?: string;
       updatedBasePriceEgp?: number;
       commercialRegRef?: string;
@@ -286,7 +318,7 @@ interface CaptenlyContextType {
     district: string;
     sportSector: "swimming" | "fitness" | "both";
     baseMonthlyPrice: number;
-    whatsappNumber: string;
+    whatsappNumber?: string;
     isHeatedWinter: boolean;
     hasLadiesSlots: boolean;
   }) => Facility;
@@ -311,7 +343,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [coaches, setCoaches] = useState<Coach[]>(INITIAL_COACHES);
   const [minorAthletes, setMinorAthletes] = useState<MinorAthleteProfile[]>(INITIAL_MINOR_ATHLETES);
   const [pbRecords, setPbRecords] = useState<PersonalBestRecord[]>(INITIAL_PB_RECORDS);
-  const [skillEvaluation] = useState<SkillEvaluation5Point>(INITIAL_SKILL_EVALUATION);
+  const [skillEvaluation, setSkillEvaluation] = useState<SkillEvaluation5Point>(INITIAL_SKILL_EVALUATION);
   const [sessionLedgers, setSessionLedgers] = useState<SessionLedger[]>(INITIAL_SESSION_LEDGERS);
   const [verifiedLeads, setVerifiedLeads] = useState<VerifiedLeadItem[]>(INITIAL_VERIFIED_LEADS);
   const [demandRadar, setDemandRadar] = useState<DemandRadarEntry[]>(INITIAL_DEMAND_RADAR);
@@ -487,6 +519,44 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Hydrate persisted remote notifications for active memberCode when available
+  useEffect(() => {
+    const memberCode = currentPersona.memberCode;
+    if (!memberCode) return;
+    let cancelled = false;
+    fetch(`/api/supabase/notifications?memberCode=${encodeURIComponent(memberCode)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.persisted || !Array.isArray(data.items) || data.items.length === 0) {
+          return;
+        }
+        setNotifications((prev) => {
+          const existingIds = new Set(prev.map((n) => n.id));
+          const existingSignatures = new Set(prev.map((n) => `${n.titleAr}::${n.messageAr}`));
+          const mapped: NotificationItem[] = [];
+          for (const row of data.items) {
+            const sig = `${row.title_ar}::${row.message_ar}`;
+            if (existingIds.has(row.id) || existingSignatures.has(sig)) continue;
+            mapped.push({
+              id: row.id,
+              titleAr: row.title_ar,
+              messageAr: row.message_ar,
+              type: (row.notif_type || "system") as NotificationItem["type"],
+              actionLabelAr: row.action_label_ar || undefined,
+              actionHref: row.action_href || undefined,
+              isRead: Boolean(row.is_read),
+              timeAr: "سحابي",
+            });
+          }
+          return mapped.length > 0 ? [...mapped, ...prev] : prev;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPersona.memberCode]);
+
   const pushNotification = (notif: Omit<NotificationItem, "id" | "isRead" | "timeAr">) => {
     setNotifications((prev) => [
       {
@@ -497,6 +567,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       },
       ...prev,
     ]);
+    if (currentPersona.memberCode) {
+      postSupabaseSync("/api/supabase/notifications", {
+        memberCode: currentPersona.memberCode,
+        titleAr: notif.titleAr,
+        messageAr: notif.messageAr,
+        type: notif.type,
+        actionLabelAr: notif.actionLabelAr,
+        actionHref: notif.actionHref,
+      });
+    }
   };
 
   const syncOfflineQueue = () => {
@@ -628,6 +708,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)) {
+      postSupabaseSync("/api/supabase/notifications", { markReadId: id });
+    }
   };
 
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
@@ -1028,6 +1111,67 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateCurrentPersonaProfile = (patch: {
+    fullNameAr?: string;
+    phone?: string;
+    city?: string;
+    bioAr?: string;
+    socialLinks?: UserSocialLinks;
+    hasParentSupervision?: boolean;
+  }) => {
+    setCurrentPersona((prev) => {
+      const next: PersonaAccount = {
+        ...prev,
+        ...(patch.fullNameAr !== undefined ? { fullNameAr: patch.fullNameAr } : {}),
+        ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+        ...(patch.city !== undefined ? { city: patch.city } : {}),
+        ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
+        ...(patch.socialLinks !== undefined
+          ? { socialLinks: { ...(prev.socialLinks || {}), ...patch.socialLinks } }
+          : {}),
+        ...(patch.hasParentSupervision !== undefined
+          ? { hasParentSupervision: patch.hasParentSupervision }
+          : {}),
+      };
+      setAllPersonas((list) => list.map((p) => (p.id === next.id ? next : p)));
+
+      if (next.linkedCoachId) {
+        setCoaches((list) =>
+          list.map((c) =>
+            c.id === next.linkedCoachId
+              ? {
+                  ...c,
+                  ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
+                  ...(patch.socialLinks !== undefined
+                    ? {
+                        socialLinks: { ...(c.socialLinks || {}), ...patch.socialLinks },
+                        facebookUrl: patch.socialLinks.facebook ?? c.facebookUrl,
+                        instagramUrl: patch.socialLinks.instagram ?? c.instagramUrl,
+                      }
+                    : {}),
+                }
+              : c
+          )
+        );
+      }
+
+      if (next.memberCode) {
+        postSupabaseSync("/api/supabase/sync-profile", {
+          memberCode: next.memberCode,
+          fullNameAr: next.fullNameAr,
+          role: next.role,
+          phone: next.phone,
+          city: next.city,
+          bioAr: next.bioAr,
+          socialLinks: next.socialLinks,
+          hasParentSupervision: next.hasParentSupervision,
+          needsOnboarding: false,
+        });
+      }
+      return next;
+    });
+  };
+
   const toggleOfflineSimulation = () => {
     setIsOfflineSimulated((prev) => !prev);
   };
@@ -1094,7 +1238,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     targetType: "facility" | "coach";
     targetId: string;
     targetNameAr: string;
-    whatsappNumber: string;
+    whatsappNumber?: string;
     inquirerNameAr: string;
     inquirerPhone: string;
     athleteAge: number;
@@ -1155,7 +1299,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
 
     const messageText = `السلام عليكم، شفت صفحة (${payload.targetNameAr}) على منصة كابتنلي (captenly.com) وقارنت الباقات والمواعيد.\nحابب أستفسر عن الاشتراك في: [${payload.requestedSpecialtyAr}]\nللعمر: [${payload.athleteAge} سنة]\nالموعد المفضل: [${payload.preferredScheduleAr}]\nكود عضويتي: [${currentPersona.memberCode || "زائر"}]\n(كود إحالة كابتنلي: ${referralCode})`;
-    const cleanWa = payload.whatsappNumber.replace(/\D/g, "");
+    const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
+    if (!cleanWa) {
+      return { referralCode, whatsappUrl: "", isDuplicate30d };
+    }
     const formattedWa = cleanWa.startsWith("20") ? cleanWa : cleanWa.startsWith("0") ? `2${cleanWa}` : `20${cleanWa}`;
     const whatsappUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(messageText)}`;
 
@@ -1402,6 +1549,53 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setPbRecords((prev) => [newRec, ...prev]);
   };
 
+  const recordCoachSkillAndPB = (payload: {
+    athleteId?: string;
+    swimmerNameAr: string;
+    eventTitleAr: string;
+    currentValue: number;
+    unitAr?: string;
+    coachNameAr: string;
+    facilityNameAr?: string;
+    skills?: SkillEvaluation5Point;
+  }) => {
+    const targetAthleteId = payload.athleteId || currentPersona.id;
+    const previousSame = pbRecords.find(
+      (r) =>
+        r.eventTitleAr === payload.eventTitleAr &&
+        (r.athleteId === targetAthleteId || r.athleteNameAr === payload.swimmerNameAr)
+    );
+
+    const newRec: PersonalBestRecord = {
+      id: `pb-${Date.now()}`,
+      athleteId: targetAthleteId,
+      athleteNameAr: payload.swimmerNameAr,
+      sportType: "swimming",
+      eventTitleAr: payload.eventTitleAr,
+      currentValue: payload.currentValue,
+      previousValue: previousSame ? previousSame.currentValue : payload.currentValue,
+      unitAr: payload.unitAr || "ثانية",
+      recordedDateAr: "اليوم — توقيت موثق",
+      verificationSource: "coach_reviewed",
+      verificationLabelAr: "توقيت موثق من الكابتن",
+      coachNameAr: payload.coachNameAr,
+      facilityNameAr: payload.facilityNameAr || currentPersona.city,
+    };
+    setPbRecords((prev) => [newRec, ...prev]);
+
+    if (payload.skills) {
+      setSkillEvaluation(payload.skills);
+    }
+
+    pushNotification({
+      titleAr: `تقييم ورقم قياسي جديد (${payload.eventTitleAr})`,
+      messageAr: `سجّل كابتن ${payload.coachNameAr} للسباح ${payload.swimmerNameAr} زمناً قدره ${payload.currentValue} ${payload.unitAr || "ثانية"}.`,
+      type: "passport_badge",
+      actionLabelAr: "عرض تحليل الأداء",
+      actionHref: "/dashboard/athlete",
+    });
+  };
+
   const addMinorAthlete = (child: {
     fullNameAr: string;
     age: number;
@@ -1438,7 +1632,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     yearsExperience: number;
     bioAr: string;
     avatarUrl?: string;
-    whatsappNumber: string;
+    whatsappNumber?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    socialLinks?: UserSocialLinks;
     instapayHandle?: string;
     privatePackage8Egp: number;
     privatePackage12Egp: number;
@@ -1447,6 +1644,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     edlfCertRef?: string;
     facilityId?: string;
   }) => {
+    const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
+    const cleanFb = (payload.facebookUrl || payload.socialLinks?.facebook || "").trim();
+    const cleanIg = (payload.instagramUrl || payload.socialLinks?.instagram || "").trim();
+    if (!cleanWa && !cleanFb && !cleanIg) {
+      return {
+        ok: false,
+        messageAr: "يرجى إدخال وسيلة تواصل واحدة على الأقل (رقم واتساب أو رابط فيسبوك أو إنستاجرام).",
+      };
+    }
+
     const detected = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => payload.bioAr.includes(kw));
     if (detected) {
       return {
@@ -1460,6 +1667,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const coachId = `coach-${Date.now()}`;
     const slug = `coach-${idNum}-${payload.fullNameAr.trim().replace(/\s+/g, "-")}`;
     const fac = facilities.find((f) => f.id === payload.facilityId);
+    const formattedWa = cleanWa
+      ? cleanWa.startsWith("20")
+        ? cleanWa
+        : cleanWa.startsWith("0")
+        ? `2${cleanWa}`
+        : `20${cleanWa}`
+      : undefined;
 
     const newCoach: Coach = {
       id: coachId,
@@ -1474,10 +1688,35 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       yearsExperience: payload.yearsExperience,
       bioAr: payload.bioAr,
       avatarUrl: payload.avatarUrl || "/screens/3dff88737bec.jpg",
-      whatsappNumber: payload.whatsappNumber,
+      whatsappNumber: formattedWa,
+      facebookUrl: cleanFb || undefined,
+      instagramUrl: cleanIg || undefined,
+      socialLinks: {
+        ...(payload.socialLinks || {}),
+        ...(cleanFb ? { facebook: cleanFb } : {}),
+        ...(cleanIg ? { instagram: cleanIg } : {}),
+      },
       instapayHandle: payload.instapayHandle || `${payload.phone}@instapay`,
       privatePackage8Egp: payload.privatePackage8Egp,
       privatePackage12Egp: payload.privatePackage12Egp,
+      sessionOffers: [
+        {
+          id: `offer-${Date.now()}-1`,
+          titleAr: "باقة التأسيس والانطلاق (8 حصص)",
+          sessionsCount: 8,
+          priceEgp: payload.privatePackage8Egp,
+          durationMinutes: 60,
+          notesAr: "تدريب فردي أو مجموعة صغيرة مع تقييم مبدئي.",
+        },
+        {
+          id: `offer-${Date.now()}-2`,
+          titleAr: "الباقة المكثفة لتطوير الأداء (12 حصة)",
+          sessionsCount: 12,
+          priceEgp: payload.privatePackage12Egp,
+          durationMinutes: 60,
+          notesAr: "متابعة الأرقام القياسية وتصحيح التكنيك.",
+        },
+      ],
       subscriptionTier: "free_founding",
       commissionRate: 0,
       qrCodeToken: `CAP-QR-C${idNum}`,
@@ -1676,6 +1915,74 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const addCoachSessionOffer = (coachId: string, offer: Omit<CoachSessionOffer, "id">) => {
+    const newOffer: CoachSessionOffer = { ...offer, id: `offer-${Date.now()}` };
+    setCoaches((prev) =>
+      prev.map((c) =>
+        c.id === coachId ? { ...c, sessionOffers: [newOffer, ...(c.sessionOffers || [])] } : c
+      )
+    );
+    return { ok: true, messageAr: `تم نشر عرض التدريب «${offer.titleAr}» بنجاح!` };
+  };
+
+  const removeCoachSessionOffer = (coachId: string, offerId: string) => {
+    setCoaches((prev) =>
+      prev.map((c) =>
+        c.id === coachId
+          ? { ...c, sessionOffers: (c.sessionOffers || []).filter((o) => o.id !== offerId) }
+          : c
+      )
+    );
+  };
+
+  const addFacilitySchoolProgram = (
+    facilityId: string,
+    program: Omit<FacilitySchoolProgram, "id">
+  ) => {
+    const newProgram: FacilitySchoolProgram = { ...program, id: `prog-${Date.now()}` };
+    setFacilities((prev) =>
+      prev.map((f) =>
+        f.id === facilityId
+          ? {
+              ...f,
+              schoolPrograms: [newProgram, ...(f.schoolPrograms || [])],
+              priceLastVerifiedDaysAgo: 0,
+              priceLastVerifiedDate: "اليوم — محدث من الإدارة",
+            }
+          : f
+      )
+    );
+    return { ok: true, messageAr: `تم نشر برنامج «${program.titleAr}» في ملف المنشأة!` };
+  };
+
+  const removeFacilitySchoolProgram = (facilityId: string, programId: string) => {
+    setFacilities((prev) =>
+      prev.map((f) =>
+        f.id === facilityId
+          ? {
+              ...f,
+              schoolPrograms: (f.schoolPrograms || []).filter((p) => p.id !== programId),
+            }
+          : f
+      )
+    );
+  };
+
+  const mergeExternalPlacesFacilities = (externalPlaces: Facility[]) => {
+    if (!externalPlaces.length) return;
+    setFacilities((prev) => {
+      const existingPlaceIds = new Set(prev.map((f) => f.googlePlaceId).filter(Boolean));
+      const existingIds = new Set(prev.map((f) => f.id));
+      const fresh = externalPlaces.filter(
+        (ext) =>
+          !existingIds.has(ext.id) &&
+          (!ext.googlePlaceId || !existingPlaceIds.has(ext.googlePlaceId))
+      );
+      if (fresh.length === 0) return prev;
+      return [...prev, ...fresh];
+    });
+  };
+
   // نشر كارت باقة أو مدرسة تعليمية جديدة للمنشأة
   const publishSchoolPackage = (payload: {
     facilityId: string;
@@ -1739,7 +2046,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       managerName: string;
       roleTitleAr: string;
       phone: string;
-      whatsappNumber: string;
+      whatsappNumber?: string;
+      facebookUrl?: string;
+      instagramUrl?: string;
       instapayHandle?: string;
       updatedBasePriceEgp?: number;
       commercialRegRef?: string;
@@ -1750,15 +2059,33 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, messageAr: "المنشأة غير موجودة." };
     }
 
-    const cleanWa = payload.whatsappNumber.replace(/\D/g, "");
-    const formattedWa = cleanWa.startsWith("20") ? cleanWa : cleanWa.startsWith("0") ? `2${cleanWa}` : `20${cleanWa}`;
+    const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
+    const cleanFb = (payload.facebookUrl || "").trim();
+    const cleanIg = (payload.instagramUrl || "").trim();
+
+    if (!cleanWa && !cleanFb && !cleanIg) {
+      return {
+        ok: false,
+        messageAr: "يرجى إدخال وسيلة تواصل واحدة على الأقل (واتساب أو فيسبوك أو إنستاجرام).",
+      };
+    }
+
+    const formattedWa = cleanWa
+      ? cleanWa.startsWith("20")
+        ? cleanWa
+        : cleanWa.startsWith("0")
+        ? `2${cleanWa}`
+        : `20${cleanWa}`
+      : undefined;
 
     const verifiedFac: Facility = {
       ...existing,
       supplyStatus: "verified_active",
       verifiedClaimDateAr: "اليوم — منشأة مفعّلة وموثقة",
       sourcePublicNoteAr: `مُدارة ومحدّثة رسمياً بواسطة ${payload.managerName} (${payload.roleTitleAr})`,
-      whatsappNumber: formattedWa,
+      whatsappNumber: formattedWa ?? existing.whatsappNumber,
+      facebookUrl: cleanFb || existing.facebookUrl,
+      instagramUrl: cleanIg || existing.instagramUrl,
       instapayHandle: payload.instapayHandle || existing.instapayHandle,
       priceLastVerifiedDaysAgo: 0,
       priceLastVerifiedDate: "اليوم — أسعار مؤكدة من الإدارة",
@@ -1829,12 +2156,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     district: string;
     sportSector: "swimming" | "fitness" | "both";
     baseMonthlyPrice: number;
-    whatsappNumber: string;
+    whatsappNumber?: string;
     isHeatedWinter: boolean;
     hasLadiesSlots: boolean;
   }) => {
     const id = `fac-concierge-${Date.now()}`;
     const slug = `${id}-${newFac.city}`;
+    const cleanWa = (newFac.whatsappNumber || "").replace(/\D/g, "");
     const created: Facility = {
       id,
       slug,
@@ -1852,9 +2180,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       district: newFac.district,
       addressAr: `${newFac.district}، ${newFac.city}`,
       coordinates: { lat: 30.9706, lng: 31.1656 },
-      whatsappNumber: newFac.whatsappNumber.startsWith("2")
-        ? newFac.whatsappNumber
-        : `2${newFac.whatsappNumber}`,
+      whatsappNumber: cleanWa
+        ? cleanWa.startsWith("2")
+          ? cleanWa
+          : `2${cleanWa}`
+        : undefined,
       instapayHandle: "",
       vodafoneCashNumber: "",
       supplyStatus: "seeded_unclaimed",
@@ -1959,6 +2289,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         currentPersona,
         switchPersona,
         updateCurrentPersonaAvatar,
+        updateCurrentPersonaProfile,
         allPersonas,
         isOfflineSimulated,
         isBrowserOffline,
@@ -2012,8 +2343,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         checkInSession,
         uploadInstaPayReceipt,
         addNewPBRecord,
+        recordCoachSkillAndPB,
         addMinorAthlete,
         registerAndVerifyCoach,
+        addCoachSessionOffer,
+        removeCoachSessionOffer,
+        addFacilitySchoolProgram,
+        removeFacilitySchoolProgram,
+        mergeExternalPlacesFacilities,
         validateAndSaveCoachBio,
         gracefulDisaffiliateCoach,
         requestMutualAffiliation,

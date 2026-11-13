@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
+import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 
 export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
   const { coaches, createStructuredWhatsappLead, currentPersona } = useCaptenly();
@@ -12,6 +13,7 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
 
   const [leadCode, setLeadCode] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<8 | 12>(8);
+  const [selectedOfferId, setSelectedOfferId] = useState<string>("");
 
   if (!coach) {
     return (
@@ -58,7 +60,9 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
       preferredScheduleAr: "بالتنسيق مع الكابتن",
     });
     setLeadCode(res.referralCode);
-    window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
+    if (res.whatsappUrl) {
+      window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -114,14 +118,14 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleWhatsappLead}
-              className="w-full lg:w-auto px-6 py-3 rounded-full bg-action-whatsapp text-white font-card-title-sm flex items-center justify-center gap-2 hover:opacity-95 shadow-md"
-            >
-              <Icon name="chat" className="text-[18px]" />
-              <span>تواصل وحجز عبر واتساب</span>
-            </button>
+            <ContactChannelsBar
+              supplyStatus="verified_active"
+              whatsappNumber={coach.whatsappNumber}
+              facebookUrl={coach.facebookUrl}
+              instagramUrl={coach.instagramUrl}
+              onWhatsappClick={handleWhatsappLead}
+              fullWidthPrimary
+            />
 
             {leadCode && (
               <span className="text-xs text-electric-volt font-mono">
@@ -206,33 +210,67 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
 
           <aside className="lg:col-span-4 flex flex-col gap-4">
             <div className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-3">
-              <h3 className="font-card-title text-dark-slate">اختيار الباقة الشهرية</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSessions(8)}
-                  className={`p-3 rounded-xl border text-right transition-all ${
-                    selectedSessions === 8
-                      ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
-                      : "bg-surface-snow border-transparent text-text-muted"
-                  }`}
-                >
-                  <div className="text-xs font-bold">8 حصص</div>
-                  <div className="text-lg font-black text-deep-olive">{coach.privatePackage8Egp} ج.م</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSessions(12)}
-                  className={`p-3 rounded-xl border text-right transition-all ${
-                    selectedSessions === 12
-                      ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
-                      : "bg-surface-snow border-transparent text-text-muted"
-                  }`}
-                >
-                  <div className="text-xs font-bold">12 حصة</div>
-                  <div className="text-lg font-black text-deep-olive">{coach.privatePackage12Egp} ج.م</div>
-                </button>
-              </div>
+              <h3 className="font-card-title text-dark-slate">باقات وعروض الحصص المعلنة</h3>
+              {coach.sessionOffers && coach.sessionOffers.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {coach.sessionOffers.map((offer, idx) => {
+                    const active = selectedOfferId ? selectedOfferId === offer.id : idx === 0;
+                    return (
+                      <button
+                        key={offer.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOfferId(offer.id);
+                          if (offer.sessionsCount === 8 || offer.sessionsCount === 12) {
+                            setSelectedSessions(offer.sessionsCount);
+                          }
+                        }}
+                        className={`p-3.5 rounded-xl border text-right transition-all ${
+                          active
+                            ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                            : "bg-surface-snow border-transparent text-text-muted"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-xs text-dark-slate">{offer.titleAr}</span>
+                          <span className="text-base font-black text-deep-olive">{offer.priceEgp} ج.م</span>
+                        </div>
+                        <div className="text-[11px] text-text-muted mt-0.5">
+                          {offer.sessionsCount} حصص {offer.durationMinutes ? `• ${offer.durationMinutes} د` : ""}
+                          {offer.notesAr ? ` • ${offer.notesAr}` : ""}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSessions(8)}
+                    className={`p-3 rounded-xl border text-right transition-all ${
+                      selectedSessions === 8
+                        ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                        : "bg-surface-snow border-transparent text-text-muted"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">8 حصص</div>
+                    <div className="text-lg font-black text-deep-olive">{coach.privatePackage8Egp} ج.م</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSessions(12)}
+                    className={`p-3 rounded-xl border text-right transition-all ${
+                      selectedSessions === 12
+                        ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                        : "bg-surface-snow border-transparent text-text-muted"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">12 حصة</div>
+                    <div className="text-lg font-black text-deep-olive">{coach.privatePackage12Egp} ج.م</div>
+                  </button>
+                </div>
+              )}
 
               <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-2 mt-2">
                 <span className="text-xs font-bold text-dark-slate">

@@ -40,6 +40,34 @@ export interface PricePackage {
   companionFeeEgp: number;
 }
 
+export interface UserSocialLinks {
+  facebook?: string;
+  instagram?: string;
+  x?: string;
+  threads?: string;
+}
+
+export interface FacilitySchoolProgram {
+  id: string;
+  trackType: "buds" | "prep" | "team" | "school" | "ladies";
+  trackLabelAr: string; // e.g. "البراعم" | "التجهيزي" | "الفريق"
+  titleAr: string;
+  ageRangeAr?: string;
+  sessionsPerMonth?: number;
+  priceEgp: number;
+  scheduleAr: string;
+  notesAr?: string;
+}
+
+export interface CoachSessionOffer {
+  id: string;
+  titleAr: string;
+  sessionsCount: number;
+  priceEgp: number;
+  durationMinutes?: number;
+  notesAr?: string;
+}
+
 export interface Facility {
   id: string;
   slug: string;
@@ -52,7 +80,12 @@ export interface Facility {
   district: string;
   addressAr: string;
   coordinates: { lat: number; lng: number };
-  whatsappNumber: string;
+  whatsappNumber?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  googlePlaceId?: string;
+  publicDescriptionAr?: string;
+  isFeaturedTier?: boolean;
   instapayHandle: string;
   vodafoneCashNumber: string;
   supplyStatus: "verified_active" | "self_listed_pending" | "seeded_unclaimed";
@@ -90,6 +123,7 @@ export interface Facility {
   };
   specialtiesAr: string[];
   pricePackages: PricePackage[];
+  schoolPrograms?: FacilitySchoolProgram[];
   affiliatedCoachIds: string[];
   // Monthly Value Proof (MVP-11/12)
   monthlyMetrics: {
@@ -122,7 +156,11 @@ export interface Coach {
   yearsExperience: number;
   bioAr: string;
   avatarUrl: string;
-  whatsappNumber: string;
+  whatsappNumber?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  socialLinks?: UserSocialLinks;
+  sessionOffers?: CoachSessionOffer[];
   instapayHandle: string;
   privatePackage8Egp: number;
   privatePackage12Egp: number;
@@ -272,6 +310,8 @@ export interface PersonaAccount {
   phone: string;
   linkedCoachId?: string;
   linkedFacilityId?: string;
+  bioAr?: string;
+  socialLinks?: UserSocialLinks;
   descriptionAr: string;
 }
 

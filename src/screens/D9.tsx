@@ -54,7 +54,9 @@ function Desktop9Inner() {
       preferredScheduleAr: preferredSchedule,
     });
     setGeneratedLead({ referralCode: res.referralCode, whatsappUrl: res.whatsappUrl });
-    window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
+    if (res.whatsappUrl) {
+      window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (

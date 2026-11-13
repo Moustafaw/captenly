@@ -2,41 +2,29 @@
 
 import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
-import { useCaptenly } from "@/context/CaptenlyContext";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function Desktop14() {
-  const router = useRouter();
-  const { allPersonas, currentPersona, switchPersona } = useCaptenly();
-
   const roles = [
     {
       key: "adult_athlete",
-      title: "سبّاح أو رياضي مستقل",
-      desc: "احصل على كود عضوية فريد، قارن الباقات، وفعل دفتر الحصص الـ QR أوفلاين دون الحاجة لولي أمر.",
+      title: "عضو / سبّاح (مع خيار متابعة الأبناء)",
+      desc: "احصل على كود عضوية فريد، قارن الباقات، وفعل دفتر الحصص الـ QR أوفلاين أو أضف أبناءك من داخل نفس الحساب.",
       href: "/auth/register?role=adult_athlete",
       icon: "person",
     },
     {
-      key: "parent",
-      title: "ولي أمر (إشراف عائلي اختياري)",
-      desc: "خيار متاح للأهالي لمتابعة حضور وتقييمات الأبناء تحت 14 سنة من موبايلهم.",
-      href: "/auth/register?role=parent",
-      icon: "groups",
-    },
-    {
       key: "coach",
-      title: "كابتن معتمد / متقدم للتوثيق",
-      desc: "وثّق شهاداتك برقم الهاتف لإصدار الشارات الخضراء وربط المتدربين بكود العضوية.",
+      title: "كابتن سباحة (معتمد / متقدم للتوثيق)",
+      desc: "وثّق شهاداتك برقم الهاتف لإصدار الشارات الخضراء، نشر عروض حصصك، وربط المتدربين بكود العضوية.",
       href: "/claim?mode=coach",
       icon: "workspace_premium",
     },
     {
       key: "facility_manager",
-      title: "إدارة نادي أو أكاديمية رياضية",
-      desc: "طالب بصفحة منشأتك مجاناً، حدّث الباقات، وفعّل دفاتر الحصص للمشتركين بـ 0% عمولة.",
+      title: "إدارة أكاديمية أو مسبح",
+      desc: "طالب بصفحة منشأتك مجاناً، انشر برامج مدارس السباحة، وفعل دفاتر الحصص للمشتركين بـ 0% عمولة.",
       href: "/claim",
       icon: "stadium",
     },
@@ -86,7 +74,7 @@ export default function Desktop14() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {roles.map((r) => (
             <Link
               key={r.key}
@@ -106,43 +94,6 @@ export default function Desktop14() {
             </Link>
           ))}
         </div>
-
-        {/* Quick Persona Switcher for Testing */}
-        <section className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="font-card-title-sm text-dark-slate">
-              التبديل السريع بين الحسابات الجاهزة (للتجربة الفورية)
-            </h3>
-            <span className="text-xs font-mono text-deep-olive">
-              الحالي: {currentPersona.shortLabelAr}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {allPersonas.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  switchPersona(p.id);
-                  router.push(
-                    p.role === "coach"
-                      ? "/dashboard/coach"
-                      : p.role === "facility_manager"
-                      ? "/dashboard/facility"
-                      : "/dashboard/ledger"
-                  );
-                }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                  p.id === currentPersona.id
-                    ? "bg-dark-slate text-electric-volt"
-                    : "bg-surface-snow text-dark-slate hover:bg-lime-tint"
-                }`}
-              >
-                {p.shortLabelAr}
-              </button>
-            ))}
-          </div>
-        </section>
       </div>
     </div>
   );

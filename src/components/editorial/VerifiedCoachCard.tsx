@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { Coach } from "@/types/captenly";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 
 interface VerifiedCoachCardProps {
   coach: Coach;
@@ -25,7 +26,9 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
       requestedSpecialtyAr: coach.specialties[0]?.nameAr || "حصة تقييم",
       preferredScheduleAr: "بالتنسيق مع الكابتن",
     });
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -87,21 +90,24 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
         </div>
       </div>
 
-      <div className="pt-space-md mt-space-sm flex items-center gap-2">
+      <div className="pt-space-md mt-space-sm flex flex-wrap items-center gap-2">
         <Link
           href={`/c/${coach.slug}`}
-          className="flex-1 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-dark-slate font-badge-label text-[12px] transition-colors text-center"
+          className="flex-1 min-w-[96px] py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-dark-slate font-badge-label text-[12px] transition-colors text-center"
         >
           الملف والشارات
         </Link>
-        <button
-          type="button"
-          onClick={handleWhatsappLead}
-          className="flex-1 py-2 rounded-full bg-action-whatsapp text-surface-card font-badge-label text-[12px] hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
-        >
-          <Icon name="chat" className="text-[15px]" />
-          <span>واتساب</span>
-        </button>
+        <div className="flex-1 min-w-[116px] flex justify-end">
+          <ContactChannelsBar
+            supplyStatus="verified_active"
+            whatsappNumber={coach.whatsappNumber}
+            facebookUrl={coach.facebookUrl}
+            instagramUrl={coach.instagramUrl}
+            onWhatsappClick={handleWhatsappLead}
+            compact
+            fullWidthPrimary
+          />
+        </div>
       </div>
     </div>
   );

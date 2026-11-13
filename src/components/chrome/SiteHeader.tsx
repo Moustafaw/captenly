@@ -13,24 +13,15 @@ const STATIC_NAV_START = [
   { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
   {
     href: "/explore",
-    label: "استكشف المنشآت",
-    match: (p: string) => p.startsWith("/explore"),
-  },
-  {
-    href: "/pools",
-    label: "المسابح والمدارس",
-    match: (p: string) => p.startsWith("/pools"),
-  },
-  {
-    href: "/coaches",
-    label: "المدربين والأكاديميات",
+    label: "استكشف",
     match: (p: string) =>
-      p.startsWith("/coaches") || p.startsWith("/c/") || p.startsWith("/academy") || p.startsWith("/claim"),
-  },
-  {
-    href: "/compare",
-    label: "مقارنة الباقات",
-    match: (p: string) => p.startsWith("/compare"),
+      p.startsWith("/explore") ||
+      p.startsWith("/pools") ||
+      p.startsWith("/coaches") ||
+      p.startsWith("/compare") ||
+      p.startsWith("/c/") ||
+      p.startsWith("/academy") ||
+      p.startsWith("/claim"),
   },
 ];
 
@@ -39,11 +30,6 @@ const STATIC_NAV_END = [
     href: "/magazine",
     label: "المجلة الرياضية",
     match: (p: string) => p.startsWith("/magazine"),
-  },
-  {
-    href: "/favorites",
-    label: "المفضلة",
-    match: (p: string) => p.startsWith("/favorites"),
   },
 ];
 
@@ -59,10 +45,9 @@ export function SiteHeader() {
     userLocation,
     setLocationModalOpen,
     unreadNotificationsCount,
+    savedFavoriteIds,
     currentPersona,
     effectiveOffline,
-    allPersonas,
-    switchPersona,
     signOutToGuest,
   } = useCaptenly();
   const [q, setQ] = useState("");
@@ -93,38 +78,23 @@ export function SiteHeader() {
       ? [
           {
             href: "/dashboard/coach",
-            label: "لوحة الكابتن والربط",
-            match: (p: string) => p.startsWith("/dashboard/coach"),
-          },
-          {
-            href: "/dashboard/ledger",
-            label: "حصص المتدربين (QR)",
-            match: (p: string) => p.startsWith("/dashboard/ledger"),
+            label: "لوحة الكابتن",
+            match: (p: string) => p.startsWith("/dashboard/coach") || p.startsWith("/dashboard/ledger"),
           },
         ]
       : currentPersona.role === "facility_manager"
       ? [
           {
             href: "/dashboard/facility",
-            label: "لوحة إدارة المنشأة",
-            match: (p: string) => p.startsWith("/dashboard/facility"),
-          },
-          {
-            href: "/dashboard/ledger",
-            label: "دفاتر المشتركين (QR)",
-            match: (p: string) => p.startsWith("/dashboard/ledger"),
+            label: "لوحة المنشأة",
+            match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
           },
         ]
       : [
           {
-            href: "/dashboard/ledger",
-            label: "دفتر الحصص الـ QR",
-            match: (p: string) => p.startsWith("/dashboard/ledger"),
-          },
-          {
             href: "/dashboard/athlete",
-            label: "ملفي الرياضي",
-            match: (p: string) => p.startsWith("/dashboard/athlete"),
+            label: "مساحتي وحصصي",
+            match: (p: string) => p.startsWith("/dashboard/athlete") || p.startsWith("/dashboard/ledger"),
           },
         ];
 
@@ -197,7 +167,7 @@ export function SiteHeader() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-on-surface placeholder:text-text-muted px-1"
-              placeholder="ابحث عن كابتن، أكاديمية، مسبح أو صالة..."
+              placeholder="ابحث عن أكاديمية، مسبح، أو كابتن سباحة..."
               type="text"
             />
             <Link
@@ -220,6 +190,20 @@ export function SiteHeader() {
               <span>أوفلاين</span>
             </Link>
           )}
+
+          <Link
+            href="/favorites"
+            aria-label="المفضلة"
+            title="المفضلة"
+            className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+          >
+            <Icon name="bookmark" className="text-[18px]" />
+            {savedFavoriteIds.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold flex items-center justify-center">
+                {savedFavoriteIds.length}
+              </span>
+            )}
+          </Link>
 
           <Link
             href="/notifications"
@@ -284,15 +268,36 @@ export function SiteHeader() {
                   </div>
                 </div>
 
-                {[
-                  { href: "/dashboard/athlete", icon: "groups", label: "حسابي الرياضي (والعائلة الاختيارية)" },
-                  { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص والـ QR أوفلاين" },
-                  { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
-                  { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة النادي / الأكاديمية" },
-                  { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت المضافة" },
-                  { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات الخضراء" },
-                  { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
-                ].map((i) => (
+                {(currentPersona.role === "coach"
+                  ? [
+                      { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر طلابي (QR)" },
+                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                      { href: "/badges", icon: "verified", label: "مركز الشارات الخضراء" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
+                    ]
+                  : currentPersona.role === "facility_manager"
+                  ? [
+                      { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة الأكاديمية" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفاتر المشتركين (QR)" },
+                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                      { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
+                    ]
+                  : currentPersona.role === "guest"
+                  ? [
+                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                      { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
+                      { href: "/claim", icon: "verified", label: "توثيق أكاديمية أو كابتن" },
+                    ]
+                  : [
+                      { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والعائلة" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
+                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                      { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
+                    ]
+                ).map((i) => (
                   <Link
                     key={i.href}
                     href={i.href}
@@ -302,25 +307,6 @@ export function SiteHeader() {
                     {i.label}
                   </Link>
                 ))}
-
-                <div className="h-px bg-border-hairline my-1.5" />
-                <div className="px-3 py-1 text-[10px] font-bold text-text-muted">تبديل الحساب التجريبي</div>
-                <div className="flex flex-col gap-1 max-h-36 overflow-y-auto px-1">
-                  {allPersonas.slice(0, 5).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => switchPersona(p.id)}
-                      className={`text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
-                        p.id === currentPersona.id
-                          ? "bg-lime-tint text-deep-olive"
-                          : "hover:bg-surface-snow text-text-muted"
-                      }`}
-                    >
-                      {p.shortLabelAr}
-                    </button>
-                  ))}
-                </div>
 
                 <div className="h-px bg-border-hairline my-1.5" />
                 <div className="flex flex-col gap-1.5 px-1">

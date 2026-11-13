@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { isChromeless } from "./chromeRoutes";
@@ -11,15 +11,13 @@ import { GoogleMark, GoogleSignInButton } from "@/components/auth/GoogleSignInBu
 
 export function MobileHeader() {
   const pathname = usePathname() || "/";
-  const router = useRouter();
   const {
     userLocation,
     setLocationModalOpen,
     unreadNotificationsCount,
+    savedFavoriteIds,
     currentPersona,
     effectiveOffline,
-    allPersonas,
-    switchPersona,
     signOutToGuest,
   } = useCaptenly();
 
@@ -59,6 +57,19 @@ export function MobileHeader() {
                 <Icon name="wifi_off" className="text-[15px]" />
               </Link>
             )}
+
+            <Link
+              href="/favorites"
+              aria-label="المفضلة"
+              className="relative w-8 h-8 rounded-full bg-surface-container-low text-dark-slate flex items-center justify-center"
+            >
+              <Icon name="bookmark" className="text-[17px]" />
+              {savedFavoriteIds.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[9px] font-bold flex items-center justify-center">
+                  {savedFavoriteIds.length}
+                </span>
+              )}
+            </Link>
 
             <Link
               href="/notifications"
@@ -148,23 +159,36 @@ export function MobileHeader() {
               </div>
             </div>
 
-            {/* All Sections */}
+            {/* Role-Isolated Sections */}
             <div className="flex flex-col gap-1">
               <span className="text-[11px] font-bold text-text-muted px-2 mb-1">أقسام المنصة</span>
               {[
                 { href: "/", icon: "home", label: "الرئيسية" },
-                { href: "/explore", icon: "explore", label: "استكشف المنشآت والخريطة" },
-                { href: "/pools", icon: "pool", label: "المسابح ومدارس الأطفال" },
-                { href: "/coaches", icon: "workspace_premium", label: "المدربين والأكاديميات" },
-                { href: "/compare", icon: "compare_arrows", label: "جدول المقارنة (حتى 4)" },
-                { href: "/claim", icon: "verified", label: "وثّق صفحتك أو ناديك مجاناً" },
+                { href: "/explore", icon: "explore", label: "استكشف المسابح والمدربين" },
+                { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                { href: "/compare", icon: "compare_arrows", label: "مقارنة الباقات" },
                 { href: "/magazine", icon: "menu_book", label: "المجلة الرياضية" },
-                { href: "/badges", icon: "security", label: "معايير الشارات الـ 6" },
-                { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
-                { href: "/dashboard/athlete", icon: "groups", label: "حسابي الرياضي والأسرة" },
-                { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
-                { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة المنشأة" },
-                { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                ...(currentPersona.role === "coach"
+                  ? [
+                      { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر طلابي (QR)" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                    ]
+                  : currentPersona.role === "facility_manager"
+                  ? [
+                      { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة الأكاديمية" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفاتر المشتركين (QR)" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                    ]
+                  : currentPersona.role === "guest"
+                  ? [
+                      { href: "/claim", icon: "verified", label: "وثّق أكاديميتك أو حسابك ككابتن" },
+                    ]
+                  : [
+                      { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والأسرة" },
+                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
+                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                    ]),
                 { href: "/about", icon: "info", label: "عن كابتنلي والخصوصية" },
               ].map((item) => (
                 <Link
@@ -176,29 +200,6 @@ export function MobileHeader() {
                   <Icon name={item.icon} className="text-deep-olive text-[18px]" />
                   <span>{item.label}</span>
                 </Link>
-              ))}
-            </div>
-
-            {/* Persona Switcher */}
-            <div className="border-t border-surface-container pt-3 flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold text-text-muted px-2">تبديل الحساب التجريبي</span>
-              {allPersonas.slice(0, 5).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    switchPersona(p.id);
-                    setSheetOpen(false);
-                    router.refresh();
-                  }}
-                  className={`text-right px-3 py-2 rounded-xl text-xs font-bold ${
-                    p.id === currentPersona.id
-                      ? "bg-lime-tint text-deep-olive"
-                      : "bg-surface-snow text-text-muted"
-                  }`}
-                >
-                  {p.shortLabelAr}
-                </button>
               ))}
             </div>
 

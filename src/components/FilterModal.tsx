@@ -3,12 +3,11 @@
 import React, { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { SWIMMING_SPECIALTIES_9, FITNESS_SPECIALTIES_7 } from "@/data/seedData";
+import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
 
 export function FilterModal() {
   const { filterModalOpen, setFilterModalOpen } = useCaptenly();
 
-  const [activeTab, setActiveTab] = useState<"all" | "swimming" | "fitness">("swimming");
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([
     SWIMMING_SPECIALTIES_9[0], // "تأسيس أطفال ومبتدئين"
   ]);
@@ -82,35 +81,11 @@ export function FilterModal() {
         {/* Scrollable Content */}
         <div className="p-5 overflow-y-auto space-y-6">
           {/* Section 1: Sports Tabs */}
+          {/* Section 1: Swimming Scope */}
           <div>
-            <label className="block text-body-compact font-bold text-dark-slate mb-2">
-              الرياضة والتصنيف:
-            </label>
-            <div className="flex gap-2 pb-1 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setActiveTab("swimming")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-badge-label transition-all shrink-0 ${
-                  activeTab === "swimming"
-                    ? "bg-dark-slate text-electric-volt shadow-sm"
-                    : "bg-surface-snow text-text-muted hover:bg-surface-container-low"
-                }`}
-              >
-                <Icon name="pool" className="text-[16px]" />
-                <span>السباحة (9 تخصصات)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("fitness")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-badge-label transition-all shrink-0 ${
-                  activeTab === "fitness"
-                    ? "bg-dark-slate text-electric-volt shadow-sm"
-                    : "bg-surface-snow text-text-muted hover:bg-surface-container-low"
-                }`}
-              >
-                <Icon name="fitness_center" className="text-[16px]" />
-                <span>الجيم واللياقة (7 تخصصات)</span>
-              </button>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-bold text-badge-label">
+              <Icon name="pool" className="text-[16px]" />
+              <span>فلاتر السباحة والأكاديميات المائية (9 تخصصات)</span>
             </div>
           </div>
 
@@ -120,10 +95,7 @@ export function FilterModal() {
               التخصص الدقيق المعتمد:
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {(activeTab === "swimming"
-                ? SWIMMING_SPECIALTIES_9
-                : FITNESS_SPECIALTIES_7
-              ).map((spec) => {
+              {SWIMMING_SPECIALTIES_9.map((spec) => {
                 const isSelected = selectedSpecialties.includes(spec);
                 return (
                   <button

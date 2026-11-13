@@ -14,6 +14,7 @@ export default function Phone12() {
     enrollSwimmerByMemberCode,
     checkInSession,
     publishSchoolPackage,
+    addCoachSessionOffer,
     currentPersona,
   } = useCaptenly();
 
@@ -29,6 +30,8 @@ export default function Phone12() {
 
   const [schoolName, setSchoolName] = useState("مدرسة أطفال مسائية — 8 حصص");
   const [schoolPrice, setSchoolPrice] = useState("700");
+  const [offerTitle, setOfferTitle] = useState("حصص خاصة لتحسين التوقيت (8 حصص)");
+  const [offerPrice, setOfferPrice] = useState("850");
 
   const matched = useMemo(
     () => memberRegistry.find((m) => m.memberCode.toUpperCase() === memberCode.trim().toUpperCase()),
@@ -145,6 +148,43 @@ export default function Phone12() {
         >
           حفظ وتفعيل الـ QR للسباح ✓
         </button>
+      </form>
+
+      {/* Quick Publish Coach Session Offer */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!activeCoach) {
+            setFeedback({ ok: false, msg: "يرجى توثيق ملف الكابتن أولاً لنشر العروض." });
+            return;
+          }
+          const res = addCoachSessionOffer(activeCoach.id, {
+            titleAr: offerTitle,
+            sessionsCount: 8,
+            priceEgp: Number(offerPrice) || 850,
+            durationMinutes: 60,
+          });
+          setFeedback({ ok: res.ok, msg: res.messageAr });
+        }}
+        className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5"
+      >
+        <h3 className="font-card-title-sm text-sm text-dark-slate">نشر عرض حصص جديد على ملفك</h3>
+        <input
+          value={offerTitle}
+          onChange={(e) => setOfferTitle(e.target.value)}
+          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+        />
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={offerPrice}
+            onChange={(e) => setOfferPrice(e.target.value)}
+            className="w-24 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+          />
+          <button type="submit" className="flex-1 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold">
+            + نشر العرض
+          </button>
+        </div>
       </form>
 
       {/* Quick Publish Package */}

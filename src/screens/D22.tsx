@@ -8,6 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
+import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 
 export default function Desktop22() {
   const params = useParams();
@@ -66,7 +67,9 @@ export default function Desktop22() {
       requestedSpecialtyAr: selectedPkg?.nameAr || facility.specialtiesAr[0] || "اشتراك شهري",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleShareWhatsapp = () => {
@@ -134,19 +137,10 @@ export default function Desktop22() {
                 {facility.nameAr}
               </h1>
               <p className="font-body-default text-text-muted">{facility.addressAr}</p>
-              {facility.scheduleSummaryAr && (
+              {(facility.publicDescriptionAr || facility.scheduleSummaryAr) && (
                 <p className="text-xs font-semibold text-dark-slate bg-surface-snow px-3.5 py-2 rounded-xl w-fit inline-flex items-center gap-1.5">
-                  <Icon name="schedule" className="text-[15px] text-deep-olive" />
-                  <span>{facility.scheduleSummaryAr}</span>
-                </p>
-              )}
-
-              {isUnclaimed && (
-                <p className="text-xs font-bold text-deep-olive flex items-start gap-1.5 pt-1 leading-relaxed">
-                  <Icon name="info" className="text-[15px] shrink-0 mt-0.5" />
-                  <span>
-                    لا تتوفر حالياً بيانات أو باقات محدثة مقدمة مباشرة من «{facility.nameAr}» لعدم تفعيل حسابها على المنصة حتى الآن.
-                  </span>
+                  <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[15px] text-deep-olive" />
+                  <span>{facility.publicDescriptionAr || facility.scheduleSummaryAr}</span>
                 </p>
               )}
 
@@ -164,21 +158,22 @@ export default function Desktop22() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-surface-container">
-              <button
-                type="button"
-                onClick={handleDirectWhatsapp}
-                className="px-6 py-3 rounded-full bg-action-whatsapp text-white font-card-title-sm flex items-center gap-2 hover:opacity-95 shadow-sm"
-              >
-                <Icon name="chat" className="text-[18px]" />
-                <span>تواصل مباشر عبر واتساب</span>
-              </button>
+              <ContactChannelsBar
+                supplyStatus={facility.supplyStatus}
+                whatsappNumber={facility.whatsappNumber}
+                facebookUrl={facility.facebookUrl}
+                instagramUrl={facility.instagramUrl}
+                onWhatsappClick={handleDirectWhatsapp}
+              />
 
-              <Link
-                href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
-                className="px-5 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95"
-              >
-                تجهيز الحجز والانضمام
-              </Link>
+              {!isUnclaimed && (
+                <Link
+                  href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
+                  className="px-5 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95"
+                >
+                  تجهيز الحجز والانضمام
+                </Link>
+              )}
 
               <button
                 type="button"
@@ -282,13 +277,27 @@ export default function Desktop22() {
                     </div>
                   );
                 })}
-                {isUnclaimed && (
-                  <p className="text-xs font-semibold text-text-muted pt-1 leading-relaxed flex items-start gap-1.5">
-                    <Icon name="info" className="text-[15px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>
-                      ملحوظة: هذه المنشأة ({facility.nameAr}) لم تقم بتفعيل حسابها وإدارة بياناتها على كابتنلي حتى الآن، لذا لا تتوفر حالياً باقات أو أسعار محدثة مقدمة مباشرة منها.
-                    </span>
-                  </p>
+                {facility.schoolPrograms && facility.schoolPrograms.length > 0 && (
+                  <div className="rounded-2xl bg-surface-card p-5 border border-surface-container flex flex-col gap-3">
+                    <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                      <Icon name="school" className="text-[18px] text-deep-olive" />
+                      <span>مسارات مدارس السباحة ({facility.schoolPrograms.length})</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {facility.schoolPrograms.map((prog) => (
+                        <div key={prog.id} className="rounded-xl bg-surface-snow p-4 flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-card-title-sm text-dark-slate">{prog.titleAr}</span>
+                            <span className="font-extrabold text-deep-olive text-sm">{prog.priceEgp} ج.م</span>
+                          </div>
+                          <div className="text-[11px] font-bold text-deep-olive">
+                            {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+                          </div>
+                          <div className="text-xs text-text-muted">{prog.scheduleAr}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -319,24 +328,6 @@ export default function Desktop22() {
                       <div className="font-card-title text-dark-slate mt-1">
                         {facility.poolSpecs.hasEdlfLifeguard ? "منقذ مائي متواجد ✓" : "غير مؤكد"} •{" "}
                         {facility.poolSpecs.hasLadiesOnlySlots ? "ساعات سيدات متاحة ✓" : "مختلط"}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {facility.gymSpecs && (
-                  <>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">مساحة الصالة والتكييف</span>
-                      <div className="font-card-title text-dark-slate mt-1">
-                        {facility.gymSpecs.areaSqm} م² •{" "}
-                        {facility.gymSpecs.isAirConditioned ? "تكييف مركزي ✓" : "تهوية طبيعية"}
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">ساعات السيدات والمدربات</span>
-                      <div className="font-card-title text-dark-slate mt-1">
-                        {facility.gymSpecs.ladiesScheduleAr}
                       </div>
                     </div>
                   </>
@@ -413,27 +404,34 @@ export default function Desktop22() {
               </div>
               <div className="border-t border-surface-container pt-2 mt-1 flex justify-between items-center">
                 <span className="font-bold text-dark-slate">
-                  {isUnclaimed ? "الاشتراك الشهري المتداول" : "الإجمالي التقديري"}
+                  {isUnclaimed ? "الاشتراك التقديري" : "الإجمالي التقديري"}
                 </span>
                 <span className="text-xl font-black text-deep-olive">{totalFirstMonth} ج.م</span>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleDirectWhatsapp}
-              className="w-full py-3 rounded-full bg-action-whatsapp text-white font-card-title-sm flex items-center justify-center gap-2"
-            >
-              <Icon name="chat" className="text-[17px]" />
-              <span>اسأل الإدارة على واتساب</span>
-            </button>
-
-            <Link
-              href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
-              className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-center"
-            >
-              تجهيز بيانات التسجيل ←
-            </Link>
+            {!isUnclaimed ? (
+              <>
+                <ContactChannelsBar
+                  supplyStatus={facility.supplyStatus}
+                  whatsappNumber={facility.whatsappNumber}
+                  facebookUrl={facility.facebookUrl}
+                  instagramUrl={facility.instagramUrl}
+                  onWhatsappClick={handleDirectWhatsapp}
+                  fullWidthPrimary
+                />
+                <Link
+                  href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
+                  className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-center"
+                >
+                  تجهيز بيانات التسجيل ←
+                </Link>
+              </>
+            ) : (
+              <p className="text-xs text-text-muted leading-relaxed bg-surface-snow rounded-xl p-3">
+                {facility.publicDescriptionAr || "صفحة تعريفية بالموقع والتقييم العام من دليل المنشآت المائية."}
+              </p>
+            )}
 
             <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
               <div className="text-xs font-bold text-dark-slate flex items-center gap-1.5">

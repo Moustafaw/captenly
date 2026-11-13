@@ -7,8 +7,9 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
+import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 
-type MobileCat = "all" | "swimming" | "fitness" | "kids" | "heated" | "ladies";
+type MobileCat = "all" | "swimming" | "kids" | "heated" | "ladies";
 
 export default function Phone21() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function Phone21() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<MobileCat>("all");
   const [toast, setToast] = useState<string | null>(null);
+  const [rotationSeed] = useState<number>(() => new Date().getDate());
   const articlesRailRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ down: boolean; startX: number; scrollLeft: number }>({
     down: false,
@@ -40,12 +42,16 @@ export default function Phone21() {
     el.scrollBy({ left: dir === "next" ? -step : step, behavior: "smooth" });
   };
 
+  const swimmingFacilities = useMemo(
+    () => facilities.filter((f) => f.sportSector !== "fitness"),
+    [facilities]
+  );
+
   const filtered = useMemo(() => {
-    return facilities.filter((f) => {
+    return swimmingFacilities.filter((f) => {
       if (cat === "swimming") return f.sportSector !== "fitness";
-      if (cat === "fitness") return f.sportSector !== "swimming";
       if (cat === "ladies") {
-        return Boolean(f.poolSpecs?.hasLadiesOnlySlots || f.gymSpecs?.hasLadiesOnlySlots);
+        return Boolean(f.poolSpecs?.hasLadiesOnlySlots);
       }
       if (cat === "kids") {
         return f.specialtiesAr.some((s) => s.includes("أطفال") || s.includes("تأسيس"));
@@ -53,14 +59,29 @@ export default function Phone21() {
       if (cat === "heated") return Boolean(f.poolSpecs?.isHeatedWinter);
       return true;
     });
-  }, [facilities, cat]);
+  }, [swimmingFacilities, cat]);
 
-  const verifiedCoaches = useMemo(() => coaches.filter((c) => c.isVerifiedCoach), [coaches]);
+  const partitioned = useMemo(
+    () => partitionFacilities3Tier(filtered, rotationSeed),
+    [filtered, rotationSeed]
+  );
+  const displayedRegistered = useMemo(
+    () => partitioned.registered.slice(0, 5),
+    [partitioned.registered]
+  );
+  const displayedDirectory = useMemo(
+    () => partitioned.unclaimedDirectory.slice(0, 2),
+    [partitioned.unclaimedDirectory]
+  );
+
+  const verifiedCoaches = useMemo(
+    () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
+    [coaches]
+  );
 
   const cats: { key: MobileCat; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${facilities.length})` },
+    { key: "all", label: `الكل (${swimmingFacilities.length})` },
     { key: "swimming", label: "سباحة", icon: "pool" },
-    { key: "fitness", label: "جيم ولياقة", icon: "fitness_center" },
     { key: "kids", label: "تأسيس أطفال", icon: "child_care" },
     { key: "heated", label: "مدفأ شتاءً", icon: "thermostat" },
     { key: "ladies", label: "ساعات سيدات", icon: "female" },
@@ -82,7 +103,7 @@ export default function Phone21() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="ابحث عن كابتن، نادي، مسبح أو جيم..."
+          placeholder="ابحث عن كابتن سباحة، نادي، أو مسبح..."
           className="flex-1 min-w-0 bg-transparent outline-none text-xs text-dark-slate"
         />
         <button
@@ -154,9 +175,9 @@ export default function Phone21() {
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-              الأندية والأكاديميات ({filtered.length})
+              الأكاديميات والمسابح المسجلة ({filtered.length})
             </h2>
-            <p className="text-[11px] text-text-muted">مقارنة سريعة وتواصل مباشر عبر واتساب</p>
+            <p className="text-[11px] text-text-muted">مقارنة سريعة للمسابح والكباتن المعتمدين</p>
           </div>
           {compareFacilityIds.length > 0 && (
             <Link
@@ -174,18 +195,62 @@ export default function Phone21() {
           </div>
         )}
 
-        <div className="flex flex-col gap-4">
-          {filtered.slice(0, 5).map((fac) => (
-            <FacilityCard
-              key={fac.id}
-              facility={fac}
-              onSelectCompareFeedback={(msg) => {
-                setToast(msg);
-                setTimeout(() => setToast(null), 2800);
-              }}
-            />
-          ))}
-        </div>
+        {partitioned.featured.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-1.5 px-1">
+              <Icon name="verified" className="text-[15px] text-deep-olive" />
+              <span className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {partitioned.featured.map((fac) => (
+                <FacilityCard
+                  key={fac.id}
+                  facility={fac}
+                  onSelectCompareFeedback={(msg) => {
+                    setToast(msg);
+                    setTimeout(() => setToast(null), 2800);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {displayedRegistered.length > 0 && (
+          <div className="flex flex-col gap-4">
+            {displayedRegistered.map((fac) => (
+              <FacilityCard
+                key={fac.id}
+                facility={fac}
+                onSelectCompareFeedback={(msg) => {
+                  setToast(msg);
+                  setTimeout(() => setToast(null), 2800);
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {displayedDirectory.length > 0 && (
+          <div className="flex flex-col gap-2.5 pt-1">
+            <div className="flex items-center gap-1.5 px-1">
+              <Icon name="explore" className="text-[15px] text-text-muted" />
+              <span className="text-xs font-bold text-text-muted">دليل المسابح والأندية حولك</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {displayedDirectory.map((fac) => (
+                <FacilityCard
+                  key={fac.id}
+                  facility={fac}
+                  onSelectCompareFeedback={(msg) => {
+                    setToast(msg);
+                    setTimeout(() => setToast(null), 2800);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         <Link
           href="/explore"

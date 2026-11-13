@@ -14,6 +14,8 @@ export default function FacilityDashboardPage() {
     enrollSwimmerByMemberCode,
     checkInSession,
     publishSchoolPackage,
+    addFacilitySchoolProgram,
+    removeFacilitySchoolProgram,
     confirmFacilityPrices60d,
     currentPersona,
   } = useCaptenly();
@@ -41,6 +43,13 @@ export default function FacilityDashboardPage() {
   const [newPkgName, setNewPkgName] = useState("مدرسة أطفال شتوية — 8 حصص");
   const [newPkgSessions, setNewPkgSessions] = useState("8");
   const [newPkgPrice, setNewPkgPrice] = useState("750");
+
+  // Publish Swimming School Track Form (البراعم / التجهيزي / الفريق)
+  const [trackType, setTrackType] = useState<"buds" | "prep" | "team" | "school" | "ladies">("buds");
+  const [trackTitleAr, setTrackTitleAr] = useState("أكاديمية البراعم (تأسيس وكسر الرهبة)");
+  const [trackAgeAr, setTrackAgeAr] = useState("4 – 7 سنوات");
+  const [trackPrice, setTrackPrice] = useState("750");
+  const [trackSchedule, setTrackSchedule] = useState("السبت والإثنين والأربعاء — 5 م");
 
   // Feedback message
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -349,6 +358,126 @@ export default function FacilityDashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Swimming School Tracks Manager (البراعم / التجهيزي / الفريق) */}
+        <section className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="font-section-title text-dark-slate">
+                إدارة برامج مدارس السباحة (البراعم • التجهيزي • الفريق)
+              </h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                تظهر هذه المسارات مباشرة في الصفحة العامة للمنشأة بمواعيدها وأسعارها والفئة العمرية.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold">
+              {(facility.schoolPrograms || []).length} مسارات منشورة
+            </span>
+          </div>
+
+          {(facility.schoolPrograms || []).length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {facility.schoolPrograms!.map((prog) => (
+                <div
+                  key={prog.id}
+                  className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex flex-col justify-between gap-2"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-deep-olive">{prog.trackLabelAr}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFacilitySchoolProgram(facility.id, prog.id)}
+                        className="text-[11px] font-bold text-status-danger hover:underline"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                    <div className="font-card-title-sm text-dark-slate mt-1">{prog.titleAr}</div>
+                    <div className="text-xs text-text-muted mt-0.5">
+                      {prog.ageRangeAr ? `${prog.ageRangeAr} • ` : ""}
+                      {prog.scheduleAr}
+                    </div>
+                  </div>
+                  <div className="text-lg font-black text-deep-olive">{prog.priceEgp} ج.م</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const labelMap: Record<typeof trackType, string> = {
+                buds: "البراعم",
+                prep: "التجهيزي",
+                team: "الفريق",
+                school: "المدرسة التعليمية",
+                ladies: "ساعات السيدات",
+              };
+              const res = addFacilitySchoolProgram(facility.id, {
+                trackType,
+                trackLabelAr: labelMap[trackType],
+                titleAr: trackTitleAr.trim(),
+                ageRangeAr: trackAgeAr.trim() || undefined,
+                priceEgp: Number(trackPrice) || 750,
+                scheduleAr: trackSchedule.trim(),
+              });
+              setFeedback({ ok: res.ok, msg: res.messageAr });
+            }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-surface-container"
+          >
+            <select
+              value={trackType}
+              onChange={(e) =>
+                setTrackType(e.target.value as "buds" | "prep" | "team" | "school" | "ladies")
+              }
+              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold outline-none border border-surface-container"
+            >
+              <option value="buds">مسار البراعم</option>
+              <option value="prep">المسار التجهيزي</option>
+              <option value="team">مسار الفريق</option>
+              <option value="school">مدرسة السباحة العامة</option>
+              <option value="ladies">برامج السيدات</option>
+            </select>
+            <input
+              required
+              value={trackTitleAr}
+              onChange={(e) => setTrackTitleAr(e.target.value)}
+              placeholder="اسم البرنامج"
+              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+            />
+            <input
+              value={trackAgeAr}
+              onChange={(e) => setTrackAgeAr(e.target.value)}
+              placeholder="الفئة العمرية (مثلاً 4-7 سنوات)"
+              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+            />
+            <input
+              required
+              value={trackSchedule}
+              onChange={(e) => setTrackSchedule(e.target.value)}
+              placeholder="الأيام والمواعيد"
+              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+            />
+            <div className="flex gap-2">
+              <input
+                required
+                type="number"
+                value={trackPrice}
+                onChange={(e) => setTrackPrice(e.target.value)}
+                placeholder="السعر"
+                className="w-24 rounded-xl bg-surface-snow px-3 py-2.5 text-xs outline-none border border-surface-container"
+              />
+              <button
+                type="submit"
+                className="flex-1 rounded-full bg-dark-slate text-electric-volt text-xs font-bold px-4"
+              >
+                + نشر
+              </button>
+            </div>
+          </form>
+        </section>
 
         {/* Active Facility Ledgers */}
         <section className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">

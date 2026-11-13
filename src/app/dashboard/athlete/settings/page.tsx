@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
+import { AthleteProfileSocialEditor } from "@/components/editorial/AthleteProfileSocialEditor";
 
 export default function SettingsHubPage() {
   const { currentPersona, userLocation, setLocationModalOpen, minorAthletes } = useCaptenly();
@@ -163,6 +164,9 @@ export default function SettingsHubPage() {
           لوحة إدارة النشر
         </Link>
       </div>
+
+      {/* 5. Bio & Social Links Editor */}
+      <AthleteProfileSocialEditor />
     </div>
   );
 }

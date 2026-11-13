@@ -185,32 +185,17 @@ export default function Phone5() {
           </div>
 
           <div className="w-full flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => switchPersona("persona-coach")}
-              className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
-            >
-              تجربة حساب الكابتن ({sessionLedgers.length} متدربين)
-            </button>
-            <button
-              type="button"
-              onClick={() => switchPersona("persona-facility")}
-              className="w-full py-2.5 rounded-full bg-lime-tint text-deep-olive text-xs font-bold"
-            >
-              تجربة إدارة المنشأة ({facilityOwnCount} دفاتر)
-            </button>
-            <button
-              type="button"
-              onClick={() => switchPersona("persona-parent")}
-              className="w-full py-2.5 rounded-full bg-surface-snow text-dark-slate text-xs font-bold border border-surface-container"
-            >
-              تجربة حساب الأسرة (طفلان — دفتران)
-            </button>
             <Link
-              href="/dashboard/coach"
-              className="w-full py-2.5 rounded-full bg-surface-card border border-deep-olive/30 text-deep-olive text-xs font-bold text-center"
+              href="/explore"
+              className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center"
             >
-              تفعيل كودك من لوحة الكابتن ←
+              استكشف المسابح والأكاديميات ←
+            </Link>
+            <Link
+              href="/dashboard/athlete"
+              className="w-full py-2.5 rounded-full bg-surface-snow text-dark-slate text-xs font-bold border border-surface-container text-center"
+            >
+              ملفي الرياضي وتحليل الأداء
             </Link>
           </div>
         </section>

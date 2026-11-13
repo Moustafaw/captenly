@@ -21,7 +21,7 @@ export function LegalFooter() {
               </span>
             </div>
             <p className="text-body-compact text-surface-variant leading-relaxed max-w-xl">
-              المنظومة الرقمية لاكتشاف الأكاديميات والمسابح وصالات الجيم، توثيق الكباتن بـ 6 شارات معتمدة، جواز السفر الرياضي الموثق، ودفتر الحصص الرقمي لحفظ حقوق أولياء الأمور والرياضيين.
+              المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة، توثيق الكباتن بـ 6 شارات معتمدة، جواز السفر الرياضي الموثق، ودفتر الحصص الرقمي لحفظ حقوق أولياء الأمور والسباحين.
             </p>
             <div className="inline-flex items-center gap-2 text-micro-caption bg-white/5 border border-white/10 text-surface-snow px-3.5 py-1.5 rounded-full">
               <Icon name="location_on" className="text-[16px] text-electric-volt" />

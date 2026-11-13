@@ -6,8 +6,9 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
+import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 
-type HomeCategoryKey = "all" | "swimming" | "fitness" | "ladies" | "kids" | "heated";
+type HomeCategoryKey = "all" | "swimming" | "ladies" | "kids" | "heated";
 
 export default function Desktop24() {
   const {
@@ -22,13 +23,18 @@ export default function Desktop24() {
 
   const [selectedCat, setSelectedCat] = useState<HomeCategoryKey>("all");
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
+  const [rotationSeed] = useState<number>(() => new Date().getDate());
+
+  const swimmingFacilities = useMemo(
+    () => facilities.filter((f) => f.sportSector !== "fitness"),
+    [facilities]
+  );
 
   const filteredFacilities = useMemo(() => {
-    return facilities.filter((f) => {
+    return swimmingFacilities.filter((f) => {
       if (selectedCat === "swimming") return f.sportSector !== "fitness";
-      if (selectedCat === "fitness") return f.sportSector !== "swimming";
       if (selectedCat === "ladies") {
-        return Boolean(f.poolSpecs?.hasLadiesOnlySlots || f.gymSpecs?.hasLadiesOnlySlots);
+        return Boolean(f.poolSpecs?.hasLadiesOnlySlots);
       }
       if (selectedCat === "kids") {
         return f.specialtiesAr.some((s) => s.includes("أطفال") || s.includes("تأسيس"));
@@ -36,17 +42,29 @@ export default function Desktop24() {
       if (selectedCat === "heated") return Boolean(f.poolSpecs?.isHeatedWinter);
       return true;
     });
-  }, [facilities, selectedCat]);
+  }, [swimmingFacilities, selectedCat]);
+
+  const partitioned = useMemo(
+    () => partitionFacilities3Tier(filteredFacilities, rotationSeed),
+    [filteredFacilities, rotationSeed]
+  );
+  const displayedRegistered = useMemo(
+    () => partitioned.registered.slice(0, 6),
+    [partitioned.registered]
+  );
+  const displayedDirectory = useMemo(
+    () => partitioned.unclaimedDirectory.slice(0, 3),
+    [partitioned.unclaimedDirectory]
+  );
 
   const verifiedCoaches = useMemo(
-    () => coaches.filter((c) => c.isVerifiedCoach),
+    () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
     [coaches]
   );
 
   const categories: { key: HomeCategoryKey; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${facilities.length} منشأة)` },
-    { key: "swimming", label: "مسبح وسباحة", icon: "pool" },
-    { key: "fitness", label: "جيم ولياقة بدنية", icon: "fitness_center" },
+    { key: "all", label: `الكل (${swimmingFacilities.length} مسبح وأكاديمية)` },
+    { key: "swimming", label: "مدارس السباحة", icon: "pool" },
     { key: "kids", label: "أطفال وتأسيس", icon: "child_care" },
     { key: "heated", label: "مسابح مدفأة شتاءً", icon: "thermostat" },
     { key: "ladies", label: "مواعيد للسيدات", icon: "female" },
@@ -158,10 +176,10 @@ export default function Desktop24() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <h2 className="font-section-title text-section-title text-dark-slate">
-                    الأندية والأكاديميات والمدارس الرياضية ({filteredFacilities.length})
+                    أندية وأكاديميات السباحة على كابتنلي ({filteredFacilities.length})
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                    تصفح الأندية والمسابح القريبة وقارن بين الباقات والمواصفات الفنية مباشرة عبر واتساب
+                    تصفح الأندية والمسابح القريبة وقارن بين الباقات والمواصفات الفنية بكل شفافية
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -190,15 +208,55 @@ export default function Desktop24() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
-                {filteredFacilities.slice(0, 6).map((facility) => (
-                  <FacilityCard
-                    key={facility.id}
-                    facility={facility}
-                    onSelectCompareFeedback={handleCompareNotice}
-                  />
-                ))}
-              </div>
+              {partitioned.featured.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icon name="verified" className="text-[17px] text-deep-olive" />
+                    <h3 className="font-card-title-sm text-dark-slate">ترشيحات كابتنلي المختارة</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
+                    {partitioned.featured.map((facility) => (
+                      <FacilityCard
+                        key={facility.id}
+                        facility={facility}
+                        onSelectCompareFeedback={handleCompareNotice}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {displayedRegistered.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
+                  {displayedRegistered.map((facility) => (
+                    <FacilityCard
+                      key={facility.id}
+                      facility={facility}
+                      onSelectCompareFeedback={handleCompareNotice}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {displayedDirectory.length > 0 && (
+                <div className="flex flex-col gap-3 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Icon name="explore" className="text-[17px] text-text-muted" />
+                      <h3 className="font-card-title-sm text-text-muted">دليل المسابح والأندية حولك</h3>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
+                    {displayedDirectory.map((facility) => (
+                      <FacilityCard
+                        key={facility.id}
+                        facility={facility}
+                        onSelectCompareFeedback={handleCompareNotice}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {filteredFacilities.length > 6 && (
                 <div className="flex justify-center pt-2">

@@ -16,6 +16,9 @@ export default function Desktop13() {
     checkInSession,
     publishSchoolPackage,
     validateAndSaveCoachBio,
+    addCoachSessionOffer,
+    removeCoachSessionOffer,
+    recordCoachSkillAndPB,
     verifiedLeads,
     currentPersona,
   } = useCaptenly();
@@ -39,6 +42,19 @@ export default function Desktop13() {
   const [bioDraft, setBioDraft] = useState(
     activeCoach?.bioAr || "مدرب سباحة تأسيس وإنقاذ مائي معتمد، التزام كامل بتدريب اللياقة والمهارات المائية."
   );
+
+  // Coach session offer publisher
+  const [offerTitle, setOfferTitle] = useState("باقة تعليم وإتقان السباحة (8 حصص)");
+  const [offerSessions, setOfferSessions] = useState("8");
+  const [offerPrice, setOfferPrice] = useState("850");
+  const [offerDuration, setOfferDuration] = useState("60");
+  const [offerNotes, setOfferNotes] = useState("تقييم مبدئي + متابعة رقم قياسي فردي");
+
+  // Coach PB & Skill Assessment logger
+  const [pbSwimmerName, setPbSwimmerName] = useState("يوسف كريم");
+  const [pbEventTitle, setPbEventTitle] = useState("50م سباحة حرة");
+  const [pbTimeSeconds, setPbTimeSeconds] = useState("31.8");
+  const [pbRatingOverall, setPbRatingOverall] = useState("5");
 
   const matchedMember = useMemo(
     () => memberRegistry.find((m) => m.memberCode.toUpperCase() === memberCode.trim().toUpperCase()),
@@ -288,6 +304,185 @@ export default function Desktop13() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Coach Custom Session Offers & Verified PB Assessment */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+          <div className="lg:col-span-6 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-card-title text-dark-slate">
+                عروض الحصص والأسعار على ملفي العام
+              </h2>
+              <span className="text-[11px] font-bold text-deep-olive bg-lime-tint px-3 py-1 rounded-full">
+                {(activeCoach?.sessionOffers || []).length} عروض منشورة
+              </span>
+            </div>
+
+            {activeCoach && (activeCoach.sessionOffers || []).length > 0 && (
+              <div className="flex flex-col gap-2">
+                {activeCoach.sessionOffers!.map((o) => (
+                  <div
+                    key={o.id}
+                    className="rounded-xl bg-surface-snow p-3.5 flex items-center justify-between gap-2 border border-surface-container/60"
+                  >
+                    <div>
+                      <div className="font-card-title-sm text-sm text-dark-slate">{o.titleAr}</div>
+                      <div className="text-[11px] text-text-muted">
+                        {o.sessionsCount} حصص • {o.durationMinutes || 60} دقيقة • {o.notesAr}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-black text-deep-olive text-base">{o.priceEgp} ج.م</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCoachSessionOffer(activeCoach.id, o.id)}
+                        className="text-xs text-status-danger font-bold hover:underline"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!activeCoach) {
+                  setStatusMsg({
+                    ok: false,
+                    msg: "يرجى توثيق ملفك ككابتن أولاً لنشر عروض الحصص على صفحتك العامة.",
+                  });
+                  return;
+                }
+                const res = addCoachSessionOffer(activeCoach.id, {
+                  titleAr: offerTitle.trim(),
+                  sessionsCount: Number(offerSessions) || 8,
+                  priceEgp: Number(offerPrice) || 850,
+                  durationMinutes: Number(offerDuration) || 60,
+                  notesAr: offerNotes.trim() || undefined,
+                });
+                setStatusMsg({ ok: res.ok, msg: res.messageAr });
+              }}
+              className="grid grid-cols-2 gap-2.5 pt-2 border-t border-surface-container"
+            >
+              <input
+                required
+                value={offerTitle}
+                onChange={(e) => setOfferTitle(e.target.value)}
+                placeholder="عنوان الباقة (مثال: تدريب خاص 8 حصص)"
+                className="col-span-2 rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                type="number"
+                value={offerSessions}
+                onChange={(e) => setOfferSessions(e.target.value)}
+                placeholder="عدد الحصص"
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                type="number"
+                value={offerPrice}
+                onChange={(e) => setOfferPrice(e.target.value)}
+                placeholder="السعر ج.م"
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                value={offerNotes}
+                onChange={(e) => setOfferNotes(e.target.value)}
+                placeholder="ملاحظة مختصرة (مثلاً: شامل التقييم)"
+                className="col-span-2 rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <button
+                type="submit"
+                className="col-span-2 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs"
+              >
+                + نشر عرض الحصة على ملفي العام
+              </button>
+            </form>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const score = Math.max(1, Math.min(5, Number(pbRatingOverall) || 4));
+              recordCoachSkillAndPB({
+                swimmerNameAr: pbSwimmerName.trim() || "سبّاح كابتنلي",
+                eventTitleAr: pbEventTitle.trim() || "50م سباحة حرة",
+                currentValue: Number(pbTimeSeconds) || 32.0,
+                unitAr: "ثانية",
+                coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
+                facilityNameAr:
+                  facilities.find((f) => f.id === selectedFacId)?.nameAr || currentPersona.city,
+                skills: {
+                  athleteId: "persona-athlete",
+                  evaluatedDateAr: "اليوم — تقييم الكابتن",
+                  coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
+                  metrics: [
+                    { labelAr: "التنفس والانسيابية", score },
+                    { labelAr: "ضربة الرجلين", score },
+                    { labelAr: "دوران الذراعين", score: Math.max(1, score - 1) },
+                    { labelAr: "الغطس والدوران", score },
+                    { labelAr: "التحمل والسرعة", score },
+                  ],
+                  coachFeedbackAr: `تقييم موثق لزمن ${pbTimeSeconds} ثانية في سباق ${pbEventTitle}.`,
+                },
+              });
+              setStatusMsg({
+                ok: true,
+                msg: `تم تسجيل الرقم القياسي والتقييم المعتمد للسباح «${pbSwimmerName}» بنجاح!`,
+              });
+            }}
+            className="lg:col-span-6 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3"
+          >
+            <h2 className="font-card-title text-dark-slate">
+              تسجيل رقم قياسي وتقييم مهاري موثق للسباح
+            </h2>
+            <p className="text-xs text-text-muted">
+              يظهر التوقيت والتقييم في الجواز الرياضي للسباح بختم «توقيت موثق من الكابتن».
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <input
+                required
+                value={pbSwimmerName}
+                onChange={(e) => setPbSwimmerName(e.target.value)}
+                placeholder="اسم السباح"
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                required
+                value={pbEventTitle}
+                onChange={(e) => setPbEventTitle(e.target.value)}
+                placeholder="السباق (50م حرة / ظهر)"
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                required
+                type="number"
+                step="0.1"
+                value={pbTimeSeconds}
+                onChange={(e) => setPbTimeSeconds(e.target.value)}
+                placeholder="الزمن بالثواني (مثال: 31.8)"
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <select
+                value={pbRatingOverall}
+                onChange={(e) => setPbRatingOverall(e.target.value)}
+                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
+              >
+                <option value="5">التقييم العام: 5 / 5 ممتاز</option>
+                <option value="4">التقييم العام: 4 / 5 متقدم</option>
+                <option value="3">التقييم العام: 3 / 5 جيد</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="mt-auto py-2.5 rounded-full bg-deep-olive text-white font-badge-label text-xs"
+            >
+              اعتماد وإرسال التوقيت والتقييم للسباح ✓
+            </button>
+          </form>
         </div>
 
         {/* Active Coach Check-in Ledgers */}

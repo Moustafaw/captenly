@@ -230,39 +230,19 @@ export default function Desktop8() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-2 pt-2">
-                <span className="text-xs font-extrabold text-deep-olive">
-                  معاينة تعدد دفاتر الحصص حسب نوع الحساب:
-                </span>
-                <div className="flex flex-wrap gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => switchPersona("persona-coach")}
-                    className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs hover:opacity-95"
-                  >
-                    حساب الكابتن ({sessionLedgers.length} متدربين وعملاء)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchPersona("persona-facility")}
-                    className="px-4 py-2.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs hover:brightness-95"
-                  >
-                    إدارة المنشأة (أكاديمية دولفين — {facilityOwnCount} دفاتر)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchPersona("persona-parent")}
-                    className="px-4 py-2.5 rounded-full bg-surface-snow text-dark-slate border border-surface-container font-badge-label text-xs hover:bg-surface-container"
-                  >
-                    حساب الأسرة (دفتران: يوسف وريم)
-                  </button>
-                  <Link
-                    href="/dashboard/coach"
-                    className="px-4 py-2.5 rounded-full bg-surface-card border border-deep-olive/30 text-deep-olive font-badge-label text-xs hover:bg-lime-tint/40"
-                  >
-                    تفعيل كودك من لوحة الكابتن ←
-                  </Link>
-                </div>
+              <div className="flex flex-wrap gap-2.5 pt-2">
+                <Link
+                  href="/explore"
+                  className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs hover:opacity-95"
+                >
+                  استكشف المسابح والأكاديميات ←
+                </Link>
+                <Link
+                  href="/dashboard/athlete"
+                  className="px-5 py-2.5 rounded-full bg-surface-snow text-dark-slate border border-surface-container font-badge-label text-xs hover:bg-lime-tint/40"
+                >
+                  ملفي الرياضي وتحليل الأداء
+                </Link>
               </div>
             </div>
 

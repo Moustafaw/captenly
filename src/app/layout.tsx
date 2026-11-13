@@ -11,9 +11,9 @@ import { AuthSessionWrapper } from "@/components/auth/AuthSessionWrapper";
 import { GoogleSessionBridge } from "@/components/auth/GoogleSessionBridge";
 
 export const metadata: Metadata = {
-  title: "كابتنلي CAPTENLY — مجتمعك الرياضي الموثق في مصر",
+  title: "كابتنلي CAPTENLY — المنظومة الرقمية للسباحة في مصر",
   description:
-    "المنظومة الرقمية لاكتشاف أكاديميات السباحة وصالات الجيم، توثيق الكباتن بـ 6 شارات مستقلة، جواز السفر الرياضي، ودفتر الحصص الأوفلاين.",
+    "المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة، توثيق الكباتن بـ 6 شارات مستقلة، جواز السفر الرياضي، ودفتر الحصص الأوفلاين.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon.svg",
