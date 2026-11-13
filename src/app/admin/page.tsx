@@ -251,9 +251,9 @@ export default function FounderAdminPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      simulateTimeTravelDays("fac-mahalla-ghazl", 125);
+                      simulateTimeTravelDays("fac-ghazl-mahalla", 125);
                       setSimResultText(
-                        "تم تقديم تاريخ «أكاديمية أبطال الدلتا — غزل المحلة» إلى 125 يوماً! تم إخفاء السعر القديم تلقائياً وخفض ترتيبها في صفحة /explore لحماية ولي الأمر."
+                        "تم تقديم تاريخ «مجمع سباحة نادي غزل المحلة» إلى 125 يوماً! تم إخفاء السعر القديم تلقائياً وخفض ترتيبها في صفحة /explore."
                       );
                     }}
                     className="flex-1 bg-red-700 hover:bg-red-800 text-white font-black text-xs py-3 rounded-xl transition"
@@ -262,9 +262,9 @@ export default function FounderAdminPage() {
                   </button>
                   <button
                     onClick={() => {
-                      simulateTimeTravelDays("fac-mahalla-ghazl", 0);
+                      simulateTimeTravelDays("fac-ghazl-mahalla", 0);
                       setSimResultText(
-                        "تم تأكيد وتجديد أسعار «أكاديمية أبطال الدلتا» لـ 60 يوماً جديدة باللون الأخضر!"
+                        "تم تأكيد وتجديد أسعار «مجمع سباحة نادي غزل المحلة» لـ 60 يوماً جديدة باللون الأخضر!"
                       );
                     }}
                     className="bg-emerald-700 text-white font-black text-xs px-3 py-3 rounded-xl"

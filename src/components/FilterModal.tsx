@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SWIMMING_SPECIALTIES_9, FITNESS_SPECIALTIES_7 } from "@/data/seedData";
 
@@ -57,15 +58,15 @@ export function FilterModal() {
               onClick={() => setFilterModalOpen(false)}
               className="w-9 h-9 rounded-full bg-surface-card flex items-center justify-center text-dark-slate hover:bg-surface-container transition-colors border border-border-hairline"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <Icon name="close" className="text-[18px]" />
             </button>
             <div className="flex items-center gap-2">
               <h2 className="font-card-title text-card-title text-dark-slate">
                 تصفية النتائج والخيارات
               </h2>
               {activeFiltersCount > 0 && (
-                <span className="px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive font-bold text-micro-caption">
-                  {activeFiltersCount} نشطة
+                <span className="text-deep-olive font-bold text-micro-caption">
+                  ({activeFiltersCount} نشطة)
                 </span>
               )}
             </div>
@@ -95,7 +96,8 @@ export function FilterModal() {
                     : "bg-surface-snow text-text-muted hover:bg-surface-container-low"
                 }`}
               >
-                <span>🏊 السباحة (9 تخصصات)</span>
+                <Icon name="pool" className="text-[16px]" />
+                <span>السباحة (9 تخصصات)</span>
               </button>
               <button
                 type="button"
@@ -106,7 +108,8 @@ export function FilterModal() {
                     : "bg-surface-snow text-text-muted hover:bg-surface-container-low"
                 }`}
               >
-                <span>🏋️ الجيم واللياقة (7 تخصصات)</span>
+                <Icon name="fitness_center" className="text-[16px]" />
+                <span>الجيم واللياقة (7 تخصصات)</span>
               </button>
             </div>
           </div>
@@ -134,9 +137,7 @@ export function FilterModal() {
                     }`}
                   >
                     <span className="truncate">{spec}</span>
-                    <span className="material-symbols-outlined text-[18px] shrink-0">
-                      {isSelected ? "check_circle" : "add_circle"}
-                    </span>
+                    <Icon name={isSelected ? "check_circle" : "add_circle"} className="text-[18px] shrink-0" />
                   </button>
                 );
               })}
@@ -151,9 +152,7 @@ export function FilterModal() {
 
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
               <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-deep-olive text-[20px]">
-                  thermostat
-                </span>
+                <Icon name="thermostat" className="text-deep-olive text-[20px]" />
                 <div>
                   <span className="block font-bold text-body-compact text-dark-slate">
                     مسبح مدفأ شتاءً (28°C–30°C)
@@ -173,9 +172,7 @@ export function FilterModal() {
 
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
               <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-deep-olive text-[20px]">
-                  female
-                </span>
+                <Icon name="female" className="text-deep-olive text-[20px]" />
                 <div>
                   <span className="block font-bold text-body-compact text-dark-slate">
                     مواعيد وفترات سيدات مغلقة
@@ -195,9 +192,7 @@ export function FilterModal() {
 
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
               <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-deep-olive text-[20px]">
-                  verified
-                </span>
+                <Icon name="verified" className="text-deep-olive text-[20px]" />
                 <div>
                   <span className="block font-bold text-body-compact text-dark-slate">
                     شارات التوثيق الميداني الرسمية (6 شارات)
@@ -222,7 +217,7 @@ export function FilterModal() {
               <span className="text-body-compact font-bold text-dark-slate">
                 الحد الأقصى للاشتراك الشهري:
               </span>
-              <span className="text-body-compact font-bold text-deep-olive bg-lime-tint px-2.5 py-0.5 rounded-full">
+              <span className="text-body-compact font-extrabold text-deep-olive">
                 حتى {maxPriceEgp} ج.م / شهر
               </span>
             </div>

@@ -1,12 +1,99 @@
-// AUTO-GENERATED from Screens/Screan Desktop/otp/code.html — faithful port of the reference design.
-/* eslint-disable */
-import Link from "next/link";
-import { Icon } from "@/components/Icon";
+"use client";
 
-export default function DesktopOtp() {
+import React, { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
+
+function DotpInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { currentPersona } = useCaptenly();
+
+  const codeParam = searchParams?.get("code") || currentPersona.memberCode || "CAP-M-5190";
+  const roleParam = searchParams?.get("role") || currentPersona.role;
+
+  const [digits, setDigits] = useState(["1", "2", "3", "4", "5", "6"]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleDigit = (idx: number, val: string) => {
+    const d = val.replace(/\D/g, "").slice(-1);
+    setDigits((prev) => prev.map((x, i) => (i === idx ? d : x)));
+  };
+
+  const handleConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (digits.join("").length < 4) {
+      setErrorMsg("يرجى إدخال رمز التحقق المكون من 6 أرقام.");
+      return;
+    }
+    if (roleParam === "coach") {
+      router.push("/claim?mode=coach");
+    } else if (roleParam === "facility_manager") {
+      router.push("/claim");
+    } else {
+      router.push("/auth/onboarding");
+    }
+  };
+
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen flex flex-col justify-between">
-<header className="w-full bg-surface-card shadow-[0_1px_8px_rgba(44,52,55,0.04)]"><div className="h-16 max-w-7xl mx-auto px-margin-desktop flex items-center justify-between"><div className="flex items-center gap-space-sm"><img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_785a47d1_2K.jpg" /><span className="font-card-title text-card-title text-deep-carbon tracking-tight">كابتنلي</span></div><Link className="font-badge-label text-badge-label text-text-muted hover:text-deep-olive transition-colors flex items-center gap-space-xs" data-path="help-support" href="/"><Icon name="help" className="material-symbols-outlined text-[18px]" /><span>المساعدة والدعم</span></Link></div></header><main className="flex-1 w-full max-w-7xl mx-auto px-margin-desktop py-space-xl flex items-center justify-center"><div className="flex flex-col w-full items-center justify-center py-space-md"><div className="w-full max-w-[480px] bg-surface-card rounded-xl shadow-[0_4px_24px_rgba(44,52,55,0.06)] p-space-xl flex flex-col relative overflow-hidden"><div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-l from-action-whatsapp via-deep-olive to-electric-volt opacity-80"></div><div className="flex justify-center mb-space-lg pt-space-xs"><div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-lime-tint text-deep-olive"><Icon name="security" className="material-symbols-outlined text-[32px]" style={{"fontVariationSettings": "'FILL' 1"}} /><span className="absolute -bottom-1 -left-1 w-6 h-6 rounded-full bg-action-whatsapp text-on-primary flex items-center justify-center shadow-sm"><Icon name="chat" className="material-symbols-outlined text-[15px]" style={{"fontVariationSettings": "'FILL' 1"}} /></span></div></div><div className="text-center mb-space-lg"><h1 className="font-section-title text-section-title text-dark-slate mb-space-xs tracking-tight"> تأكيد رقم الهاتف </h1><p className="font-body-compact text-body-compact text-text-muted leading-relaxed"> أدخل رمز التحقق المكون من 6 أرقام المرسل عبر تطبيق واتساب إلى الرقم: </p><div className="mt-space-sm inline-flex items-center gap-space-sm bg-surface-snow py-space-xs px-space-md rounded-full shadow-[0_1px_4px_rgba(44,52,55,0.04)]"><span className="font-price-tag text-price-tag text-dark-slate dir-ltr select-all" dir="ltr"> +20 101 234 **** </span><button className="font-micro-caption text-micro-caption text-deep-olive hover:text-dark-slate flex items-center gap-space-xs transition-colors" type="button"><Icon name="edit" className="material-symbols-outlined text-[14px]" /><span>تعديل الرقم</span></button></div></div><form className="flex flex-col gap-space-lg" id="otpForm"><div className="flex justify-between items-center gap-space-xs dir-ltr" dir="ltr"><input className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-card rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all select-all" data-index="0" inputMode="numeric" maxLength="1" type="text" defaultValue="5" /><input className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-card rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all select-all" data-index="1" inputMode="numeric" maxLength="1" type="text" defaultValue="8" /><input autoFocus className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-snow rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all" data-index="2" inputMode="numeric" maxLength="1" type="text" /><input className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-snow rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all" data-index="3" inputMode="numeric" maxLength="1" type="text" /><input className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-snow rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all" data-index="4" inputMode="numeric" maxLength="1" type="text" /><input className="otp-box w-12 h-14 text-center font-metric-headline text-metric-headline text-dark-slate bg-surface-snow rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-deep-olive transition-all" data-index="5" inputMode="numeric" maxLength="1" type="text" /></div><div className="flex flex-col items-center gap-space-xs text-center pt-space-xs"><div className="flex items-center gap-space-xs text-text-muted"><Icon name="schedule" className="material-symbols-outlined text-[16px]" /><p className="font-body-compact text-body-compact"> إعادة إرسال الرمز خلال <span className="font-price-tag text-dark-slate font-bold" id="countdownTimer">00:45</span> ثانية </p></div><button className="font-card-title-sm text-card-title-sm text-text-muted opacity-50 cursor-not-allowed hover:text-deep-olive transition-colors" disabled id="resendBtn" type="button"> لم يصلك الرمز؟ أعد الإرسال عبر واتساب </button><div className="w-12 h-[1px] bg-surface-container my-space-xs"></div><button className="font-body-compact text-body-compact text-secondary hover:text-dark-slate flex items-center gap-space-xs transition-colors" type="button"><Icon name="sms" className="material-symbols-outlined text-[16px]" /><span>أو استلام الرمز عبر رسالة نصية SMS</span></button></div><button className="w-full h-12 rounded-full bg-dark-slate hover:bg-deep-carbon text-on-primary font-card-title text-card-title flex items-center justify-center gap-space-sm shadow-md transition-all active:scale-[0.99] group" id="submitBtn" type="submit"><span>تأكيد ومتابعة</span><Icon name="arrow_back" className="material-symbols-outlined text-[20px] transition-transform group-hover:-translate-x-1" /></button></form><div className="mt-space-lg pt-space-md bg-surface-snow rounded-lg p-space-md flex flex-col gap-space-xs"><div className="flex items-center gap-space-xs text-text-muted"><Icon name="verified_user" className="material-symbols-outlined text-[16px] text-deep-olive" /><span className="font-micro-caption text-micro-caption leading-relaxed"> حماية بياناتك وخصوصية حسابك مشفرة وفق أعلى معايير الأمان. </span></div><div className="flex items-center justify-between pt-space-xs"><span className="font-micro-caption text-micro-caption text-text-muted">تواجه مشكلة في الاستلام؟</span><Link className="font-badge-label text-badge-label text-deep-olive hover:text-dark-slate flex items-center gap-space-xs transition-colors" href="/"><Icon name="forum" className="material-symbols-outlined text-[15px] text-action-whatsapp" style={{"fontVariationSettings": "'FILL' 1"}} /><span>محادثة الدعم الفني</span></Link></div></div></div></div></main><footer className="w-full py-space-md"><div className="max-w-7xl mx-auto px-margin-desktop text-center"><p className="font-micro-caption text-micro-caption text-text-muted">© 2025 كابتنلي (Captenly). جميع الحقوق محفوظة.</p></div></footer>
+    <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-6">
+      <div className="max-w-[520px] w-full bg-surface-card rounded-[24px] p-8 shadow-xl flex flex-col gap-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center mx-auto">
+          <Icon name="verified" className="text-[28px]" />
+        </div>
+
+        <div>
+          <h1 className="font-hero-headline text-[24px] text-dark-slate">
+            تأكيد رقم الهاتف وتفعيل كود العضوية
+          </h1>
+          <p className="font-body-compact text-text-muted mt-1">
+            أدخل رمز التحقق المرسل لرقمك ({currentPersona.phone || "010xxxxxxxx"}) — الكود التجريبي الجاهز: 123456
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-surface-snow p-3 text-xs font-bold text-deep-olive">
+          كود عضويتك المخصص: <span className="font-mono text-sm">{codeParam}</span>
+        </div>
+
+        <form onSubmit={handleConfirm} className="flex flex-col gap-5">
+          <div className="flex items-center justify-center gap-2" dir="ltr">
+            {digits.map((digit, idx) => (
+              <input
+                key={idx}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigit(idx, e.target.value)}
+                className="w-12 h-14 text-center text-xl font-black rounded-xl bg-surface-snow border border-surface-container focus:border-deep-olive outline-none text-dark-slate"
+              />
+            ))}
+          </div>
+
+          {errorMsg && <div className="text-xs font-bold text-status-danger">{errorMsg}</div>}
+
+          <button
+            type="submit"
+            className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title shadow-md hover:opacity-95"
+          >
+            تأكيد الرمز والمتابعة ←
+          </button>
+        </form>
+
+        <Link href="/auth/login" className="text-xs text-text-muted hover:text-dark-slate">
+          العودة لتعديل رقم الهاتف
+        </Link>
+      </div>
     </div>
+  );
+}
+
+export default function Dotp() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-canvas-alabaster" />}>
+      <DotpInner />
+    </Suspense>
   );
 }

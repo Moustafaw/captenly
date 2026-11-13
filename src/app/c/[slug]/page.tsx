@@ -2,385 +2,249 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import {
-  Award,
-  ShieldCheck,
-  QrCode,
-  MapPin,
-  Calendar,
-  MessageCircle,
-  CheckCircle2,
-  Building2,
-  Share2,
-} from "lucide-react";
+import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { CaptenlyLogo } from "@/components/CaptenlyLogo";
+import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 
-export default function CoachPublicProfilePage() {
-  const params = useParams<{ slug: string }>();
+export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
   const { coaches, createStructuredWhatsappLead, currentPersona } = useCaptenly();
+  const coach = coaches.find((c) => c.slug === params.slug || c.id === params.slug);
 
-  const coach = coaches.find((c) => c.slug === params.slug) || coaches[0];
+  const [leadCode, setLeadCode] = useState<string | null>(null);
+  const [selectedSessions, setSelectedSessions] = useState<8 | 12>(8);
 
-  const [inquirerName, setInquirerName] = useState(currentPersona.fullNameAr);
-  const [inquirerPhone, setInquirerPhone] = useState(
-    currentPersona.phone || "01012345678"
-  );
-  const [athleteAge, setAthleteAge] = useState<number>(10);
-  const [requestedSpecialty, setRequestedSpecialty] = useState<string>(
-    coach.specialties[0]?.nameAr || "تأسيس سباحة"
-  );
-  const [leadGenerated, setLeadGenerated] = useState<{
-    referralCode: string;
-    whatsappUrl: string;
-  } | null>(null);
-  const [showQrModal, setShowQrModal] = useState(false);
+  if (!coach) {
+    return (
+      <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16 px-margin lg:px-margin-desktop">
+        <div className="max-w-2xl mx-auto bg-surface-card rounded-[20px] p-10 text-center shadow-sm flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-surface-snow text-dark-slate flex items-center justify-center">
+            <Icon name="verified_user" className="text-[32px]" />
+          </div>
+          <h1 className="font-section-title text-section-title text-dark-slate">
+            ملف الكابتن غير متوفر أو قيد التوثيق
+          </h1>
+          <p className="font-body-default text-text-muted">
+            تظهر ملفات الكباتن المستقلة فقط بعد قيام الكابتن بتسجيل حسابه بنفسه واعتماد شهاداته للشارات الخضراء.
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Link
+              href="/claim?mode=coach"
+              className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
+            >
+              سجّل ووثّق ككابتن الآن
+            </Link>
+            <Link
+              href="/coaches"
+              className="px-6 py-2.5 rounded-full bg-surface-snow text-dark-slate font-badge-label"
+            >
+              تصفح الدليل المعتمد
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const handleBookPrivateCoach = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleWhatsappLead = () => {
     const res = createStructuredWhatsappLead({
       targetType: "coach",
       targetId: coach.id,
       targetNameAr: coach.fullNameAr,
       whatsappNumber: coach.whatsappNumber,
-      inquirerNameAr: inquirerName,
-      inquirerPhone,
-      athleteAge,
-      requestedSpecialtyAr: requestedSpecialty,
-      preferredScheduleAr: "مجموعة برايفت / تدريب شخصي",
+      inquirerNameAr: currentPersona.fullNameAr,
+      inquirerPhone: currentPersona.phone,
+      athleteAge: 10,
+      requestedSpecialtyAr: `${coach.specialties[0]?.nameAr || "تدريب سباحة"} (${selectedSessions} حصص)`,
+      preferredScheduleAr: "بالتنسيق مع الكابتن",
     });
-    setLeadGenerated(res);
-  };
-
-  const getCredibilityTierLabel = (
-    tier: "official_credential" | "reviewed_qualification" | "self_declared"
-  ) => {
-    switch (tier) {
-      case "official_credential":
-        return "شهادة رسمية معتمدة (كلية علوم الرياضة / اتحاد)";
-      case "reviewed_qualification":
-        return "خبرة ودورة تمت مراجعة مستندها";
-      default:
-        return "تخصص معلن ذاتياً";
-    }
+    setLeadCode(res.referralCode);
+    window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Coach Hero Header */}
-      <div className="bg-captenly-slate text-white rounded-3xl p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-inter text-xs font-black bg-captenly-volt text-captenly-slate px-3 py-1 rounded-full">
-              Single Coach ID: {coach.SingleCoachId}
-            </span>
-            <span className="text-xs font-extrabold bg-white/10 text-captenly-tint px-3 py-1 rounded-full">
-              0% عمولة على حصص الكابتن (MVP-05)
-            </span>
-            <span className="text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full">
-              خبرة {coach.yearsExperience} سنوات • {coach.activeAthletesCount} لاعب نشط
-            </span>
+    <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16">
+      <div className="max-w-[1180px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
+        {/* Hero */}
+        <section className="rounded-[20px] bg-dark-slate text-surface-card p-8 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div className="lg:col-span-8 flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <img
+              src={coach.avatarUrl || "/screens/3dff88737bec.jpg"}
+              alt={coach.fullNameAr}
+              className="w-24 h-24 rounded-2xl object-cover border-2 border-electric-volt shrink-0"
+            />
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs font-bold">
+                  ✓ كابتن موثق بالشارات الخضراء
+                </span>
+                <span className="font-mono text-xs px-2.5 py-1 rounded-full bg-deep-carbon text-electric-volt">
+                  {coach.SingleCoachId}
+                </span>
+              </div>
+              <h1 className="font-hero-headline text-[28px] md:text-[32px] text-surface-card">
+                {coach.fullNameAr}
+              </h1>
+              <p className="font-body-default text-surface-container-high">{coach.titleAr}</p>
+              <div className="flex flex-wrap gap-4 text-xs text-surface-variant pt-1">
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="location_on" className="text-[14px] text-electric-volt" />
+                  <span>{coach.city} • {coach.district}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="star" className="text-[14px] text-status-warning" />
+                  <span>{coach.rating} ({coach.verifiedReviewsCount} تقييم)</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="trophy" className="text-[14px] text-electric-volt" />
+                  <span>{coach.yearsExperience} سنوات خبرة</span>
+                </span>
+                <span>0% عمولة وساطة</span>
+              </div>
+            </div>
           </div>
 
-          <button
-            onClick={() => setShowQrModal(!showQrModal)}
-            className="inline-flex items-center gap-2 bg-captenly-volt hover:brightness-105 text-captenly-slate font-black text-xs px-4 py-2.5 rounded-xl shadow-volt transition"
-          >
-            <QrCode className="w-4 h-4" />
-            <span>{showQrModal ? "إخفاء كارت QR الكابتن" : "عرض كارت الفخر المهني (QR Card)"}</span>
-          </button>
-        </div>
+          <div className="lg:col-span-4 flex flex-col items-start lg:items-end gap-3">
+            <div className="bg-deep-carbon rounded-2xl p-4 w-full lg:w-auto text-right">
+              <div className="text-xs text-surface-variant">سعر باقة {selectedSessions} حصص</div>
+              <div className="text-2xl font-black text-electric-volt mt-1">
+                {selectedSessions === 8 ? coach.privatePackage8Egp : coach.privatePackage12Egp} ج.م
+              </div>
+              <div className="text-[11px] text-surface-container-high mt-1">
+                يشمل متابعة التقييم ودفتر الحصص الـ QR
+              </div>
+            </div>
 
-        <div className="space-y-2">
-          <h1 className="text-2xl sm:text-4xl font-black">{coach.fullNameAr}</h1>
-          <p className="text-sm sm:text-base text-captenly-tint font-bold">
-            {coach.titleAr}
-          </p>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
-            {coach.bioAr}
-          </p>
-        </div>
+            <button
+              type="button"
+              onClick={handleWhatsappLead}
+              className="w-full lg:w-auto px-6 py-3 rounded-full bg-action-whatsapp text-white font-card-title-sm flex items-center justify-center gap-2 hover:opacity-95 shadow-md"
+            >
+              <Icon name="chat" className="text-[18px]" />
+              <span>تواصل وحجز عبر واتساب</span>
+            </button>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300">
-          <span className="flex items-center gap-1.5">
-            <MapPin className="w-4 h-4 text-captenly-volt" />
-            <span>
-              نطاق العمل: {coach.city} — محافظة {coach.governorate}
-            </span>
-          </span>
-          <span>• حساب إنستاباي الموثق: {coach.instapayHandle}</span>
-        </div>
-
-        {/* Printable / Shareable Coach QR Pride Card (MVP-08) */}
-        {showQrModal && (
-          <div className="bg-captenly-carbon border-2 border-captenly-volt rounded-3xl p-6 max-w-md mx-auto text-center space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <CaptenlyLogo variant="horizontal" theme="dark" size="sm" />
-              <span className="font-inter text-xs font-black text-captenly-volt">
-                {coach.SingleCoachId}
+            {leadCode && (
+              <span className="text-xs text-electric-volt font-mono">
+                كود إحالة الاستفسار: {leadCode}
               </span>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-lg font-black text-white">{coach.fullNameAr}</h3>
-              <p className="text-xs text-slate-300">{coach.titleAr}</p>
-            </div>
-            {/* Simulated High-Contrast QR Box */}
-            <div className="bg-white text-captenly-slate w-44 h-44 mx-auto rounded-2xl p-4 flex flex-col items-center justify-center border-4 border-captenly-volt">
-              <QrCode className="w-28 h-28 text-captenly-slate" />
-              <span className="font-inter text-[10px] font-black mt-1">
-                {coach.qrCodeToken}
-              </span>
-            </div>
-            <p className="text-xs text-captenly-tint">
-              امسح الكود لفتح الشهادات الموثقة، جدول المواعيد، وتفعيل دفتر الحصص الأوفلاين.
-            </p>
+            )}
           </div>
-        )}
-      </div>
+        </section>
 
-      {/* Main Two-Column Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Right Column (7 cols): 6 Badges + Weekly Multi-Facility Schedule + Credibility Tiers */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Independent Badges Section (MVP-06) */}
-          <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-card space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-captenly-slate flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-captenly-olive" />
-                <span>الشارات المستقلة الموثقة للكابتن (MVP-06)</span>
+        {/* Body Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+          <div className="lg:col-span-8 flex flex-col gap-space-md">
+            <section className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-3">
+              <h2 className="font-section-title text-section-title text-dark-slate">
+                النبذة المهنية والتخصصات
               </h2>
-              <span className="text-[11px] font-bold bg-captenly-tint text-captenly-olive px-2.5 py-1 rounded-lg">
-                مراجعة مستندية خلال 24–48 ساعة
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {coach.badges.map((b) => (
-                <div
-                  key={b.code}
-                  className="bg-captenly-soft border border-captenly-olive/30 rounded-2xl p-4 space-y-1.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-xs text-captenly-olive flex items-center gap-1.5">
-                      <Award className="w-4 h-4" />
-                      {b.titleAr}
-                    </span>
-                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                      سارية ✓
-                    </span>
-                  </div>
-                  <div className="text-[11px] font-bold text-captenly-slate">
-                    الجهة المصدرة: {b.authorityAr}
-                  </div>
-                  <p className="text-[11px] text-slate-600">{b.descriptionAr}</p>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-captenly-olive/10">
-                    <span>تاريخ الفحص: {b.verifiedDate}</span>
-                    {b.expiresDate && (
-                      <span className="font-bold text-amber-800">
-                        تنتهي: {b.expiresDate}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Multi-Facility Weekly Schedule (Governance Rule #1, #2, #3) */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-card space-y-4">
-            <div>
-              <h2 className="text-lg font-black text-captenly-slate flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-captenly-olive" />
-                <span>الجدول الأسبوعي الموحد عبر الأندية والأكاديميات</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                بفضل الهوية الموحدة (Single Coach ID)، يجمع الكابتن كل أماكن شغله في رابط واحد بموافقة ثنائية متبادلة.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {coach.affiliations
-                .filter((a) => a.status === "active_mutual")
-                .map((aff) => (
-                  <div
-                    key={aff.facilityId}
-                    className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3"
+              <p className="font-body-default text-text-muted leading-relaxed">{coach.bioAr}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-2">
+                {coach.specialties.map((s) => (
+                  <span
+                    key={s.nameAr}
+                    className="text-deep-olive font-bold text-xs inline-flex items-center gap-1"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-captenly-olive" />
-                        <span className="font-black text-sm text-captenly-slate">
-                          {aff.facilityNameAr}
-                        </span>
-                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                          ربط ثنائي مؤكد ✓
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-600 font-semibold">
-                        الدور: {aff.roleAr} | المدينة: {aff.city}
-                      </div>
+                    <Icon name="check_circle" className="text-[14px]" />
+                    <span>{s.nameAr}</span>
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <section className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-section-title text-section-title text-dark-slate">
+                  سجل الشارات الخضراء والاعتمادات ({coach.badges.length})
+                </h2>
+                <Link href="/badges" className="text-xs font-bold text-deep-olive hover:underline">
+                  معايير التوثيق
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {coach.badges.map((b) => (
+                  <div key={b.code} className="rounded-xl bg-surface-snow p-4 flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-card-title-sm text-dark-slate">{b.titleAr}</span>
+                      <span className="text-[11px] font-extrabold text-deep-olive">
+                        نشطة ✓
+                      </span>
                     </div>
-                    <div className="bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-extrabold text-captenly-olive">
-                      📅 {aff.scheduleAr}
-                    </div>
+                    <span className="text-xs text-deep-olive font-semibold">{b.authorityAr}</span>
+                    <p className="text-xs text-text-muted mt-1">{b.descriptionAr}</p>
                   </div>
                 ))}
-            </div>
-          </div>
-
-          {/* 3-Tier Specialty Credibility Classification (Brand Strategy p. 27) */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-card space-y-4">
-            <h2 className="text-lg font-black text-captenly-slate">
-              التخصصات المعتمدة ومستوى مصداقية كل تخصص (3 مستويات)
-            </h2>
-            <div className="space-y-2.5">
-              {coach.specialties.map((sp) => (
-                <div
-                  key={sp.nameAr}
-                  className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs"
-                >
-                  <span className="font-extrabold text-captenly-slate">
-                    ✓ {sp.nameAr}
-                  </span>
-                  <span className="bg-captenly-tint text-captenly-olive font-bold px-2.5 py-1 rounded-lg text-[11px]">
-                    {getCredibilityTierLabel(sp.credibilityTier)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Left Column (5 cols): Direct Private Package Booking (Rule #4 Lead Attribution Boundary) */}
-        <div className="lg:col-span-5">
-          <div className="sticky top-24 bg-captenly-slate text-white rounded-3xl p-6 border-2 border-captenly-volt shadow-2xl space-y-5">
-            <div className="space-y-1 border-b border-white/10 pb-4">
-              <span className="bg-captenly-volt text-captenly-slate text-xs font-black px-3 py-0.5 rounded-full">
-                قاعدة الحوكمة #4 • 0% عمولة على الكابتن
-              </span>
-              <h3 className="text-xl font-black pt-1">
-                احجز باقة تدريب خاص (برايفت / PT) مع {coach.fullNameAr}
-              </h3>
-              <p className="text-xs text-slate-300">
-                بما أنك داخل الملف المستقل للكابتن، طلبك يذهب مباشرة لواتساب الكابتن الشخصي بـ 0% عمولة من المنصة.
-              </p>
-            </div>
-
-            {/* Private Package Prices */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/10 border border-captenly-volt/40 rounded-2xl p-3.5 text-center">
-                <div className="text-xs text-captenly-tint font-bold">باقة 8 حصص برايفت</div>
-                <div className="font-inter font-black text-2xl text-captenly-volt mt-1">
-                  {coach.privatePackage8Egp} ج.م
-                </div>
-                <div className="text-[10px] text-slate-300">شاملة دفتر الحصص الأوفلاين</div>
               </div>
-              <div className="bg-white/10 border border-white/20 rounded-2xl p-3.5 text-center">
-                <div className="text-xs text-captenly-tint font-bold">باقة 12 حصة برايفت</div>
-                <div className="font-inter font-black text-2xl text-white mt-1">
-                  {coach.privatePackage12Egp} ج.م
-                </div>
-                <div className="text-[10px] text-slate-300">شاملة تقييم الـ 5 نقاط</div>
-              </div>
-            </div>
+            </section>
 
-            <form onSubmit={handleBookPrivateCoach} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-captenly-tint mb-1">
-                  اسم ولي الأمر أو المتدرب:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={inquirerName}
-                  onChange={(e) => setInquirerName(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-white font-bold"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-captenly-tint mb-1">
-                    رقم الواتساب:
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={inquirerPhone}
-                    onChange={(e) => setInquirerPhone(e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-captenly-tint mb-1">
-                    السن:
-                  </label>
-                  <input
-                    type="number"
-                    value={athleteAge}
-                    onChange={(e) => setAthleteAge(Number(e.target.value))}
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-white font-bold"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block font-bold text-captenly-tint mb-1">
-                  التخصص المطلوب:
-                </label>
-                <select
-                  value={requestedSpecialty}
-                  onChange={(e) => setRequestedSpecialty(e.target.value)}
-                  className="w-full bg-captenly-carbon border border-white/20 rounded-xl px-3 py-2.5 text-white font-bold"
-                >
-                  {coach.specialties.map((s) => (
-                    <option key={s.nameAr} value={s.nameAr}>
-                      {s.nameAr}
-                    </option>
+            {coach.affiliations.length > 0 && (
+              <section className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-3">
+                <h2 className="font-section-title text-section-title text-dark-slate">
+                  أماكن التدريب المعتمدة للكابتن
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {coach.affiliations.map((aff) => (
+                    <div
+                      key={aff.facilityId}
+                      className="rounded-xl bg-surface-snow p-4 flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-card-title-sm text-dark-slate">{aff.facilityNameAr}</div>
+                        <div className="text-xs text-text-muted">
+                          {aff.city} • {aff.scheduleAr}
+                        </div>
+                      </div>
+                      <span className="text-deep-olive text-xs font-extrabold">
+                        ارتباط ساري ✓
+                      </span>
+                    </div>
                   ))}
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-captenly-volt hover:brightness-105 text-captenly-slate font-black text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-volt transition"
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span>تواصل مباشر مع الكابتن على واتساب (#CAP)</span>
-              </button>
-            </form>
-
-            {leadGenerated && (
-              <div className="bg-captenly-carbon border border-captenly-volt rounded-2xl p-4 space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-captenly-volt font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    تم تجهيز طلب الحجز المباشر!
-                  </span>
-                  <span className="font-inter font-black bg-captenly-volt text-captenly-slate px-2 py-0.5 rounded">
-                    {leadGenerated.referralCode}
-                  </span>
                 </div>
-                <a
-                  href={leadGenerated.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center bg-emerald-500 text-captenly-carbon font-black text-xs py-2.5 rounded-xl"
-                >
-                  إرسال الرسالة لواتساب الكابتن الآن ↗
-                </a>
-              </div>
+              </section>
             )}
-
-            <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-300">
-              <span>هل أنت الكابتن صاحب هذا الملف؟</span>
-              <Link
-                href="/dashboard/coach"
-                className="text-captenly-volt font-extrabold hover:underline"
-              >
-                افتح لوحة تحكم الكابتن ←
-              </Link>
-            </div>
           </div>
+
+          <aside className="lg:col-span-4 flex flex-col gap-4">
+            <div className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-3">
+              <h3 className="font-card-title text-dark-slate">اختيار الباقة الشهرية</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSessions(8)}
+                  className={`p-3 rounded-xl border text-right transition-all ${
+                    selectedSessions === 8
+                      ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                      : "bg-surface-snow border-transparent text-text-muted"
+                  }`}
+                >
+                  <div className="text-xs font-bold">8 حصص</div>
+                  <div className="text-lg font-black text-deep-olive">{coach.privatePackage8Egp} ج.م</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSessions(12)}
+                  className={`p-3 rounded-xl border text-right transition-all ${
+                    selectedSessions === 12
+                      ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                      : "bg-surface-snow border-transparent text-text-muted"
+                  }`}
+                >
+                  <div className="text-xs font-bold">12 حصة</div>
+                  <div className="text-lg font-black text-deep-olive">{coach.privatePackage12Egp} ج.م</div>
+                </button>
+              </div>
+
+              <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-2 mt-2">
+                <span className="text-xs font-bold text-dark-slate">
+                  بطاقة التعريف الرقمية للكابتن (QR)
+                </span>
+                <QrCodeBox value={coach.qrCodeToken} size={132} label={coach.SingleCoachId} />
+                <p className="text-[11px] text-text-muted">
+                  هذه بطاقة مشاركة سريعة لملف الكابتن، بينما التوثيق المهني يتم عبر الشارات الخضراء، ودفتر الحصص الـ QR يُفعّل للسباح عبر كود عضويته الخاص.
+                </p>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>

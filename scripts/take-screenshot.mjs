@@ -5,6 +5,8 @@ import path from "node:path";
 
 const targetUrl = process.argv[2] || "http://localhost:3000";
 const targetOutput = process.argv[3] || "public/current_view.png";
+const vpWidth = Number(process.argv[4] || 1440);
+const vpHeight = vpWidth <= 480 ? 844 : 1200;
 
 const tempProfile = path.join(os.tmpdir(), "chrome-cdp-" + Date.now());
 fs.mkdirSync(tempProfile, { recursive: true });
@@ -17,7 +19,7 @@ const chrome = spawn(CHROME, [
   "--disable-gpu",
   "--no-first-run",
   "--no-default-browser-check",
-  "--window-size=1440,1200",
+  `--window-size=${vpWidth},${vpHeight}`,
 ]);
 
 // Wait up to 10s for Chrome to become responsive on port 9222

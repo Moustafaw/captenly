@@ -1,12 +1,66 @@
-// AUTO-GENERATED from Screens/Screan Desktop/_2/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 
 export default function Desktop2() {
+  const [pass1, setPass1] = useState("");
+  const [pass2, setPass2] = useState("");
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pass1.length >= 4 && pass1 === pass2) setDone(true);
+  };
+
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen flex flex-col justify-between">
-<header className="w-full bg-surface-card shadow-[0_1px_8px_rgba(44,52,55,0.04)]"><div className="h-16 max-w-7xl mx-auto px-margin-desktop flex items-center justify-between"><div className="flex items-center gap-space-sm"><img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_785a47d1_2K.jpg" /><span className="font-card-title text-card-title text-deep-carbon tracking-tight">كابتنلي</span></div><Link className="font-badge-label text-badge-label text-text-muted hover:text-deep-olive transition-colors flex items-center gap-space-xs" data-path="help-support" href="/"><Icon name="help" className="material-symbols-outlined text-[18px]" /><span>المساعدة والدعم</span></Link></div></header><main className="flex-1 w-full max-w-7xl mx-auto px-margin-desktop py-space-xl flex items-center justify-center"><div className="flex flex-col w-full items-center justify-center py-space-md"><div className="w-full max-w-[490px] bg-surface-card rounded-2xl shadow-[0_4px_24px_rgba(44,52,55,0.06)] p-space-xl relative overflow-hidden transition-all duration-300"><div className="absolute -top-16 -right-16 w-36 h-36 bg-lime-tint/60 rounded-full blur-2xl pointer-events-none"></div><div className="flex flex-col" id="resetFormView"><div className="flex items-center justify-between mb-space-lg"><div className="w-14 h-14 rounded-2xl bg-lime-tint flex items-center justify-center text-deep-olive shadow-sm"><Icon name="lock_reset" className="material-symbols-outlined text-[28px]" style={{"fontVariationSettings": "'FILL' 1"}} /></div><div className="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container rounded-full text-text-muted font-badge-label text-badge-label"><span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span><span>جلسة آمنة وموثقة</span></div></div><div className="space-y-space-xs mb-space-lg"><h1 className="font-section-title text-section-title text-dark-slate tracking-tight"> تعيين كلمة مرور جديدة </h1><p className="font-body-default text-body-default text-text-muted leading-relaxed"> تم التحقق من هويتك بنجاح. يرجى إدخال كلمة مرور جديدة قوية لحماية حسابك في كابتنلي. </p></div><form className="space-y-space-md" id="passwordResetForm"><div className="space-y-space-xs"><label className="block font-card-title-sm text-card-title-sm text-dark-slate" htmlFor="newPassword"> كلمة المرور الجديدة </label><div className="relative flex items-center"><input autoComplete="new-password" className="w-full h-12 pr-4 pl-12 bg-surface-snow rounded-xl text-dark-slate font-body-compact text-body-compact placeholder:text-text-muted/60 focus:outline-none focus:bg-surface-card focus:shadow-[0_0_0_2px_#3F6212] transition-all" id="newPassword" placeholder="••••••••••••" required type="password" /><button aria-label="إظهار أو إخفاء كلمة المرور" className="absolute left-3 p-1.5 text-text-muted hover:text-dark-slate transition-colors flex items-center justify-center" type="button"><Icon name="visibility" className="material-symbols-outlined text-[20px]" /></button></div><div className="pt-2 space-y-2"><div className="flex items-center gap-1.5 w-full"><div className="h-1.5 flex-1 rounded-full bg-surface-container transition-all duration-300" id="bar1"></div><div className="h-1.5 flex-1 rounded-full bg-surface-container transition-all duration-300" id="bar2"></div><div className="h-1.5 flex-1 rounded-full bg-surface-container transition-all duration-300" id="bar3"></div><div className="h-1.5 flex-1 rounded-full bg-surface-container transition-all duration-300" id="bar4"></div></div><div className="grid grid-cols-3 gap-1 pt-1 text-text-muted font-micro-caption text-micro-caption"><div className="flex items-center gap-1 transition-colors" id="reqLength"><Icon name="check_circle" className="material-symbols-outlined text-[14px]" /><span>8 أحرف على الأقل</span></div><div className="flex items-center gap-1 transition-colors" id="reqNumber"><Icon name="check_circle" className="material-symbols-outlined text-[14px]" /><span>أرقام</span></div><div className="flex items-center gap-1 transition-colors" id="reqSymbol"><Icon name="check_circle" className="material-symbols-outlined text-[14px]" /><span>رموز خاصة</span></div></div></div></div><div className="space-y-space-xs pt-1"><label className="block font-card-title-sm text-card-title-sm text-dark-slate" htmlFor="confirmPassword"> تأكيد كلمة المرور الجديدة </label><div className="relative flex items-center"><input autoComplete="new-password" className="w-full h-12 pr-4 pl-12 bg-surface-snow rounded-xl text-dark-slate font-body-compact text-body-compact placeholder:text-text-muted/60 focus:outline-none focus:bg-surface-card focus:shadow-[0_0_0_2px_#3F6212] transition-all" id="confirmPassword" placeholder="••••••••••••" required type="password" /><button aria-label="إظهار أو إخفاء تأكيد كلمة المرور" className="absolute left-3 p-1.5 text-text-muted hover:text-dark-slate transition-colors flex items-center justify-center" type="button"><Icon name="visibility" className="material-symbols-outlined text-[20px]" /></button></div><div className="hidden font-micro-caption text-micro-caption text-status-danger pt-1 flex items-center gap-1" id="matchNotice"><Icon name="info" className="material-symbols-outlined text-[14px]" /><span>كلمتا المرور غير متطابقتين</span></div></div><div className="pt-2"><label className="flex items-start gap-3 cursor-pointer group select-none"><div className="relative flex items-center justify-center mt-0.5"><input defaultChecked className="peer sr-only" id="logoutAllDevices" type="checkbox" /><div className="w-5 h-5 bg-surface-container rounded-md peer-checked:bg-dark-slate peer-focus:ring-2 peer-focus:ring-lime-tint transition-all"></div><Icon name="check" className="material-symbols-outlined text-electric-volt text-[16px] absolute opacity-0 peer-checked:opacity-100 transition-opacity font-bold pointer-events-none" /></div><div className="flex-1"><span className="font-body-compact text-body-compact text-dark-slate group-hover:text-deep-carbon transition-colors"> تسجيل الخروج من جميع الأجهزة الأخرى النشطة </span><p className="font-micro-caption text-micro-caption text-text-muted"> يضمن هذا الخيار إبطال أي جلسات سابقة لحماية سرية حسابك الرياضي. </p></div></label></div><div className="pt-space-sm"><button className="w-full h-12 bg-dark-slate hover:bg-deep-carbon active:scale-[0.99] text-on-primary font-card-title-sm text-card-title-sm rounded-full flex items-center justify-center gap-2 shadow-md transition-all duration-200" id="submitBtn" type="submit"><span>حفظ كلمة المرور وتسجيل الدخول</span><Icon name="arrow_back" className="material-symbols-outlined text-[18px]" /></button></div></form><div className="mt-space-lg pt-space-md border-t border-border-hairline flex items-start gap-2.5"><Icon name="gshield" className="material-symbols-outlined text-text-muted text-[18px] shrink-0 mt-0.5" /><p className="font-micro-caption text-micro-caption text-text-muted leading-relaxed"> إذا لم تكن قد طلبت إعادة التعيين، يرجى التواصل مع فريق الدعم الفني فوراً لحظر أي وصول غير مصرّح به. </p></div></div><div className="hidden flex-col items-center text-center py-space-sm" id="successView"><div className="w-16 h-16 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center mb-space-md animate-bounce"><Icon name="check_circle" className="material-symbols-outlined text-[36px]" style={{"fontVariationSettings": "'FILL' 1"}} /></div><div className="inline-flex items-center gap-1.5 px-3 py-1 bg-lime-tint/70 text-deep-olive rounded-full font-badge-label text-badge-label mb-space-sm"><span>تم التحديث بنجاح</span></div><h2 className="font-section-title text-section-title text-dark-slate mb-space-xs"> تم تعيين كلمة المرور بنجاح! </h2><p className="font-body-default text-body-default text-text-muted max-w-sm mb-space-lg leading-relaxed"> تم تحديث بيانات تسجيل الدخول الخاصة بحسابك، وتم تأمين جلستك. يتم الآن تحويلك تلقائياً إلى لوحة التحكم الخاصة بك. </p><div className="w-full p-space-sm bg-surface-container rounded-xl flex items-center justify-between text-dark-slate mb-space-lg"><div className="flex items-center gap-2"><Icon name="devices" className="material-symbols-outlined text-status-success text-[20px]" /><span className="font-body-compact text-body-compact">الأجهزة النشطة: تم إنهاء 3 جلسات سابقة</span></div><Icon name="done_all" className="material-symbols-outlined text-text-muted text-[18px]" /></div><Link className="w-full h-12 bg-dark-slate hover:bg-deep-carbon text-on-primary font-card-title-sm text-card-title-sm rounded-full flex items-center justify-center gap-2 shadow-md transition-all" href="/dashboard/athlete"><span>المتابعة إلى حسابي الآن</span><Icon name="east" className="material-symbols-outlined text-[18px]" /></Link></div></div></div></main><footer className="w-full py-space-md"><div className="max-w-7xl mx-auto px-margin-desktop text-center"><p className="font-micro-caption text-micro-caption text-text-muted">© 2025 كابتنلي (Captenly). جميع الحقوق محفوظة.</p></div></footer>
+    <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-6">
+      <div className="max-w-[480px] w-full bg-surface-card rounded-[24px] p-8 shadow-xl flex flex-col gap-5">
+        <div className="w-12 h-12 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center">
+          <Icon name="lock" className="text-[22px]" />
+        </div>
+        <h1 className="font-hero-headline text-[24px] text-dark-slate">تعيين رمز مرور جديد</h1>
+
+        {done ? (
+          <div className="flex flex-col gap-4">
+            <div className="p-4 rounded-xl bg-lime-tint text-deep-olive text-sm font-bold">
+              ✓ تم تحديث رمز المرور بنجاح!
+            </div>
+            <Link
+              href="/auth/login"
+              className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-center"
+            >
+              تسجيل الدخول الآن
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <input
+              required
+              type="password"
+              value={pass1}
+              onChange={(e) => setPass1(e.target.value)}
+              placeholder="الرمز الجديد (4 أرقام أو أحرف على الأقل)"
+              className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+            />
+            <input
+              required
+              type="password"
+              value={pass2}
+              onChange={(e) => setPass2(e.target.value)}
+              placeholder="تأكيد الرمز الجديد"
+              className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm mt-1"
+            >
+              حفظ الرمز الجديد
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { Icon } from "@/components/Icon";
 
 export default function FamilySettingsPage() {
   const { minorAthletes, addMinorAthlete } = useCaptenly();
@@ -31,7 +32,7 @@ export default function FamilySettingsPage() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6" dir="rtl">
+    <div className="w-full max-w-4xl mx-auto px-4 md:px-6 pt-6 lg:pt-6 pb-12 flex flex-col gap-6" dir="rtl">
       {/* Breadcrumbs & Header */}
       <div className="flex flex-col gap-2">
         <nav className="flex items-center gap-1.5 text-micro-caption text-text-muted">
@@ -56,7 +57,7 @@ export default function FamilySettingsPage() {
             onClick={() => setModalOpen(true)}
             className="px-4 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm flex items-center gap-1.5"
           >
-            <span className="material-symbols-outlined text-[18px]">add</span>
+            <Icon name="add" className="text-[18px]" />
             <span>إضافة ابن / بطل جديد</span>
           </button>
         </div>
@@ -65,15 +66,15 @@ export default function FamilySettingsPage() {
       {/* Law 151 Minor Protection Compliance Notice */}
       <div className="p-4 rounded-2xl bg-surface-card border border-border-hairline shadow-xs flex items-start gap-3.5">
         <div className="w-10 h-10 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-[20px]">shield</span>
+          <Icon name="shield" className="text-[20px]" />
         </div>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-bold text-card-title-sm text-dark-slate">
               حماية خصوصية بيانات الأطفال (قانون رقم 151 لسنة 2020)
             </span>
-            <span className="px-2 py-0.5 rounded bg-lime-tint text-deep-olive text-[10px] font-bold">
-              حماية مشددة
+            <span className="text-deep-olive text-[11px] font-extrabold">
+              حماية مشددة ✓
             </span>
           </div>
           <p className="text-micro-caption text-text-muted leading-relaxed">
@@ -105,7 +106,7 @@ export default function FamilySettingsPage() {
                   </div>
                 </div>
 
-                <span className="px-2.5 py-1 rounded-full bg-surface-snow border border-border-hairline text-deep-olive text-[11px] font-bold">
+                <span className="text-deep-olive text-[11px] font-extrabold">
                   {athlete.starTitleAr}
                 </span>
               </div>
@@ -123,7 +124,7 @@ export default function FamilySettingsPage() {
                 <div className="flex items-center justify-between pt-1 border-t border-border-hairline">
                   <span className="text-text-muted">حالة موافقة ولي الأمر:</span>
                   <span className="font-bold text-status-success flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    <Icon name="check_circle" className="text-[14px]" />
                     <span>موثقة إلكترونياً</span>
                   </span>
                 </div>
@@ -161,7 +162,7 @@ export default function FamilySettingsPage() {
                 onClick={() => setModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="text-[18px]" />
               </button>
             </div>
 

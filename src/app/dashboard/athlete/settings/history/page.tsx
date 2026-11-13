@@ -3,12 +3,18 @@
 import React from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { Icon } from "@/components/Icon";
 
 export default function HistorySettingsPage() {
-  const { sessionLedgers } = useCaptenly();
+  const { sessionLedgers, currentPersona } = useCaptenly();
+  const isProvider =
+    currentPersona.role === "coach" || currentPersona.role === "facility_manager";
+  const visibleLedgers = isProvider
+    ? sessionLedgers
+    : sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6" dir="rtl">
+    <div className="w-full max-w-4xl mx-auto px-4 md:px-6 pt-6 lg:pt-6 pb-12 flex flex-col gap-6" dir="rtl">
       {/* Breadcrumbs & Header */}
       <div className="flex flex-col gap-2">
         <nav className="flex items-center gap-1.5 text-micro-caption text-text-muted">
@@ -29,7 +35,22 @@ export default function HistorySettingsPage() {
 
       {/* Receipts List */}
       <div className="space-y-4">
-        {sessionLedgers.map((ledger) => {
+        {visibleLedgers.length === 0 ? (
+          <div className="p-6 rounded-2xl bg-surface-card border border-border-hairline text-center space-y-3">
+            <p className="text-sm font-bold text-dark-slate">
+              لا توجد دفاتر حصص أو إيصالات مسجلة على حسابك بعد
+            </p>
+            <p className="text-xs text-text-muted">
+              شارك كود عضويتك مع الكابتن أو الأكاديمية لتفعيل باقتك وإصدار أرشيف الإيصالات تلقائياً.
+            </p>
+            <Link
+              href="/dashboard/ledger"
+              className="inline-block px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+            >
+              فتح دفتر الحصص وكود العضوية ←
+            </Link>
+          </div>
+        ) : visibleLedgers.map((ledger) => {
           const hasReceipt = Boolean(ledger.receipts && ledger.receipts.length > 0);
           const receipt = hasReceipt ? ledger.receipts[0] : null;
 
@@ -44,13 +65,13 @@ export default function HistorySettingsPage() {
                     {ledger.packageTitleAr}
                   </span>
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    className={`text-[11px] font-extrabold ${
                       ledger.status === "active"
-                        ? "bg-lime-tint text-deep-olive"
-                        : "bg-surface-container text-text-muted"
+                        ? "text-deep-olive"
+                        : "text-text-muted"
                     }`}
                   >
-                    {ledger.status === "active" ? "باقة جارية" : "مكتملة"}
+                    {ledger.status === "active" ? "باقة جارية ✓" : "مكتملة"}
                   </span>
                 </div>
 
@@ -61,7 +82,7 @@ export default function HistorySettingsPage() {
                 {hasReceipt && receipt ? (
                   <div className="flex items-center gap-3 pt-1 text-micro-caption text-deep-olive font-mono">
                     <span className="flex items-center gap-1 font-bold">
-                      <span className="material-symbols-outlined text-[15px]">verified</span>
+                      <Icon name="verified" className="text-[15px]" />
                       <span>كود العملية: {receipt.referenceNumber}</span>
                     </span>
                     <span>•</span>

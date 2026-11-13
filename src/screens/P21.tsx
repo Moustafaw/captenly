@@ -1,12 +1,344 @@
-// AUTO-GENERATED from Screens/Screan Phone/_21/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
+import { FacilityCard } from "@/components/editorial/FacilityCard";
+import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
+
+type MobileCat = "all" | "swimming" | "fitness" | "kids" | "heated" | "ladies";
 
 export default function Phone21() {
+  const router = useRouter();
+  const {
+    facilities,
+    coaches,
+    articles,
+    compareFacilityIds,
+    isFavorite,
+    toggleFavorite,
+    setFilterModalOpen,
+  } = useCaptenly();
+
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<MobileCat>("all");
+  const [toast, setToast] = useState<string | null>(null);
+  const articlesRailRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ down: boolean; startX: number; scrollLeft: number }>({
+    down: false,
+    startX: 0,
+    scrollLeft: 0,
+  });
+
+  const scrollArticlesBy = (dir: "next" | "prev") => {
+    const el = articlesRailRef.current;
+    if (!el) return;
+    // In RTL, scrolling toward older/more articles is negative scrollLeft
+    const step = 285;
+    el.scrollBy({ left: dir === "next" ? -step : step, behavior: "smooth" });
+  };
+
+  const filtered = useMemo(() => {
+    return facilities.filter((f) => {
+      if (cat === "swimming") return f.sportSector !== "fitness";
+      if (cat === "fitness") return f.sportSector !== "swimming";
+      if (cat === "ladies") {
+        return Boolean(f.poolSpecs?.hasLadiesOnlySlots || f.gymSpecs?.hasLadiesOnlySlots);
+      }
+      if (cat === "kids") {
+        return f.specialtiesAr.some((s) => s.includes("أطفال") || s.includes("تأسيس"));
+      }
+      if (cat === "heated") return Boolean(f.poolSpecs?.isHeatedWinter);
+      return true;
+    });
+  }, [facilities, cat]);
+
+  const verifiedCoaches = useMemo(() => coaches.filter((c) => c.isVerifiedCoach), [coaches]);
+
+  const cats: { key: MobileCat; label: string; icon?: string }[] = [
+    { key: "all", label: `الكل (${facilities.length})` },
+    { key: "swimming", label: "سباحة", icon: "pool" },
+    { key: "fitness", label: "جيم ولياقة", icon: "fitness_center" },
+    { key: "kids", label: "تأسيس أطفال", icon: "child_care" },
+    { key: "heated", label: "مدفأ شتاءً", icon: "thermostat" },
+    { key: "ladies", label: "ساعات سيدات", icon: "female" },
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    router.push(q.trim() ? `/explore?q=${encodeURIComponent(q.trim())}` : "/explore");
+  };
+
   return (
-    <div className="screen-root bg-canvas-alabaster text-on-surface font-body-default min-h-screen flex flex-col antialiased selection:bg-lime-tint selection:text-deep-olive">
-<header className="fixed top-0 inset-x-0 z-50 bg-canvas-alabaster/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div className="h-16 px-margin flex items-center justify-between gap-space-sm"><div className="flex items-center gap-space-xs shrink-0"><img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_90b98823_2K.jpg" /><span className="font-section-title text-card-title text-dark-slate font-bold hidden sm:inline">كابتنلي</span></div><div className="flex-1 flex justify-center max-w-[200px] sm:max-w-xs"><button className="min-h-[44px] px-space-sm py-space-xs rounded-full bg-surface-snow/90 flex items-center gap-1 shadow-[0_1px_4px_rgba(44,52,55,0.05)] hover:bg-surface-container-lowest transition-colors" type="button"><Icon name="location_on" className="material-symbols-outlined text-deep-olive text-[16px]" /><span className="font-badge-label text-badge-label text-dark-slate truncate">المحلة الكبرى، الغربية</span><Icon name="arrow_drop_down" className="material-symbols-outlined text-text-muted text-[14px]" /></button></div><div className="flex items-center gap-space-xs shrink-0"><button className="w-11 h-11 rounded-full flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[20px]" /></button><button className="w-11 h-11 rounded-full flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors relative" type="button"><Icon name="notifications" className="material-symbols-outlined text-[20px]" /><span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-status-danger"></span></button><div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><Icon name="person" className="material-symbols-outlined text-on-primary text-[18px]" /></div></div></div></header><main className="flex-1 flex flex-col relative w-full pt-16 pb-28 bg-canvas-alabaster"><div className="flex flex-col w-full pb-8 space-y-6"><section className="px-margin pt-3 flex flex-col gap-3"><div className="relative w-full flex items-center bg-surface-card rounded-full shadow-[0_4px_20px_rgba(44,52,55,0.05)] px-4 py-1.5 transition-all"><Icon name="search" className="material-symbols-outlined text-deep-olive text-[22px] shrink-0 ml-2" /><input className="w-full bg-transparent border-0 outline-none text-dark-slate placeholder:text-text-muted font-body-default text-body-compact py-2 leading-relaxed" placeholder="ابحث عن كابتن، أكاديمية، حمام سباحة، أو جيم..." type="search" /><button aria-label="تصفية النتائج" className="w-9 h-9 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-dark-slate shrink-0 transition-transform active:scale-95" type="button"><Icon name="tune" className="material-symbols-outlined text-[18px]" /></button></div><div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-margin px-margin text-nowrap"><button className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-surface-container-lowest font-card-title-sm text-badge-label shadow-sm active:scale-95 transition-transform" type="button"><span className="w-2 h-2 rounded-full bg-electric-volt inline-block"></span><span>الكل</span></button><button className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card text-text-muted hover:text-dark-slate font-card-title-sm text-badge-label shadow-sm active:scale-95 transition-transform" type="button"><span>🏊</span><span>سباحة (9 تخصصات)</span></button><button className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card text-text-muted hover:text-dark-slate font-card-title-sm text-badge-label shadow-sm active:scale-95 transition-transform" type="button"><span>🏋️</span><span>جيم ولياقة (7 تخصصات)</span></button><button className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card text-text-muted hover:text-dark-slate font-card-title-sm text-badge-label shadow-sm active:scale-95 transition-transform" type="button"><span>🏟️</span><span>منشآت وأكاديميات</span></button><Link className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card text-text-muted hover:text-dark-slate font-card-title-sm text-badge-label shadow-sm active:scale-95 transition-transform" href="/magazine"><span>📚</span><span>مقالات ونصائح رياضية</span></Link></div></section><section className="px-margin"><div className="relative w-full rounded-[20px] bg-dark-slate text-surface-container-lowest overflow-hidden shadow-[0_12px_36px_rgba(26,31,33,0.14)] p-5 flex flex-col justify-between min-h-[220px]"><div className="absolute inset-0 bg-cover bg-center opacity-25 mix-blend-luminosity pointer-events-none" data-alt="An expansive modern Egyptian sports center with Olympic turquoise swimming lanes, architectural glass ceiling, warm daylight reflections, sleek lane markers, high performance atmosphere" style={{"backgroundImage": "url('/screens/9dc7a3e2407d.jpg')"}}></div><div className="absolute -top-12 -left-12 w-44 h-44 rounded-full bg-electric-volt/15 blur-3xl pointer-events-none"></div><div className="relative z-10 flex items-center justify-between"><span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-badge-label font-bold shadow-sm"><Icon name="verified" className="material-symbols-outlined text-[14px]" /> مجتمعك الرياضي الموثق في مصر </span><span className="font-price-tag text-badge-label text-electric-volt tracking-wider uppercase opacity-80">CAPTENLY PRO</span></div><div className="relative z-10 mt-4 mb-3 space-y-1.5"><h2 className="font-hero-headline-mobile text-hero-headline-mobile leading-tight text-surface-container-lowest"> اكتشف أفضل الكباتن والأكاديميات حولك </h2><p className="font-body-default text-body-compact text-secondary-fixed leading-normal"> تواصل مباشر عبر واتساب، أسعار شاملة واضحة، ومدارس تدريبية موثقة ومعتمدة. </p></div><div className="relative z-10 flex items-center justify-between pt-1"><Link className="h-11 px-5 rounded-full bg-electric-volt hover:bg-[#a0ee00] text-dark-slate font-card-title text-card-title-sm flex items-center gap-2 shadow-md active:scale-95 transition-all" href="/explore"><span>استكشف المجتمع الرياضي</span><Icon name="arrow_forward" className="material-symbols-outlined text-[18px] rtl:rotate-180" /></Link><div aria-label="شرائح البانر" className="flex items-center gap-1.5"><span className="w-5 h-2 rounded-full bg-electric-volt transition-all"></span><span className="w-2 h-2 rounded-full bg-surface-container-lowest/40"></span><span className="w-2 h-2 rounded-full bg-surface-container-lowest/40"></span></div></div></div></section><section className="flex flex-col gap-3"><div className="px-margin flex items-end justify-between"><div><h3 className="font-section-title-mobile text-section-title-mobile text-dark-slate">منشآت وأكاديميات مميزة</h3><p className="font-body-compact text-micro-caption text-text-muted">بالقرب من المحلة الكبرى والمناطق المحيطة</p></div><Link className="font-card-title-sm text-badge-label text-deep-olive hover:underline flex items-center gap-0.5" href="/explore"><span>عرض الكل</span><Icon name="arrow_forward" className="material-symbols-outlined text-[16px] rtl:rotate-180" /></Link></div><div className="flex gap-4 overflow-x-auto no-scrollbar px-margin pb-2 -mx-0"><div className="min-w-[280px] max-w-[280px] bg-surface-card rounded-[16px] shadow-[0_4px_20px_rgba(44,52,55,0.05)] overflow-hidden flex flex-col shrink-0"><div className="relative h-40 w-full overflow-hidden"><img className="w-full h-full object-cover" data-alt="Sunlit semi-olympic swimming pool in Egypt with clear turquoise lanes, lane lines, professional starting blocks, and modern bleachers under clean glass ceiling architecture" src="/screens/824d67552e09.jpg" /><div className="absolute top-2.5 right-2.5 bg-lime-tint text-deep-olive px-2.5 py-1 rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="pool" className="material-symbols-outlined text-[13px]" /> حمام نصف أوليمبي مدفأ </div><button aria-label="حفظ المنشأة" className="bookmark-btn absolute top-2.5 left-2.5 w-9 h-9 rounded-full bg-surface-card text-dark-slate hover:text-deep-olive flex items-center justify-center shadow-md active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[18px]" /></button></div><div className="p-3.5 flex flex-col flex-1 justify-between gap-2.5"><div className="space-y-1"><div className="flex items-center gap-1 text-dark-slate"><h4 className="font-card-title text-card-title truncate">نادي وأكاديمية النخبة للسباحة</h4><Icon name="verified" className="material-symbols-outlined text-deep-olive text-[16px] shrink-0" /></div><div className="flex items-center gap-2 text-text-muted font-body-compact text-micro-caption"><span className="flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px]" /> المحلة الكبرى • بُعد 1.8 كم </span></div><div className="flex items-center gap-1 pt-0.5"><span className="text-status-warning text-[14px]">★</span><span className="font-price-tag text-badge-label text-dark-slate">4.9</span><span className="font-body-compact text-micro-caption text-text-muted">(142 تقييم موثق)</span></div></div><div className="pt-2 bg-surface-container-low/70 -mx-3.5 -mb-3.5 px-3.5 py-2.5 flex items-center justify-between"><span className="font-body-compact text-micro-caption text-text-muted">الاشتراك الشهري</span><span className="font-price-tag text-card-title-sm text-deep-olive font-bold">850 ج.م <span className="font-card-title-sm text-micro-caption font-normal text-text-muted">/ شهر</span></span></div></div></div><div className="min-w-[280px] max-w-[280px] bg-surface-card rounded-[16px] shadow-[0_4px_20px_rgba(44,52,55,0.05)] overflow-hidden flex flex-col shrink-0"><div className="relative h-40 w-full overflow-hidden"><img className="w-full h-full object-cover" data-alt="Modern fitness club gym interior in Egypt with high end black steel cardio machines, dumbbells area, clean hardwood floor, vibrant sports lighting and athletic atmosphere" src="/screens/f1b273b4bc61.jpg" /><div className="absolute top-2.5 right-2.5 bg-lime-tint text-deep-olive px-2.5 py-1 rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="fitness_center" className="material-symbols-outlined text-[13px]" /> صالة أجهزة وتأهيل </div><button aria-label="حفظ المنشأة" className="bookmark-btn absolute top-2.5 left-2.5 w-9 h-9 rounded-full bg-surface-card text-dark-slate hover:text-deep-olive flex items-center justify-center shadow-md active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[18px]" /></button></div><div className="p-3.5 flex flex-col flex-1 justify-between gap-2.5"><div className="space-y-1"><div className="flex items-center gap-1 text-dark-slate"><h4 className="font-card-title text-card-title truncate">أكاديمية أوكسجين جيم واللياقة</h4><Icon name="verified" className="material-symbols-outlined text-deep-olive text-[16px] shrink-0" /></div><div className="flex items-center gap-2 text-text-muted font-body-compact text-micro-caption"><span className="flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px]" /> حي الشون • بُعد 2.4 كم </span></div><div className="flex items-center gap-1 pt-0.5"><span className="text-status-warning text-[14px]">★</span><span className="font-price-tag text-badge-label text-dark-slate">4.8</span><span className="font-body-compact text-micro-caption text-text-muted">(98 تقييم موثق)</span></div></div><div className="pt-2 bg-surface-container-low/70 -mx-3.5 -mb-3.5 px-3.5 py-2.5 flex items-center justify-between"><span className="font-body-compact text-micro-caption text-text-muted">الاشتراك يبدأ من</span><span className="font-price-tag text-card-title-sm text-deep-olive font-bold">600 ج.م <span className="font-card-title-sm text-micro-caption font-normal text-text-muted">/ شهر</span></span></div></div></div></div></section><section className="px-margin flex flex-col gap-3"><div className="flex items-end justify-between"><div><h3 className="font-section-title-mobile text-section-title-mobile text-dark-slate">كباتن معتمدون في منطقتك</h3><p className="font-body-compact text-micro-caption text-text-muted">شهادات وتراخيص نقابية موثقة 100%</p></div><Link className="font-card-title-sm text-badge-label text-deep-olive hover:underline flex items-center gap-0.5" href="/explore"><span>عرض الكل</span><Icon name="arrow_forward" className="material-symbols-outlined text-[16px] rtl:rotate-180" /></Link></div><div className="flex flex-col gap-3"><div className="bg-surface-card rounded-[16px] p-4 shadow-[0_4px_20px_rgba(44,52,55,0.05)] flex flex-col gap-3 relative"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="relative shrink-0"><img className="w-14 h-14 rounded-full object-cover shadow-sm" data-alt="Athletic Egyptian male swim coach wearing professional navy sports polo shirt, warm confident smile, outdoor sports club setting with soft background blur" src="/screens/1ade5eccfed0.jpg" /><span className="absolute bottom-0 left-0 w-4 h-4 rounded-full bg-status-success flex items-center justify-center text-surface-container-lowest text-[10px]"> ✓ </span></div><div className="flex flex-col"><div className="flex items-center gap-1"><h4 className="font-card-title text-card-title text-dark-slate">كابتن أحمد درويش</h4></div><p className="font-body-compact text-micro-caption text-text-muted">مدرب سباحة أطفال وتأسيس معتمد • +9 سنوات خبرة</p><div className="flex items-center gap-1 mt-0.5"><span className="text-status-warning text-[12px]">★</span><span className="font-price-tag text-badge-label text-dark-slate font-bold">4.9</span><span className="font-body-compact text-micro-caption text-text-muted">(84 تقييم)</span></div></div></div><button aria-label="حفظ الكابتن" className="bookmark-btn w-9 h-9 rounded-full bg-surface-container-low text-dark-slate hover:text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[18px]" /></button></div><div className="flex flex-wrap items-center justify-between gap-2 pt-1"><div className="flex flex-wrap items-center gap-1.5"><span className="px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption flex items-center gap-0.5"><span>✓</span> هوية موثقة </span><span className="px-2.5 py-0.5 rounded-full bg-surface-container-low text-secondary font-badge-label text-micro-caption flex items-center gap-0.5"><span>✓</span> نقابة المهن الرياضية </span></div><Link className="h-9 px-4 rounded-full bg-surface-container hover:bg-surface-container-high text-dark-slate font-card-title-sm text-badge-label flex items-center gap-1 active:scale-95 transition-transform" href="/academy/shennawy"><span>عرض البروفايل</span><Icon name="chevron_right" className="material-symbols-outlined text-[14px] rtl:rotate-180" /></Link></div></div><div className="bg-surface-card rounded-[16px] p-4 shadow-[0_4px_20px_rgba(44,52,55,0.05)] flex flex-col gap-3 relative"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="relative shrink-0"><img className="w-14 h-14 rounded-full object-cover shadow-sm" data-alt="Professional Egyptian female fitness coach with athletic attire, cheerful approachable smile, standing inside modern bright fitness studio with light tones" src="/screens/64a28f8da562.jpg" /><span className="absolute bottom-0 left-0 w-4 h-4 rounded-full bg-status-success flex items-center justify-center text-surface-container-lowest text-[10px]"> ✓ </span></div><div className="flex flex-col"><div className="flex items-center gap-1"><h4 className="font-card-title text-card-title text-dark-slate">كابتن ميادة حسن</h4></div><p className="font-body-compact text-micro-caption text-text-muted">مدربة فتنس ولياقة بدنية وبيلاتس سيدات</p><div className="flex items-center gap-1 mt-0.5"><span className="text-status-warning text-[12px]">★</span><span className="font-price-tag text-badge-label text-dark-slate font-bold">5.0</span><span className="font-body-compact text-micro-caption text-text-muted">(62 تقييم)</span></div></div></div><button aria-label="حفظ الكابتن" className="bookmark-btn w-9 h-9 rounded-full bg-surface-container-low text-dark-slate hover:text-deep-olive flex items-center justify-center shrink-0 active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[18px]" /></button></div><div className="flex flex-wrap items-center justify-between gap-2 pt-1"><div className="flex flex-wrap items-center gap-1.5"><span className="px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption flex items-center gap-0.5"><span>✓</span> هوية موثقة </span><span className="px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption flex items-center gap-0.5"><span>✓</span> معتمدة دولياً ISSA </span></div><Link className="h-9 px-4 rounded-full bg-surface-container hover:bg-surface-container-high text-dark-slate font-card-title-sm text-badge-label flex items-center gap-1 active:scale-95 transition-transform" href="/academy/shennawy"><span>عرض البروفايل</span><Icon name="chevron_right" className="material-symbols-outlined text-[14px] rtl:rotate-180" /></Link></div></div></div></section><section className="px-margin flex flex-col gap-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><h3 className="font-section-title-mobile text-section-title-mobile text-dark-slate">أحدث المدارس التعليمية</h3><span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-status-success/15 text-status-success font-badge-label text-micro-caption font-bold"><span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span> مباشر </span></div><span className="font-price-tag text-micro-caption text-text-muted tracking-wide">#CAP-8201</span></div><div className="bg-surface-card rounded-[18px] shadow-[0_4px_20px_rgba(44,52,55,0.06)] overflow-hidden flex flex-col"><div className="relative h-44 w-full"><img className="w-full h-full object-cover" data-alt="Young Egyptian children in colorful swimming caps learning front crawl swimming technique with their patient coach in a bright indoor heated pool" src="/screens/5d57c037e02a.jpg" /><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/80 via-transparent to-black/20"></div><button className="bookmark-btn absolute top-3 left-3 bg-surface-card/90 backdrop-blur-md text-dark-slate hover:text-deep-olive px-3 py-1.5 rounded-full font-badge-label text-badge-label flex items-center gap-1 shadow-md active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[16px]" /><span>حفظ</span></button><div className="absolute bottom-3 right-3 left-3 text-surface-container-lowest"><div className="flex items-center gap-1.5 mb-1"><span className="px-2 py-0.5 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-micro-caption font-bold"> تأسيس وبراعم </span><span className="text-secondary-fixed font-body-compact text-micro-caption">متبقي 3 مقاعد فقط</span></div><h4 className="font-card-title text-card-title leading-snug">مدرسة سباحة أطفال للمبتدئين — 8 حصص شهرياً</h4></div></div><div className="p-4 flex flex-col gap-3"><div className="flex items-center justify-between pb-3 bg-surface-container-low/50 -mx-4 px-4"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-full bg-deep-olive flex items-center justify-center text-surface-container-lowest font-bold text-micro-caption"> W </div><div><div className="flex items-center gap-1"><span className="font-card-title-sm text-card-title-sm text-dark-slate">أكاديمية ويفز للسباحة</span><Icon name="verified" className="material-symbols-outlined text-deep-olive text-[15px]" /></div><span className="font-body-compact text-micro-caption text-text-muted">مجمع حمامات السباحة الأوليمبي</span></div></div><span className="font-price-tag text-badge-label text-deep-olive bg-lime-tint px-2.5 py-1 rounded-full font-bold"> دورة شهرية </span></div><div className="space-y-2 py-1"><div className="flex items-start gap-2 text-dark-slate font-body-default text-body-compact"><Icon name="calendar_month" className="material-symbols-outlined text-deep-olive text-[18px] shrink-0 mt-0.5" /><span><strong className="font-card-title-sm">المواعيد:</strong> السبت والاثنين والخميس (5:00 م)</span></div><div className="flex items-start gap-2 text-dark-slate font-body-default text-body-compact"><Icon name="group" className="material-symbols-outlined text-deep-olive text-[18px] shrink-0 mt-0.5" /><span><strong className="font-card-title-sm">الفئة:</strong> 5 إلى 10 سنوات (حد أقصى 6 لاعبين بالحارة)</span></div><div className="flex items-start gap-2 text-dark-slate font-body-default text-body-compact"><Icon name="water" className="material-symbols-outlined text-deep-olive text-[18px] shrink-0 mt-0.5" /><span><strong className="font-card-title-sm">المواصفات:</strong> حمام مغطى مدفأ • 25 متر • منقذ معتمد</span></div></div><div className="bg-surface-container-low p-3.5 rounded-xl flex items-center justify-between"><div><div className="font-body-compact text-micro-caption text-text-muted">السعر الشامل بالكامل:</div><div className="flex items-baseline gap-1"><span className="font-price-tag text-section-title text-dark-slate font-bold">950</span><span className="font-card-title-sm text-card-title-sm text-dark-slate font-bold">ج.م</span><span className="font-body-compact text-micro-caption text-text-muted">/ 8 حصص</span></div></div><span className="text-deep-olive font-badge-label text-micro-caption bg-lime-tint px-2.5 py-1 rounded-full flex items-center gap-1"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /> بدون رسوم إضافية </span></div><a className="w-full h-12 rounded-full bg-action-whatsapp hover:bg-[#20ba59] text-surface-container-lowest font-card-title text-card-title-sm flex items-center justify-center gap-2 shadow-md active:scale-98 transition-all" rel="noopener noreferrer" target="_blank" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A%D8%8C%20%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B2%20%D9%84%D9%85%D8%AF%D8%B1%D8%B3%D8%A9%20%D8%A7%D9%84%D8%B3%D8%A8%D8%A7%D8%AD%D8%A9%20%D9%83%D9%88%D8%AF%20CAP-8201"><span className="text-[18px]">💬</span><span>تواصل واتساب مباشر (كود #CAP-8201)</span></a></div></div></section><section className="px-margin flex flex-col gap-3"><div className="flex items-end justify-between"><div><h3 className="font-section-title-mobile text-section-title-mobile text-dark-slate">مقالات ونصائح تهمك</h3><p className="font-body-compact text-micro-caption text-text-muted">دليل كابتنلي لاختيار الرياضة الأنسب لأسرتك</p></div><Link className="font-card-title-sm text-badge-label text-deep-olive hover:underline flex items-center gap-0.5" href="/explore"><span>عرض الكل</span><Icon name="arrow_forward" className="material-symbols-outlined text-[16px] rtl:rotate-180" /></Link></div><div className="flex flex-col gap-3"><article className="bg-surface-card rounded-[16px] p-3 shadow-[0_4px_20px_rgba(44,52,55,0.05)] flex gap-3 items-center"><img className="w-[88px] h-[88px] rounded-[12px] object-cover shrink-0" data-alt="Close up of a swimming coach warmly greeting an Egyptian child and mother at the poolside, clean friendly environment, bright soft lighting" src="/screens/0f72bffdb24a.jpg" /><div className="flex flex-col justify-between flex-1 min-w-0"><div><span className="inline-block px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-micro-caption mb-1"> سلسلة اختر صح </span><h4 className="font-card-title-sm text-card-title-sm text-dark-slate line-clamp-2 leading-tight"> كيف تختار أكاديمية سباحة آمنة ومعتمدة لطفلك قبل الاشتراك؟ </h4></div><div className="flex items-center justify-between text-text-muted font-body-compact text-micro-caption pt-1.5"><span>4 دقائق قراءة • د. أحمد سامي</span><button aria-label="حفظ المقال" className="bookmark-btn text-dark-slate hover:text-deep-olive active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[16px]" /></button></div></div></article><article className="bg-surface-card rounded-[16px] p-3 shadow-[0_4px_20px_rgba(44,52,55,0.05)] flex gap-3 items-center"><img className="w-[88px] h-[88px] rounded-[12px] object-cover shrink-0" data-alt="Contrast between a one-on-one personal fitness coaching session and an energetic small group workout class in a stylish minimalist gym" src="/screens/0225f55cfb2c.jpg" /><div className="flex flex-col justify-between flex-1 min-w-0"><div><span className="inline-block px-2 py-0.5 rounded-full bg-surface-container text-dark-slate font-badge-label text-micro-caption mb-1"> اللياقة والتغذية </span><h4 className="font-card-title-sm text-card-title-sm text-dark-slate line-clamp-2 leading-tight"> الفرق بين التدريب الشخصي والفصول الجماعية: أيهما أنسب لهدفك؟ </h4></div><div className="flex items-center justify-between text-text-muted font-body-compact text-micro-caption pt-1.5"><span>3 دقائق قراءة • كابتن كريم عادل</span><button aria-label="حفظ المقال" className="bookmark-btn text-dark-slate hover:text-deep-olive active:scale-90 transition-transform" type="button"><Icon name="bookmark" className="material-symbols-outlined text-[16px]" /></button></div></div></article></div></section><section className="px-margin pt-1"><div className="bg-surface-container-high rounded-[16px] p-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-deep-olive/15 text-deep-olive flex items-center justify-center shrink-0"><Icon name="sports" className="material-symbols-outlined text-[22px]" /></div><div><h4 className="font-card-title-sm text-card-title-sm text-dark-slate">هل أنت كابتن أو صاحب أكاديمية؟</h4><p className="font-body-compact text-micro-caption text-text-muted">انضم لشبكة كابتنلي المعتمدة واعرض حصصك اليوم</p></div></div><Link className="h-9 px-3 rounded-full bg-dark-slate text-surface-container-lowest font-card-title-sm text-micro-caption whitespace-nowrap active:scale-95 transition-transform" href="/auth/register"> سجّل الآن </Link></div></section></div></main>
+    <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin pt-4 pb-24 flex flex-col gap-5">
+      {/* Mobile Search + Filter Pill */}
+      <form
+        onSubmit={handleSearch}
+        className="flex items-center gap-2 bg-surface-card rounded-full px-3.5 py-2 shadow-sm border border-surface-container"
+      >
+        <Icon name="search" className="text-text-muted text-[18px] shrink-0" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="ابحث عن كابتن، نادي، مسبح أو جيم..."
+          className="flex-1 min-w-0 bg-transparent outline-none text-xs text-dark-slate"
+        />
+        <button
+          type="button"
+          onClick={() => setFilterModalOpen(true)}
+          aria-label="فلاتر البحث"
+          className="w-8 h-8 rounded-full bg-surface-snow text-dark-slate flex items-center justify-center shrink-0"
+        >
+          <Icon name="tune" className="text-[16px]" />
+        </button>
+      </form>
+
+      {/* Scrollable Category Chips */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-margin px-margin">
+        {cats.map((item) => {
+          const active = cat === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setCat(item.key)}
+              className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1 transition-all shadow-sm ${
+                active ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-dark-slate"
+              }`}
+            >
+              {item.icon && <Icon name={item.icon} className="text-[14px]" />}
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Compact Mobile Hero Card */}
+      <section className="relative rounded-[20px] bg-dark-slate text-surface-card overflow-hidden shadow-lg p-5 flex flex-col gap-3">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
+          style={{ backgroundImage: "url('/screens/2c0d763d9374.jpg')" }}
+        />
+        <div className="relative z-10 flex flex-col gap-2.5">
+          <span className="px-2.5 py-0.5 rounded-full bg-electric-volt text-dark-slate text-[11px] font-bold w-fit">
+            منصتك الرياضية الموثقة • 0% عمولة
+          </span>
+          <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-surface-card leading-snug">
+            اكتشف أفضل الأندية والمدارس الرياضية حولك
+          </h1>
+          <p className="text-xs text-surface-container-high leading-relaxed">
+            أسعار واضحة، كباتن معتمدون بالشارات الخضراء فقط، ودفتر حصص QR يعمل أوفلاين عند المسبح.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Link
+              href="/explore"
+              className="px-4 py-2.5 rounded-full bg-electric-volt text-dark-slate text-xs font-bold flex items-center gap-1"
+            >
+              <span>استكشف المنشآت</span>
+              <Icon name="arrow_back" className="text-[15px]" />
+            </Link>
+            <Link
+              href="/claim"
+              className="px-4 py-2.5 rounded-full bg-white/15 text-surface-card text-xs font-bold"
+            >
+              وثّق ناديك أو سجّل ككابتن
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Facilities Section */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
+              الأندية والأكاديميات ({filtered.length})
+            </h2>
+            <p className="text-[11px] text-text-muted">مقارنة سريعة وتواصل مباشر عبر واتساب</p>
+          </div>
+          {compareFacilityIds.length > 0 && (
+            <Link
+              href="/compare"
+              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
+            >
+              قارن ({compareFacilityIds.length} من 4)
+            </Link>
+          )}
+        </div>
+
+        {toast && (
+          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+            {toast}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4">
+          {filtered.slice(0, 5).map((fac) => (
+            <FacilityCard
+              key={fac.id}
+              facility={fac}
+              onSelectCompareFeedback={(msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(null), 2800);
+              }}
+            />
+          ))}
+        </div>
+
+        <Link
+          href="/explore"
+          className="w-full py-3 rounded-full bg-surface-card text-dark-slate text-xs font-bold text-center shadow-sm border border-surface-container"
+        >
+          عرض كل المنشآت والخريطة ({filtered.length}) ←
+        </Link>
+      </section>
+
+      {/* Verified Coaches — Zero Fake Coaches Rule */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
+            الكباتن الموثقون
+          </h2>
+          <Link href="/coaches" className="text-xs font-bold text-deep-olive">
+            عرض الدليل ←
+          </Link>
+        </div>
+
+        {verifiedCoaches.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {verifiedCoaches.map((coach) => (
+              <VerifiedCoachCard key={coach.id} coach={coach} />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-surface-card rounded-2xl p-5 shadow-sm border border-surface-container flex flex-col gap-2.5">
+            <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
+              <Icon name="verified" className="text-[18px]" />
+              <span>لا نعرض أي كابتن دون توثيق فعلي</span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              لا ننشر بروفايلات كباتن من الفراغ؛ يظهر الكابتن هنا فور تسجيله بنفسه برقم موبايله وتوثيق شهاداته للشارات الخضراء.
+            </p>
+            <Link
+              href="/claim?mode=coach"
+              className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold w-fit"
+            >
+              سجّل ووثّق ملفك ككابتن الآن
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Magazine Articles Carousel (All articles, swipe + drag + arrow buttons) */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
+            أدلة مجلة كابتنلي ({articles.length})
+          </h2>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => scrollArticlesBy("prev")}
+              aria-label="المقال السابق"
+              className="w-7 h-7 rounded-full bg-surface-card border border-surface-container text-dark-slate flex items-center justify-center shadow-sm active:scale-95"
+            >
+              <Icon name="chevron_right" className="text-[16px]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollArticlesBy("next")}
+              aria-label="المقال التالي"
+              className="w-7 h-7 rounded-full bg-surface-card border border-surface-container text-dark-slate flex items-center justify-center shadow-sm active:scale-95"
+            >
+              <Icon name="chevron_left" className="text-[16px]" />
+            </button>
+            <Link href="/magazine" className="text-xs font-bold text-[#65A30D] mr-1">
+              الكل ←
+            </Link>
+          </div>
+        </div>
+
+        <div
+          ref={articlesRailRef}
+          onMouseDown={(e) => {
+            const el = articlesRailRef.current;
+            if (!el) return;
+            dragState.current = {
+              down: true,
+              startX: e.pageX - el.offsetLeft,
+              scrollLeft: el.scrollLeft,
+            };
+          }}
+          onMouseLeave={() => {
+            dragState.current.down = false;
+          }}
+          onMouseUp={() => {
+            dragState.current.down = false;
+          }}
+          onMouseMove={(e) => {
+            const el = articlesRailRef.current;
+            if (!dragState.current.down || !el) return;
+            e.preventDefault();
+            const x = e.pageX - el.offsetLeft;
+            el.scrollLeft = dragState.current.scrollLeft - (x - dragState.current.startX);
+          }}
+          className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth scrollbar-none cursor-grab active:cursor-grabbing select-none"
+        >
+          {articles.map((art) => {
+            const fav = isFavorite(art.id);
+            return (
+              <article
+                key={art.id}
+                className="w-[276px] shrink-0 snap-start bg-surface-card rounded-2xl overflow-hidden shadow-sm border border-surface-container flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative h-32">
+                    <Link href={`/magazine/${art.slug}`}>
+                      <img src={art.imageUrl} alt={art.titleAr} className="w-full h-full object-cover" />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(art.id)}
+                      className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center shadow ${
+                        fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
+                      }`}
+                    >
+                      <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
+                    </button>
+                  </div>
+                  <div className="p-3.5 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
+                    <Link href={`/magazine/${art.slug}`} className="font-card-title-sm text-xs text-dark-slate line-clamp-2">
+                      {art.titleAr}
+                    </Link>
+                  </div>
+                </div>
+                <Link href={`/magazine/${art.slug}`} className="px-3.5 pb-3 text-[11px] font-bold text-deep-olive">
+                  اقرأ الدليل ←
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Bottom Mobile Claim Banner */}
+      <section className="rounded-2xl bg-surface-card p-5 shadow-sm border border-surface-container flex flex-col gap-2">
+        <h3 className="font-card-title-sm text-dark-slate">هل أنت كابتن أو صاحب أكاديمية؟</h3>
+        <p className="text-xs text-text-muted">
+          طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Link href="/claim" className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold">
+            طالب بصفحتك مجاناً
+          </Link>
+          <Link href="/about" className="px-4 py-2 rounded-full bg-surface-snow text-dark-slate text-xs font-bold">
+            عن المنصة
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

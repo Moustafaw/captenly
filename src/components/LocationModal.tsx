@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
+import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { LocationAutocompleteInput } from "@/components/maps/LocationAutocompleteInput";
 
 export function LocationModal() {
   const {
     userLocation,
     setUserCity,
+    setUserCoordinates,
     requestAutoGeolocation,
     locationModalOpen,
     setLocationModalOpen,
@@ -68,7 +71,7 @@ export function LocationModal() {
         <div className="p-5 border-b border-border-hairline flex items-center justify-between bg-surface-snow">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">location_on</span>
+              <Icon name="location_on" className="text-[20px]" />
             </div>
             <div>
               <h3 className="font-card-title text-card-title text-dark-slate">
@@ -83,12 +86,26 @@ export function LocationModal() {
             onClick={() => setLocationModalOpen(false)}
             className="w-9 h-9 rounded-full bg-surface-card text-text-muted hover:text-dark-slate flex items-center justify-center transition-colors border border-border-hairline"
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <Icon name="close" className="text-[18px]" />
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-5">
+          {/* Smart Google Places / City Search */}
+          <LocationAutocompleteInput
+            initialValue=""
+            onSelectLocation={(loc) => {
+              setUserCoordinates({
+                city: loc.city,
+                governorate: loc.governorate,
+                lat: loc.lat,
+                lng: loc.lng,
+              });
+              setWaitlistSuccessMsg("");
+            }}
+          />
+
           {/* Auto GPS Button */}
           <button
             onClick={handleAutoLocate}
@@ -96,7 +113,7 @@ export function LocationModal() {
             className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-lime-tint/70 hover:bg-lime-tint text-deep-olive transition-colors border border-athletic-olive/20 font-bold"
           >
             <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[22px]">my_location</span>
+              <Icon name="near_me" className="text-[20px]" />
               <div className="text-right">
                 <span className="block text-body-compact font-bold">
                   {isLocating ? "جاري تحديد موقعك بدقة..." : "تحديد موقعي التلقائي (GPS)"}
@@ -106,7 +123,7 @@ export function LocationModal() {
                 </span>
               </div>
             </div>
-            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            <Icon name="chevron_left" className="text-[18px]" />
           </button>
 
           {/* Current Selection Status Banner */}
@@ -118,21 +135,20 @@ export function LocationModal() {
             }`}
           >
             <div className="flex items-start gap-3">
-              <span
-                className={`material-symbols-outlined text-[20px] shrink-0 mt-0.5 ${
+              <Icon
+                name={userLocation.isOutsideCoverage ? "info" : "verified"}
+                className={`text-[20px] shrink-0 mt-0.5 ${
                   userLocation.isOutsideCoverage ? "text-amber-600" : "text-deep-olive"
                 }`}
-              >
-                {userLocation.isOutsideCoverage ? "info" : "verified"}
-              </span>
+              />
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-card-title-sm">
                     {userLocation.city} ({userLocation.governorate})
                   </span>
                   {!userLocation.isOutsideCoverage && (
-                    <span className="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive text-micro-caption font-bold">
-                      نطاق مغطى بالكامل ✓
+                    <span className="text-deep-olive text-micro-caption font-extrabold">
+                      • نطاق مغطى بالكامل ✓
                     </span>
                   )}
                 </div>
@@ -149,7 +165,7 @@ export function LocationModal() {
           {userLocation.isOutsideCoverage && (
             <div className="p-4 rounded-2xl bg-dark-slate text-surface-card space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-electric-volt text-[18px]">⚡</span>
+                <Icon name="radar" className="text-electric-volt text-[18px]" />
                 <span className="font-bold text-card-title-sm text-electric-volt">
                   رادار الطلب المحلي في {userLocation.city}
                 </span>
@@ -218,7 +234,7 @@ export function LocationModal() {
                 <span className="text-body-compact font-bold text-dark-slate">
                   نطاق البحث الجغرافي الأقصى:
                 </span>
-                <span className="text-body-compact font-bold text-deep-olive px-2.5 py-0.5 rounded-full bg-lime-tint">
+                <span className="text-body-compact font-extrabold text-deep-olive">
                   {selectedRadius} كم
                 </span>
               </div>

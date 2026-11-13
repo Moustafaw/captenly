@@ -1,501 +1,440 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Building2,
-  TrendingUp,
-  Radar,
-  CheckCircle2,
-  Clock,
-  RefreshCw,
-  CreditCard,
-  ShieldCheck,
-  AlertTriangle,
-  Users,
-  Eye,
-  Scale,
-  MessageCircle,
-  QrCode,
-} from "lucide-react";
+import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 
 export default function FacilityDashboardPage() {
   const {
     facilities,
-    coaches,
+    sessionLedgers,
     verifiedLeads,
-    demandRadar,
+    memberRegistry,
+    enrollSwimmerByMemberCode,
+    checkInSession,
+    publishSchoolPackage,
     confirmFacilityPrices60d,
-    simulateTimeTravelDays,
-    approveAffiliationMutual,
+    currentPersona,
   } = useCaptenly();
 
-  const [selectedFacId, setSelectedFacId] = useState(facilities[0].id);
-  const facility =
-    facilities.find((f) => f.id === selectedFacId) || facilities[0];
-
-  const [newBasePrice, setNewBasePrice] = useState<number>(
-    facility.pricePackages[0]?.baseMonthlyEgp || 750
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string>(
+    currentPersona.linkedFacilityId || facilities[0]?.id || ""
   );
-  const [priceConfirmedMsg, setPriceConfirmedMsg] = useState("");
-  const [selectedRadarCity, setSelectedRadarCity] = useState("المحلة الكبرى");
-
-  // Paymob B2B Checkout Sandbox State (Phase 2A - Month 7)
-  const [selectedPlan, setSelectedPlan] = useState<"facility_pro" | "prepaid_leads">(
-    "facility_pro"
-  );
-  const [paymobPaidSuccess, setPaymobPaidSuccess] = useState(false);
-
-  const facilityLeads = verifiedLeads.filter((l) => l.targetId === facility.id);
-  const activeRadar =
-    demandRadar.find((r) => r.city === selectedRadarCity) || demandRadar[0];
-
-  // Coaches requesting affiliation with this facility
-  const pendingCoaches = coaches.filter((c) =>
-    c.affiliations.some(
-      (a) => a.facilityId === facility.id && a.status === "pending"
-    )
+  const facility = useMemo(
+    () => facilities.find((f) => f.id === selectedFacilityId) || facilities[0],
+    [facilities, selectedFacilityId]
   );
 
-  const handleConfirmPrices = (e: React.FormEvent) => {
+  // Member Code Enrollment Form
+  const [memberCodeInput, setMemberCodeInput] = useState("CAP-M-5190");
+  const [athleteNameInput, setAthleteNameInput] = useState("");
+  const [pkgTitleInput, setPkgTitleInput] = useState(
+    facility?.pricePackages[0]?.nameAr || "مدرسة السباحة — 8 حصص"
+  );
+  const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
+  const [amountEgp, setAmountEgp] = useState<string>(
+    facility?.pricePackages[0]?.baseMonthlyEgp ? String(facility.pricePackages[0].baseMonthlyEgp) : "700"
+  );
+
+  // Publish Package Form
+  const [newPkgName, setNewPkgName] = useState("مدرسة أطفال شتوية — 8 حصص");
+  const [newPkgSessions, setNewPkgSessions] = useState("8");
+  const [newPkgPrice, setNewPkgPrice] = useState("750");
+
+  // Feedback message
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const facilityLedgers = useMemo(
+    () => (facility ? sessionLedgers.filter((l) => l.facilityId === facility.id) : []),
+    [sessionLedgers, facility]
+  );
+  const facilityLeads = useMemo(
+    () => (facility ? verifiedLeads.filter((l) => l.targetId === facility.id) : []),
+    [verifiedLeads, facility]
+  );
+
+  const matchedMember = useMemo(
+    () =>
+      memberRegistry.find(
+        (m) => m.memberCode.toUpperCase() === memberCodeInput.trim().toUpperCase()
+      ),
+    [memberRegistry, memberCodeInput]
+  );
+
+  if (!facility) return null;
+
+  const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
+
+  const handleEnrollSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    confirmFacilityPrices60d(facility.id, newBasePrice);
-    setPriceConfirmedMsg(
-      "✓ تم تأكيد وتحديث جدول الأسعار الشامل بضغطة زر! تجدد عداد الـ 60 يوماً باللون الأخضر فوراً."
-    );
-    setTimeout(() => setPriceConfirmedMsg(""), 4000);
+    const res = enrollSwimmerByMemberCode({
+      memberCode: memberCodeInput,
+      athleteNameAr: athleteNameInput || matchedMember?.fullNameAr,
+      facilityId: facility.id,
+      packageTitleAr: pkgTitleInput,
+      totalSessions: sessionsCount,
+      amountEgp: Number(amountEgp) || 700,
+    });
+    setFeedback({ ok: res.ok, msg: res.messageAr });
+  };
+
+  const handlePublishPkg = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = publishSchoolPackage({
+      facilityId: facility.id,
+      nameAr: newPkgName.trim(),
+      sessionsCount: Number(newPkgSessions) || 8,
+      sessionsPerWeek: Number(newPkgSessions) >= 12 ? 3 : 2,
+      durationMinutes: 60,
+      baseMonthlyEgp: Number(newPkgPrice) || 700,
+    });
+    setFeedback({ ok: res.ok, msg: res.messageAr });
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header Banner */}
-      <div className="bg-captenly-slate text-white rounded-3xl p-6 sm:p-8 border border-white/10 shadow-xl flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="bg-captenly-volt text-captenly-slate text-xs font-black px-3 py-0.5 rounded-full">
-              MVP-11 & MVP-12 • لوحة تحكم المنشأة وإثبات العائد التجاري (B2B)
-            </span>
-            <span className="text-xs font-bold bg-white/10 text-captenly-tint px-3 py-0.5 rounded-full">
-              أول 6 شهور مجانية 100% (إثبات القيمة قبل التسييل)
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black">
-            لوحة إدارة: {facility.nameAr}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300">
-            تابع مشاهدات صفحتك، المقارنات، الليدات المؤهلة بكود #CAP، رادار الطلب المحلي في منطقتك، وحدّث أسعارك في ثانية.
-          </p>
-        </div>
-
-        {/* Facility Selector for Testing */}
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedFacId}
-            onChange={(e) => {
-              setSelectedFacId(e.target.value);
-              const found = facilities.find((f) => f.id === e.target.value);
-              if (found && found.pricePackages[0]) {
-                setNewBasePrice(found.pricePackages[0].baseMonthlyEgp);
-              }
-            }}
-            className="bg-captenly-carbon border border-captenly-volt/50 text-white rounded-xl px-3.5 py-2.5 text-xs font-bold"
-          >
-            {facilities.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nameAr}
-              </option>
-            ))}
-          </select>
-
-          <Link
-            href={`/f/${facility.slug}`}
-            className="bg-captenly-volt text-captenly-slate font-black text-xs px-4 py-2.5 rounded-xl"
-          >
-            معاينة صفحة المنشأة ↗
-          </Link>
-        </div>
-      </div>
-
-      {/* B2B MONTHLY VALUE PROOF SCORECARD (MVP-11 / Appendix F) */}
-      <div className="bg-captenly-gradient text-white rounded-3xl p-6 sm:p-8 border-2 border-captenly-volt shadow-2xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 pb-4">
-          <div>
-            <span className="text-xs font-extrabold text-captenly-volt">
-              📊 الملحق (F) • بطاقة إثبات القيمة الشهرية الموثقة للمنشأة (MVP-11 Value Proof)
-            </span>
-            <h2 className="text-xl sm:text-2xl font-black mt-1">
-              تقرير العائد الشهري الفعلي لـ «{facility.nameAr.split("—")[0]}» — نوفمبر 2026
-            </h2>
-          </div>
-          <div className="bg-black/30 border border-captenly-volt/40 px-4 py-2 rounded-2xl text-xs font-bold text-captenly-tint">
-            قيمة باقة Facility Pro (900 ج.م) = اشتراك لاعب واحد فقط في الشهر!
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-captenly-carbon/80 border border-white/10 rounded-2xl p-4 space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>مشاهدات أولياء الأمور</span>
-              <Eye className="w-4 h-4 text-captenly-volt" />
-            </div>
-            <div className="font-inter font-black text-3xl text-white">
-              {facility.monthlyMetrics.profileViews.toLocaleString()}
-            </div>
-            <div className="text-[11px] text-captenly-tint">
-              باحث نشط في {facility.city} هذا الشهر
-            </div>
-          </div>
-
-          <div className="bg-captenly-carbon/80 border border-white/10 rounded-2xl p-4 space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>الظهور في جدول المقارنة</span>
-              <Scale className="w-4 h-4 text-captenly-volt" />
-            </div>
-            <div className="font-inter font-black text-3xl text-white">
-              {facility.monthlyMetrics.comparisonAppearances}
-            </div>
-            <div className="text-[11px] text-captenly-tint">
-              مقارنة مباشرة (MVP-04) مع المنافسين
-            </div>
-          </div>
-
-          <div className="bg-captenly-carbon/80 border border-captenly-volt/50 rounded-2xl p-4 space-y-1">
-            <div className="flex items-center justify-between text-xs text-captenly-volt font-bold">
-              <span>استفسارات واتساب مؤهلة</span>
-              <MessageCircle className="w-4 h-4 text-captenly-volt" />
-            </div>
-            <div className="font-inter font-black text-3xl text-captenly-volt">
-              {facility.monthlyMetrics.verifiedWhatsappLeads}
-            </div>
-            <div className="text-[11px] text-slate-300">
-              عميل فريد بكود (#CAP) مخصوم التكرار 30 يوم
-            </div>
-          </div>
-
-          <div className="bg-captenly-carbon/80 border border-white/10 rounded-2xl p-4 space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>دفاتر الحصص النشطة</span>
-              <QrCode className="w-4 h-4 text-captenly-volt" />
-            </div>
-            <div className="font-inter font-black text-3xl text-white">
-              {facility.monthlyMetrics.activeSessionLedgers}
-            </div>
-            <div className="text-[11px] text-captenly-tint">
-              مشترك يتابع حصصه وإيصالاته أسبوعياً
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Two-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Right Column (7 cols): Hyper-Local Demand Radar (MVP-12) + 60/120-Day Price Manager */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* HYPER-LOCAL DEMAND RADAR (MVP-12 with Sample Size >= 30 Rule) */}
-          <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-card space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-              <div>
-                <span className="text-[11px] font-extrabold text-captenly-olive bg-captenly-tint px-2.5 py-0.5 rounded-full">
-                  MVP-12 • رادار الطلب المحلي (قاعدة النزاهة الإحصائية Sample Size ≥ 30)
-                </span>
-                <h2 className="text-lg font-black text-captenly-slate mt-1 flex items-center gap-2">
-                  <Radar className="w-5 h-5 text-captenly-olive" />
-                  <span>على ماذا يبحث الأهالي والمتدربون في مدينتك هذا الشهر؟</span>
-                </h2>
-              </div>
-
-              <select
-                value={selectedRadarCity}
-                onChange={(e) => setSelectedRadarCity(e.target.value)}
-                className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold"
+    <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16">
+      <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
+        {/* Header Bar */}
+        <section className="rounded-[20px] bg-dark-slate text-surface-card p-6 md:p-8 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`text-xs font-bold ${
+                  isUnclaimed ? "text-amber-300" : "text-electric-volt"
+                }`}
               >
-                <option value="المحلة الكبرى">المحلة الكبرى (عينة = 412 بحث ✓)</option>
-                <option value="طنطا">طنطا (عينة = 328 بحث ✓)</option>
-                <option value="زفتى">زفتى (عينة = 19 بحث — اختبار حجب &lt; 30)</option>
-              </select>
+                {isUnclaimed ? "منشأة بانتظار التفعيل الرسمي" : "✓ صفحة منشأة موثقة"}
+              </span>
+              <span className="text-xs text-surface-variant">{facility.city} • {facility.district}</span>
             </div>
+            <h1 className="font-hero-headline text-[26px] md:text-[32px]">
+              لوحة تحكم المنشأة: {facility.nameAr}
+            </h1>
+            <p className="font-body-compact text-surface-container-high">
+              ربط السباحين بكود العضوية، تفعيل دفاتر الحصص والـ QR أوفلاين، ونشر كروت الباقات المحدثة — بعمولة 0%.
+            </p>
+          </div>
 
-            {activeRadar.totalSearchesMonth < 30 ? (
-              <div className="bg-amber-50 border-2 border-amber-300 text-amber-900 rounded-2xl p-5 space-y-2">
-                <div className="font-black text-sm flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-                  <span>
-                    حماية النزاهة الإحصائية (Sample Size = {activeRadar.totalSearchesMonth} &lt; 30 عملية بحث):
-                  </span>
-                </div>
-                <p className="text-xs leading-relaxed">
-                  التزاماً بميثاق مصداقية كابتنلي أمام مديري المنشآت، لا يتم عرض أي نسب مئوية أو مؤشرات فجوة سعرية في «رادار الطلب المحلي» لمدينة ({activeRadar.city}) حتى يتجاوز حجم العينة 30 عملية بحث مفلترة حقيقية خلال الشهر.
-                </p>
-              </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            <select
+              value={facility.id}
+              onChange={(e) => setSelectedFacilityId(e.target.value)}
+              className="rounded-full bg-deep-carbon text-surface-card px-4 py-2.5 text-xs font-bold outline-none border border-white/10"
+            >
+              {facilities.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nameAr}
+                </option>
+              ))}
+            </select>
+
+            {isUnclaimed ? (
+              <Link
+                href={`/claim/${facility.slug}`}
+                className="px-5 py-2.5 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-center hover:brightness-105 shadow"
+              >
+                وثّق إدارة المنشأة مجاناً
+              </Link>
             ) : (
-              <div className="space-y-4">
-                <div className="text-xs text-slate-600 font-bold">
-                  إجمالي عمليات البحث المفلترة الموثقة في ({activeRadar.city}) هذا الشهر:{" "}
-                  <strong className="font-inter text-captenly-slate">
-                    {activeRadar.totalSearchesMonth} عملية بحث
-                  </strong>
-                </div>
-
-                {activeRadar.topUnmetFilters.map((item) => (
-                  <div
-                    key={item.filterTitleAr}
-                    className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="font-black text-captenly-slate">
-                        {item.filterTitleAr}
-                      </span>
-                      <span className="font-inter font-black text-sm text-captenly-olive bg-captenly-tint px-2.5 py-0.5 rounded-lg">
-                        {item.percentage}% ({item.searchCount} باحث)
-                      </span>
-                    </div>
-                    <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-captenly-olive rounded-full"
-                        style={{ width: `${item.percentage}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] font-bold text-emerald-800">
-                      💡 توصية كابتنلي التجارية: {item.opportunityNoteAr}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <Link
+                href={`/academy/${facility.slug}`}
+                className="px-5 py-2.5 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-center"
+              >
+                معاينة الصفحة العامة
+              </Link>
             )}
           </div>
+        </section>
 
-          {/* 60 / 120-DAY PRICE FRESHNESS LIFECYCLE MANAGER & TIME-TRAVEL TESTER */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-card space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-black text-captenly-slate flex items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-captenly-olive" />
-                <span>إدارة الأسعار ودورة الحداثة التلقائية (60 / 120 يوماً — MVP-03)</span>
-              </h2>
-              <span className="text-xs font-bold text-slate-500">
-                حالة السعر الحالية: منذ {facility.priceLastVerifiedDaysAgo} يوم
+        {feedback && (
+          <div
+            className={`rounded-2xl p-4 flex items-center justify-between border ${
+              feedback.ok
+                ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                : "bg-red-50 border-red-300 text-red-900"
+            }`}
+          >
+            <div className="flex items-center gap-2 font-card-title-sm">
+              <Icon name={feedback.ok ? "check_circle" : "warning"} className="text-[20px]" />
+              <span>{feedback.msg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="text-xs font-bold underline"
+            >
+              إخفاء
+            </button>
+          </div>
+        )}
+
+        {/* Value Metrics */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-surface-card rounded-[16px] p-5 shadow-sm">
+            <span className="text-xs text-text-muted">مشاهدات الصفحة (شهرياً)</span>
+            <div className="text-3xl font-black text-dark-slate mt-1">
+              {facility.monthlyMetrics.profileViews}
+            </div>
+          </div>
+          <div className="bg-surface-card rounded-[16px] p-5 shadow-sm">
+            <span className="text-xs text-text-muted">ظهور في جدول المقارنة</span>
+            <div className="text-3xl font-black text-deep-olive mt-1">
+              {facility.monthlyMetrics.comparisonAppearances}
+            </div>
+          </div>
+          <div className="bg-surface-card rounded-[16px] p-5 shadow-sm">
+            <span className="text-xs text-text-muted">استفسارات واتساب الموثقة</span>
+            <div className="text-3xl font-black text-action-whatsapp mt-1">
+              {facility.monthlyMetrics.verifiedWhatsappLeads}
+            </div>
+          </div>
+          <div className="bg-surface-card rounded-[16px] p-5 shadow-sm">
+            <span className="text-xs text-text-muted">دفاتر الحصص النشطة (QR)</span>
+            <div className="text-3xl font-black text-dark-slate mt-1">
+              {facilityLedgers.length || facility.monthlyMetrics.activeSessionLedgers}
+            </div>
+          </div>
+        </section>
+
+        {/* Core Operations Grid: Enroll Swimmer by Member Code + Publish Package */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+          {/* 1. تفعيل باقة سباح بكود العضوية */}
+          <form
+            onSubmit={handleEnrollSubmit}
+            className="lg:col-span-7 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="font-section-title text-dark-slate">
+                  تسجيل سباح بكود العضوية وتفعيل الـ QR فوراً
+                </h2>
+                <p className="font-body-compact text-text-muted mt-0.5">
+                  أدخل كود عضوية المتدرب (مثال: CAP-M-5190 أو CAP-M-7412) مع عدد الحصص والمبلغ لتفعيل دفتره أوفلاين.
+                </p>
+              </div>
+              <span className="text-deep-olive text-[11px] font-extrabold shrink-0">
+                تفعيل فوري
               </span>
             </div>
 
-            {/* Founder Time-Travel Simulation Buttons */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-              <div className="text-xs font-extrabold text-captenly-slate">
-                🧪 محاكي اختبار دورة الـ 60/120 يوماً (للمؤسس):
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-dark-slate">كود عضوية المتدرب *</label>
+                <input
+                  required
+                  value={memberCodeInput}
+                  onChange={(e) => setMemberCodeInput(e.target.value)}
+                  placeholder="CAP-M-5190"
+                  className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
+                />
+                {matchedMember && (
+                  <span className="text-[11px] font-bold text-deep-olive">
+                    ✓ تم العثور على العضو: {matchedMember.fullNameAr}
+                  </span>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => simulateTimeTravelDays(facility.id, 5)}
-                  className="text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-3 py-1.5 rounded-xl transition"
-                >
-                  يوم 5 (أخضر نشط &lt; 60 يوم)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => simulateTimeTravelDays(facility.id, 75)}
-                  className="text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-xl transition"
-                >
-                  يوم 75 (كهرماني تذكير 61–119 يوم)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => simulateTimeTravelDays(facility.id, 125)}
-                  className="text-xs font-bold bg-red-100 hover:bg-red-200 text-red-900 px-3 py-1.5 rounded-xl transition"
-                >
-                  يوم 125 (أحمر قديم &gt; 120 يوم — إخفاء السعر وخفض الترتيب)
-                </button>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-dark-slate">اسم المتدرب (تلقائي أو مخصص)</label>
+                <input
+                  value={athleteNameInput}
+                  onChange={(e) => setAthleteNameInput(e.target.value)}
+                  placeholder={matchedMember?.fullNameAr || "يملأ تلقائياً من الكود"}
+                  className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-dark-slate">الباقة التدريبية</label>
+                <input
+                  value={pkgTitleInput}
+                  onChange={(e) => setPkgTitleInput(e.target.value)}
+                  className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-dark-slate">عدد الحصص</label>
+                  <select
+                    value={sessionsCount}
+                    onChange={(e) => setSessionsCount(Number(e.target.value) as 8 | 12 | 24)}
+                    className="rounded-xl bg-surface-snow px-3 py-2.5 text-sm text-dark-slate outline-none border border-surface-container"
+                  >
+                    <option value={8}>8 حصص</option>
+                    <option value={12}>12 حصة</option>
+                    <option value={24}>24 حصة</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-dark-slate">المبلغ (ج.م)</label>
+                  <input
+                    type="number"
+                    value={amountEgp}
+                    onChange={(e) => setAmountEgp(e.target.value)}
+                    className="rounded-xl bg-surface-snow px-3 py-2.5 text-sm text-dark-slate outline-none border border-surface-container"
+                  />
+                </div>
               </div>
             </div>
 
-            <form
-              onSubmit={handleConfirmPrices}
-              className="flex flex-wrap items-end gap-3 pt-2"
+            <button
+              type="submit"
+              className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95 shadow-sm"
             >
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  تحديث أو تأكيد سعر الاشتراك الشهري الأساسي (ج.م):
-                </label>
+              حفظ وتفعيل باقة السباح وكود الـ QR الآن
+            </button>
+          </form>
+
+          {/* 2. نشر كارت باقة جديد وتأكيد الأسعار */}
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <form
+              onSubmit={handlePublishPkg}
+              className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3"
+            >
+              <h2 className="font-card-title text-dark-slate">نشر كارت مدرسة / باقة جديدة</h2>
+              <input
+                required
+                value={newPkgName}
+                onChange={(e) => setNewPkgName(e.target.value)}
+                placeholder="اسم الباقة أو المدرسة"
+                className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container"
+              />
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
-                  value={newBasePrice}
-                  onChange={(e) => setNewBasePrice(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-inter font-black text-sm"
+                  value={newPkgSessions}
+                  onChange={(e) => setNewPkgSessions(e.target.value)}
+                  placeholder="عدد الحصص"
+                  className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container"
+                />
+                <input
+                  type="number"
+                  value={newPkgPrice}
+                  onChange={(e) => setNewPkgPrice(e.target.value)}
+                  placeholder="السعر ج.م"
+                  className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container"
                 />
               </div>
               <button
                 type="submit"
-                className="bg-captenly-slate hover:bg-captenly-carbon text-captenly-volt font-black text-xs px-5 py-3 rounded-xl transition"
+                className="w-full py-2.5 rounded-full bg-deep-olive text-white font-badge-label hover:opacity-95"
               >
-                ✓ أؤكد صحة وثبات الأسعار لـ 60 يوماً جديدة
+                نشر الباقة في نتائج البحث فوراً
               </button>
             </form>
 
-            {priceConfirmedMsg && (
-              <div className="bg-emerald-100 text-emerald-900 p-3 rounded-xl text-xs font-bold">
-                {priceConfirmedMsg}
+            <div className="bg-surface-card rounded-[20px] p-6 shadow-sm flex items-center justify-between gap-3">
+              <div>
+                <div className="font-card-title-sm text-dark-slate">تأكيد تحديث الأسعار (دورة 60 يوم)</div>
+                <div className="text-xs text-text-muted mt-0.5">
+                  آخر تأكيد: {facility.priceLastVerifiedDate}
+                </div>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => {
+                  confirmFacilityPrices60d(facility.id);
+                  setFeedback({
+                    ok: true,
+                    msg: `تم تأكيد صحة أسعار «${facility.nameAr}» لمدة 60 يوماً قادماً.`,
+                  });
+                }}
+                className="px-4 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs shrink-0 hover:brightness-95"
+              >
+                تأكيد الأسعار الآن ✓
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Facility Ledgers */}
+        <section className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="font-section-title text-dark-slate">
+              دفاتر الحصص المفعّلة لهذه المنشأة ({facilityLedgers.length})
+            </h2>
+            <Link href="/dashboard/ledger" className="text-xs font-bold text-deep-olive hover:underline">
+              فتح عارض الـ QR والأوفلاين ←
+            </Link>
           </div>
 
-          {/* Pending Coach Affiliations Approval */}
-          {pendingCoaches.length > 0 && (
-            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-5 space-y-3">
-              <h3 className="font-black text-sm text-captenly-slate">
-                طلبات ربط ثنائي واردة من كباتن مستقلين ({pendingCoaches.length}):
-              </h3>
-              {pendingCoaches.map((c) => (
+          {facilityLedgers.length === 0 ? (
+            <p className="font-body-compact text-text-muted py-4">
+              لا توجد دفاتر مفعّلة بعد على هذه المنشأة. استخدم نموذج «تسجيل سباح بكود العضوية» أعلاه لتفعيل أول متدرب.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {facilityLedgers.map((l) => (
                 <div
-                  key={c.id}
-                  className="bg-white p-3.5 rounded-2xl border border-amber-200 flex items-center justify-between gap-2 text-xs"
+                  key={l.id}
+                  className="rounded-2xl bg-surface-snow p-4 flex items-center justify-between gap-3 border border-surface-container/60"
                 >
-                  <div>
-                    <div className="font-black text-captenly-slate">
-                      {c.fullNameAr} ({c.SingleCoachId})
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/ledger?id=${l.id}`}
+                      className="font-card-title-sm text-dark-slate hover:text-deep-olive truncate block"
+                    >
+                      {l.athleteNameAr}
+                    </Link>
+                    <div className="text-xs text-text-muted truncate">
+                      {l.packageTitleAr} • PIN: <span className="font-mono font-bold">{l.pinCode}</span>
                     </div>
-                    <div className="text-slate-600">{c.titleAr}</div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-xs font-bold text-deep-olive">
+                        الحصص المسجلة: {l.completedSessions} من {l.totalSessions}
+                      </span>
+                      <Link
+                        href={`/dashboard/ledger?id=${l.id}`}
+                        className="text-[11px] font-bold text-dark-slate hover:underline"
+                      >
+                        عرض الدفتر والـ QR ←
+                      </Link>
+                    </div>
                   </div>
+
                   <button
-                    onClick={() => approveAffiliationMutual(c.id, facility.id)}
-                    className="bg-captenly-olive text-white font-black px-4 py-2 rounded-xl"
+                    type="button"
+                    disabled={l.completedSessions >= l.totalSessions}
+                    onClick={() => {
+                      const res = checkInSession(l.id, l.pinCode, "qr_scan", "تأكيد حضور من لوحة المنشأة");
+                      setFeedback({ ok: res.ok, msg: res.messageAr });
+                    }}
+                    className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs disabled:opacity-40 shrink-0"
                   >
-                    موافقة وتأكيد الربط الثنائي ✓
+                    تسجيل حصة ✓
                   </button>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Left Column (5 cols): Verified Leads Inbox (SLA < 2h) + Paymob B2B Subscription Sandbox */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Verified Leads Inbox & SLA < 2 Hours Tracker */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-card space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[11px] font-extrabold text-captenly-olive bg-captenly-tint px-2.5 py-0.5 rounded-full">
-                  MVP-11 • عدم تكرار الرقم خلال 30 يوماً
-                </span>
-                <h3 className="text-base font-black text-captenly-slate mt-1">
-                  صندوق استفسارات واتساب الموثقة ({facilityLeads.length})
-                </h3>
-              </div>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                SLA الرد: {facility.avgReplyMinutes} د
-              </span>
-            </div>
-
-            <div className="space-y-3">
+        {/* Leads */}
+        {facilityLeads.length > 0 && (
+          <section className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3">
+            <h2 className="font-section-title text-dark-slate">
+              استفسارات واتساب المهيكلة ({facilityLeads.length})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {facilityLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-inter font-black bg-captenly-slate text-captenly-volt px-2 py-0.5 rounded">
-                      {lead.referralCode}
-                    </span>
-                    <span className="text-[11px] text-slate-500">{lead.createdAtAr}</span>
+                <div key={lead.id} className="rounded-xl bg-surface-snow p-4 flex justify-between items-center">
+                  <div>
+                    <div className="font-card-title-sm text-dark-slate">
+                      {lead.inquirerNameAr} — <span className="font-mono text-deep-olive">{lead.referralCode}</span>
+                    </div>
+                    <div className="text-xs text-text-muted">
+                      {lead.requestedSpecialtyAr} • العمر: {lead.athleteAge} • {lead.preferredScheduleAr}
+                    </div>
                   </div>
-                  <div className="font-black text-captenly-slate">
-                    {lead.inquirerNameAr} ({lead.inquirerPhone}) — سن اللاعب: {lead.athleteAge}{" "}
-                    سنوات
-                  </div>
-                  <div className="text-slate-600">
-                    التخصص: <strong>{lead.requestedSpecialtyAr}</strong>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 text-[11px]">
-                    <span className="text-emerald-700 font-bold">
-                      ✓ تم الرد خلال {lead.replyMinutes} دقيقة (&lt; ساعتين)
-                    </span>
-                    {lead.convertedToLedger && (
-                      <span className="bg-captenly-tint text-captenly-olive font-extrabold px-2 py-0.5 rounded">
-                        تحول لدفتر حصص نشط ✓
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[11px] text-text-muted">{lead.createdAtAr}</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* PAYMOB B2B SUBSCRIPTION & PREPAID LEADS SANDBOX (Phase 2A - Month 7) */}
-          <div className="bg-captenly-slate text-white rounded-3xl p-6 border-2 border-captenly-volt shadow-xl space-y-4">
-            <div className="space-y-1 border-b border-white/10 pb-3">
-              <span className="bg-captenly-volt text-captenly-slate text-xs font-black px-3 py-0.5 rounded-full">
-                محاكي الترقية المدفوعة (الشهر السابع — المرحلة 2A عبر Paymob)
-              </span>
-              <h3 className="text-lg font-black pt-1">
-                خيارات اشتراك المنشأة بعد انتهاء الـ 6 شهور المجانية
-              </h3>
-              <p className="text-xs text-slate-300">
-                في كابتنلي، المنشأة تختار بحرية بين الاشتراك الشهري الثابت أو الدفع بالعميل المؤهل (Prepaid Verified Leads):
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 text-xs">
-              <div
-                onClick={() => setSelectedPlan("facility_pro")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition ${
-                  selectedPlan === "facility_pro"
-                    ? "bg-captenly-carbon border-captenly-volt"
-                    : "bg-white/5 border-white/15"
-                }`}
-              >
-                <div className="flex items-center justify-between font-black text-sm">
-                  <span className="text-captenly-volt">
-                    1. باقة كابتنلي برو للمنشآت (Facility Pro SaaS)
-                  </span>
-                  <span className="font-inter text-lg text-white">900 ج.م / شهر</span>
-                </div>
-                <p className="text-slate-300 mt-1 text-[11px]">
-                  تعادل اشتراك متدرب واحد فقط! تفتح دفاتر حصص غير محدودة، تقارير رادار الطلب المحلي، وأولوية الظهور الموثق.
-                </p>
-              </div>
-
-              <div
-                onClick={() => setSelectedPlan("prepaid_leads")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition ${
-                  selectedPlan === "prepaid_leads"
-                    ? "bg-captenly-carbon border-captenly-volt"
-                    : "bg-white/5 border-white/15"
-                }`}
-              >
-                <div className="flex items-center justify-between font-black text-sm">
-                  <span className="text-captenly-volt">
-                    2. باقة رصيد الليدز المسبقة الدفع (Prepaid Verified Leads)
-                  </span>
-                  <span className="font-inter text-lg text-white">400 ج.م / 10 عملاء</span>
-                </div>
-                <p className="text-slate-300 mt-1 text-[11px]">
-                  خيار مرن للمنشآت الصغيرة (40 ج.م لكل عميل مؤهل فريد غير مكرر خلال 30 يوماً مع ضمان استرداد 14 يوماً).
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setPaymobPaidSuccess(true)}
-              className="w-full bg-captenly-volt hover:brightness-105 text-captenly-slate font-black text-xs py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-volt transition"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>
-                محاكاة الدفع عبر بوابة Paymob المرخصة وإصدار الفاتورة الإلكترونية
-              </span>
-            </button>
-
-            {paymobPaidSuccess && (
-              <div className="bg-emerald-500/20 border border-emerald-400 text-emerald-200 p-3.5 rounded-2xl text-xs font-bold space-y-1">
-                <div className="flex items-center gap-1.5 text-white">
-                  <CheckCircle2 className="w-4 h-4 text-captenly-volt" />
-                  <span>تمت محاكاة عملية الدفع بنجاح (Paymob Sandbox)!</span>
-                </div>
-                <div className="text-[11px]">
-                  استقطاع البوابة 3.56% فقط (هامش مساهمة صافي 84.44% = 760 ج.م للمنصة وفق النموذج المالي الشيت 07).
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+          </section>
+        )}
       </div>
     </div>
   );

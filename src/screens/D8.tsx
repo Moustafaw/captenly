@@ -1,12 +1,845 @@
-// AUTO-GENERATED from Screens/Screan Desktop/_8/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
+import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 
 export default function Desktop8() {
+  const {
+    currentPersona,
+    switchPersona,
+    facilities,
+    memberRegistry,
+    sessionLedgers,
+    enrollSwimmerByMemberCode,
+    checkInSession,
+    uploadInstaPayReceipt,
+    effectiveOffline,
+    isOfflineSimulated,
+    toggleOfflineSimulation,
+    offlineQueue,
+    syncOfflineQueue,
+  } = useCaptenly();
+
+  const isCoach = currentPersona.role === "coach";
+  const isFacility = currentPersona.role === "facility_manager";
+  const isProvider = isCoach || isFacility;
+  const linkedFacilityId = currentPersona.linkedFacilityId || facilities[0]?.id || "";
+
+  const [facilityScope, setFacilityScope] = useState<"mine" | "all">("mine");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showEnrollForm, setShowEnrollForm] = useState(false);
+
+  // Quick enroll form inside ledger for coaches / facilities
+  const [newMemberCode, setNewMemberCode] = useState("CAP-M-5190");
+  const [newAthleteName, setNewAthleteName] = useState("");
+  const [newFacilityId, setNewFacilityId] = useState(linkedFacilityId);
+  const [newPkgTitle, setNewPkgTitle] = useState("مدرسة السباحة — 8 حصص");
+  const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
+  const [newFeeEgp, setNewFeeEgp] = useState("750");
+  const [enrollMsg, setEnrollMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const facilityOwnCount = useMemo(
+    () => sessionLedgers.filter((l) => l.facilityId === linkedFacilityId).length,
+    [sessionLedgers, linkedFacilityId]
+  );
+
+  const roleLedgers = useMemo(() => {
+    if (isFacility) {
+      if (facilityScope === "mine" && facilityOwnCount > 0) {
+        return sessionLedgers.filter((l) => l.facilityId === linkedFacilityId);
+      }
+      return sessionLedgers;
+    }
+    if (isCoach) {
+      return sessionLedgers;
+    }
+    return sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
+  }, [sessionLedgers, currentPersona, isFacility, isCoach, facilityScope, facilityOwnCount, linkedFacilityId]);
+
+  const filteredLedgers = useMemo(() => {
+    return roleLedgers.filter((l) => {
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const hay = `${l.athleteNameAr} ${l.facilityNameAr} ${l.packageTitleAr} ${l.ledgerCode} ${l.coachNameAr}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [roleLedgers, statusFilter, searchQuery]);
+
+  const [selectedLedgerId, setSelectedLedgerId] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const id = new URLSearchParams(window.location.search).get("id");
+      if (id) setSelectedLedgerId(id);
+    }
+  }, []);
+
+  const activeLedger =
+    filteredLedgers.find((l) => l.id === selectedLedgerId) ||
+    filteredLedgers[0] ||
+    roleLedgers[0] ||
+    null;
+
+  const [pinInput, setPinInput] = useState("");
+  const [coachNote, setCoachNote] = useState("");
+  const [checkinMsg, setCheckinMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  // InstaPay form
+  const [receiptRef, setReceiptRef] = useState("");
+  const [receiptChannel, setReceiptChannel] = useState<
+    "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)"
+  >("إنستاباي (InstaPay)");
+  const [receiptAmount, setReceiptAmount] = useState("750");
+  const [receiptSaved, setReceiptSaved] = useState(false);
+
+  const memberCode = currentPersona.memberCode || "CAP-M-5190";
+  const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
+
+  const matchedEnrollMember = useMemo(
+    () =>
+      memberRegistry.find(
+        (m) => m.memberCode.toUpperCase() === newMemberCode.trim().toUpperCase()
+      ),
+    [memberRegistry, newMemberCode]
+  );
+
+  const copyMemberCode = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(memberCode).catch(() => undefined);
+    }
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 1800);
+  };
+
+  const handleQuickEnroll = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = enrollSwimmerByMemberCode({
+      memberCode: newMemberCode,
+      athleteNameAr: newAthleteName.trim() || matchedEnrollMember?.fullNameAr,
+      facilityId: newFacilityId || linkedFacilityId,
+      coachId: isCoach ? currentPersona.id : undefined,
+      packageTitleAr: newPkgTitle,
+      totalSessions: newSessionsCount,
+      amountEgp: Number(newFeeEgp) || 750,
+    });
+    setEnrollMsg({ ok: res.ok, msg: res.messageAr });
+    if (res.ok && res.ledger) {
+      setSelectedLedgerId(res.ledger.id);
+      setNewAthleteName("");
+      setShowEnrollForm(false);
+    }
+  };
+
+  const activeCount = roleLedgers.filter((l) => l.status === "active").length;
+  const renewalCount = roleLedgers.filter((l) => l.status === "renewal_due").length;
+  const totalCheckinsDone = roleLedgers.reduce((sum, l) => sum + l.completedSessions, 0);
+
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased selection:bg-lime-tint selection:text-primary">
-<main className="w-full pt-[72px] bg-canvas-alabaster min-h-screen"><div className="flex flex-col w-full"><div className="max-w-[1280px] w-full mx-auto px-margin-desktop py-space-xl flex flex-col gap-space-xl"><div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md bg-surface-card rounded-xl p-space-md shadow-sm"><div className="flex items-center gap-space-md flex-wrap"><div className="flex items-center gap-space-xs text-text-muted font-body-compact text-body-compact"><span>حساب ولي الأمر</span><Icon name="chevron_left" className="material-symbols-outlined text-[16px]" /><span className="text-on-surface font-semibold">جواز السفر الرياضي ودفتر الحصص</span></div><div className="h-4 w-px bg-surface-container-high hidden sm:block"></div><div className="relative inline-flex items-center gap-space-xs bg-surface-snow px-space-sm py-1.5 rounded-full"><span className="font-micro-caption text-micro-caption text-text-muted">اللاعب الحالي:</span><button className="inline-flex items-center gap-1 font-card-title-sm text-card-title-sm text-dark-slate hover:text-deep-olive transition-colors"><span>عمر أحمد (سباحة)</span><Icon name="expand_more" className="material-symbols-outlined text-[18px]" /></button><span className="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label">براعم 2</span></div></div><div className="flex items-center gap-space-xs flex-wrap"><button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-surface-snow hover:bg-surface-container text-dark-slate transition-colors font-badge-label text-badge-label"><Icon name="print" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>طباعة الشهادة PDF</span></button><button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-surface-snow hover:bg-surface-container text-action-whatsapp transition-colors font-badge-label text-badge-label"><Icon name="share" className="material-symbols-outlined text-[18px]" /><span>مشاركة الجواز</span></button><button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-deep-olive hover:opacity-95 text-on-primary font-badge-label text-badge-label shadow-sm transition-all"><Icon name="autorenew" className="material-symbols-outlined text-[18px]" /><span>تجديد باقة الحصص</span></button></div></div><div className="relative overflow-hidden rounded-xl bg-dark-slate text-surface-card p-space-lg md:p-space-xl shadow-md"><div className="absolute -left-12 -top-12 w-64 h-64 rounded-full bg-electric-volt/10 blur-3xl pointer-events-none"></div><div className="absolute -right-16 -bottom-16 w-72 h-72 rounded-full bg-deep-olive/20 blur-3xl pointer-events-none"></div><div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-center"><div className="lg:col-span-7 flex items-center gap-space-md"><div className="relative shrink-0"><img className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover shadow-md" data-alt="Portrait of an energetic 9 year old Egyptian junior swimmer boy wearing a navy silicone cap with goggles around his neck, standing by a sunlit Olympic pool" src="/screens/ebced682431b.jpg" /><span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-electric-volt text-dark-slate flex items-center justify-center font-bold text-[12px] shadow-sm">✓</span></div><div className="flex flex-col gap-1 min-w-0"><div className="flex items-center gap-2 flex-wrap"><h1 className="font-section-title text-section-title text-surface-card font-bold truncate">عمر أحمد محمد البنهاوي</h1><span className="px-2.5 py-0.5 rounded-full bg-deep-carbon text-electric-volt font-badge-label text-badge-label">رقم القيد: #CAP-SW-8842</span></div><p className="font-body-compact text-body-compact text-surface-container-high flex items-center gap-1"><Icon name="pool" className="material-symbols-outlined text-[16px] text-electric-volt" /><span>أكاديمية د. محمود الشناوي للسباحة الأولمبية — فرع استاد المحلة الدولي</span></p><div className="flex items-center gap-2 mt-1 flex-wrap"><span className="px-2 py-0.5 rounded-full bg-surface-container-highest/20 text-surface-card font-micro-caption text-micro-caption">مستوى الإتقان: براعم 2 معتمد</span><span className="text-surface-container-high text-[12px]">•</span><span className="text-surface-container-high font-micro-caption text-micro-caption">مدرب المجموعة: كابتن محمود الشناوي (دكتوراه تدريب رياضي)</span></div></div></div><div className="lg:col-span-5 flex flex-col sm:flex-row items-center justify-between lg:justify-end gap-space-lg bg-deep-carbon/60 p-space-md rounded-xl backdrop-blur-sm"><div className="flex items-center gap-space-sm"><div className="relative w-16 h-16 shrink-0 flex items-center justify-center"><svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36"><path className="text-secondary/40" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5"></path><path className="text-electric-volt stroke-current" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" strokeDasharray="75, 100" strokeLinecap="round" strokeWidth="3.5"></path></svg><div className="absolute inset-0 flex flex-col items-center justify-center text-center"><span className="font-metric-headline text-metric-headline text-surface-card leading-none">6/8</span></div></div><div className="flex flex-col"><span className="font-badge-label text-badge-label text-electric-volt">اشتراك ساري المفعول</span><span className="font-card-title-sm text-card-title-sm text-surface-card">تم حضور 6 حصص</span><span className="font-micro-caption text-micro-caption text-surface-container-high">متبقي حصتان في دورة أكتوبر</span></div></div><div className="flex flex-col items-end sm:items-start text-right"><span className="font-micro-caption text-micro-caption text-surface-container-high">الحصة القادمة المجدولة:</span><span className="font-card-title-sm text-card-title-sm text-surface-card mt-0.5">السبت 22 أكتوبر</span><span className="font-micro-caption text-micro-caption text-electric-volt">5:30 مساءً • مسار 4</span></div></div></div></div><div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start"><div className="lg:col-span-8 flex flex-col gap-space-xl"><div className="bg-surface-card rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md"><div className="flex items-center justify-between flex-wrap gap-2"><div><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-athletic-olive"></span><h2 className="font-section-title text-section-title text-dark-slate">سجل دفتر الحصص الشهري المعتمد</h2></div><p className="font-body-compact text-body-compact text-text-muted mt-1">توثيق رقمي فوري مشفّر بختم الكابتن عبر رمز الاستجابة السريع (QR Check-in)</p></div><div className="flex items-center gap-1.5 px-3 py-1 bg-surface-snow rounded-full"><span className="font-micro-caption text-micro-caption text-text-muted">نسبة الالتزام الشهري:</span><span className="font-price-tag text-price-tag text-deep-olive">100%</span></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm pt-space-xs"><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">1</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">السبت 1 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 3</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>تم الحضور</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">التنفس الجانبي والانسياب</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.2°C</span><span className="text-athletic-olive font-mono">#VER-01-OK</span></div></div></div><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">2</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">الثلاثاء 4 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 3</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>تم الحضور</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">ضربات الرجلين الحرة بالبورد</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.5°C</span><span className="text-athletic-olive font-mono">#VER-02-OK</span></div></div></div><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">3</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">السبت 8 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 3</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>تم الحضور</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">كتم النفس 15 ثانية تحت الماء</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.0°C</span><span className="text-athletic-olive font-mono">#VER-03-OK</span></div></div></div><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">4</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">الثلاثاء 11 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 4</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>تم الحضور</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">الانزلاق الخلفي وضربات الظهر</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.4°C</span><span className="text-athletic-olive font-mono">#VER-04-OK</span></div></div></div><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">5</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">السبت 15 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 4</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>تم الحضور</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">سباحة حرة 25 متر متواصلة</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.6°C</span><span className="text-athletic-olive font-mono">#VER-05-OK</span></div></div></div><div className="bg-surface-snow rounded-lg p-space-sm flex flex-col justify-between gap-space-xs hover:bg-surface-container-low transition-colors"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-[11px]">6</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">الثلاثاء 18 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — مسار 4</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label"><Icon name="check_circle" className="material-symbols-outlined text-[13px]" /><span>أحدث حصة</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>المهارة المنفذة:</span><span className="text-on-surface font-semibold">القفز والغطس من منصة البدء</span></div><div className="flex items-center justify-between text-text-muted"><span>حرارة المسبح: 29.5°C</span><span className="text-athletic-olive font-mono">#VER-06-OK</span></div></div></div><div className="bg-surface-card rounded-lg p-space-sm flex flex-col justify-between gap-space-xs shadow-sm"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-dark-slate text-electric-volt flex items-center justify-center font-bold text-[11px]">7</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">السبت 22 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — الحصة القادمة</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-container text-dark-slate font-badge-label text-badge-label"><Icon name="schedule" className="material-symbols-outlined text-[13px] text-athletic-olive" /><span>مجدولة</span></span></div><div className="bg-surface-snow rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>الهدف التدريبي:</span><span className="text-on-surface font-semibold">اختبار التحمل وسرعة الدوران</span></div><span className="text-text-muted text-[10px]">جاهز لتسجيل الحضور عبر الباركود بالأسفل</span></div></div><div className="bg-surface-container-low/70 rounded-lg p-space-sm flex flex-col justify-between gap-space-xs opacity-75"><div className="flex items-start justify-between"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-surface-container text-secondary flex items-center justify-center font-bold text-[11px]">8</span><div><span className="font-card-title-sm text-card-title-sm text-dark-slate block">الثلاثاء 25 أكتوبر</span><span className="font-micro-caption text-micro-caption text-text-muted">5:30 م — تقييم المستوى النهائي</span></div></div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-secondary font-badge-label text-badge-label"><span>متبقية</span></span></div><div className="bg-surface-card rounded p-2 text-dark-slate font-micro-caption text-micro-caption flex flex-col gap-0.5"><div className="flex items-center justify-between text-text-muted"><span>الهدف التدريبي:</span><span className="text-on-surface font-semibold">تسليم شارة مستوى براعم 3</span></div><span className="text-text-muted text-[10px]">تختتم الدورة وتُجدد الباقة تلقائياً</span></div></div></div><div className="flex items-center justify-between pt-space-xs text-text-muted font-micro-caption text-micro-caption"><span className="flex items-center gap-1"><Icon name="verified_user" className="material-symbols-outlined text-[16px] text-athletic-olive" /><span>جميع الحصص تسجل آنياً بنظام التشفير الجغرافي داخل حدود المسبح المعتمد</span></span><Link className="text-deep-olive hover:underline font-semibold" href="/">طلب تعويض حصة غياب ↗</Link></div></div><div className="bg-surface-card rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Icon name="workspace_premium" className="material-symbols-outlined text-athletic-olive text-[24px]" /><h2 className="font-section-title text-section-title text-dark-slate">شهادة الجواز السفر الرياضي المعتمدة</h2></div><span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label">توثيق رسمي • الاتحاد المصري للسباحة</span></div><div className="relative bg-surface-snow rounded-xl p-space-lg flex flex-col gap-space-md overflow-hidden shadow-inner"><div className="absolute -top-12 -left-12 w-32 h-32 rounded-full bg-lime-tint/30 pointer-events-none"></div><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-sm bg-surface-card p-space-md rounded-lg shadow-sm"><div className="flex items-center gap-space-sm"><div className="w-12 h-12 rounded-full bg-dark-slate text-electric-volt flex items-center justify-center font-bold text-lg shrink-0"><Icon name="sports_martial_arts" className="material-symbols-outlined text-[28px]" /></div><div className="flex flex-col"><span className="font-micro-caption text-micro-caption text-athletic-olive uppercase tracking-wider font-semibold">CAPTENLY SPORTS PASSPORT</span><span className="font-card-title text-card-title text-dark-slate">جواز السفر الرياضي — جمهورية مصر العربية</span><span className="font-micro-caption text-micro-caption text-text-muted">المنظومة الوطنية الموحدة لسجلات الرياضيين الناشئين</span></div></div><div className="flex items-center gap-2 bg-surface-snow px-3 py-1.5 rounded-lg shrink-0"><Icon name="shield" className="material-symbols-outlined text-[20px] text-athletic-olive" /><div className="flex flex-col text-right"><span className="font-micro-caption text-micro-caption text-dark-slate font-bold">معتمد رياضياً</span><span className="font-micro-caption text-micro-caption text-text-muted text-[9px]">كود المنشأة #EGY-GH-041</span></div></div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm"><div className="bg-surface-card p-space-sm rounded-lg flex flex-col gap-1 shadow-sm"><div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption"><span>الطفو والانسياب الأفقي</span><span className="text-deep-olive font-bold">100%</span></div><div className="w-full bg-surface-container h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full" style={{"width": "100%"}}></div></div><span className="font-micro-caption text-micro-caption text-text-muted mt-1">اجتاز الاختبار بنجاح تام ✓</span></div><div className="bg-surface-card p-space-sm rounded-lg flex flex-col gap-1 shadow-sm"><div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption"><span>سباحة الصدر (Breaststroke)</span><span className="text-deep-olive font-bold">92%</span></div><div className="w-full bg-surface-container h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full" style={{"width": "92%"}}></div></div><span className="font-micro-caption text-micro-caption text-text-muted mt-1">إتقان تكنيك السحب والتنفس ✓</span></div><div className="bg-surface-card p-space-sm rounded-lg flex flex-col gap-1 shadow-sm"><div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption"><span>سباحة الظهر (Backstroke)</span><span className="text-deep-olive font-bold">85%</span></div><div className="w-full bg-surface-container h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full" style={{"width": "85%"}}></div></div><span className="font-micro-caption text-micro-caption text-text-muted mt-1">ثبات الرأس وحركات الأقدام ✓</span></div></div><div className="flex flex-col sm:flex-row items-center justify-between gap-space-md pt-space-xs bg-surface-card p-space-md rounded-lg shadow-sm"><div className="flex items-center gap-space-sm"><img className="w-12 h-12 rounded-full object-cover shadow-sm" data-alt="Close up professional headshot portrait of Egyptian head swim coach Dr Mahmoud wearing a sports polo with whistle and cap" src="/screens/3ff31a3bc05a.jpg" /><div className="flex flex-col"><span className="font-card-title-sm text-card-title-sm text-dark-slate">توقيع: د. محمود الشناوي</span><span className="font-micro-caption text-micro-caption text-text-muted">المدير الفني للأكاديمية والمدرب الأولمبي المعتمد</span></div></div><div className="flex items-center gap-space-md"><div className="flex items-center gap-2 bg-lime-tint/50 px-3 py-2 rounded-lg text-deep-olive"><Icon name="verified" className="material-symbols-outlined text-[28px]" /><div className="flex flex-col"><span className="font-badge-label text-badge-label font-bold">الختم الرقمي لكابتنلي</span><span className="font-micro-caption text-micro-caption font-mono">SEAL: #CPT-2025-EG</span></div></div></div></div></div></div></div><div className="lg:col-span-4 flex flex-col gap-space-lg"><div className="bg-surface-card rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm items-center text-center"><div className="w-full flex items-center justify-between pb-space-xs"><span className="inline-flex items-center gap-1 font-card-title-sm text-card-title-sm text-dark-slate"><Icon name="qr_code_scanner" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>رمز الحضور الميداني (QR)</span></span><span className="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label">نشط الآن</span></div><p className="font-body-compact text-body-compact text-text-muted text-right w-full"> أظهر هذا الرمز عند بوابة المسبح أو للكابتن لتسجيل الحضور وتحديث دفتر الحصص فوراً. </p><div className="bg-surface-snow p-space-md rounded-xl w-full flex flex-col items-center justify-center gap-space-sm shadow-inner"><div className="bg-surface-card p-3 rounded-lg shadow-sm"><svg className="w-44 h-44 text-dark-slate" fill="currentColor" viewBox="0 0 100 100"><rect height="28" width="28" x="4" y="4"></rect><rect fill="#FFFFFF" height="20" width="20" x="8" y="8"></rect><rect height="12" width="12" x="12" y="12"></rect><rect height="28" width="28" x="68" y="4"></rect><rect fill="#FFFFFF" height="20" width="20" x="72" y="8"></rect><rect height="12" width="12" x="76" y="12"></rect><rect height="28" width="28" x="4" y="68"></rect><rect fill="#FFFFFF" height="20" width="20" x="8" y="72"></rect><rect height="12" width="12" x="12" y="76"></rect><rect height="8" width="8" x="38" y="8"></rect><rect height="8" width="8" x="52" y="8"></rect><rect height="8" width="8" x="42" y="24"></rect><rect height="8" width="8" x="16" y="40"></rect><rect height="8" width="8" x="28" y="40"></rect><rect height="8" width="8" x="40" y="40"></rect><rect height="8" width="8" x="52" y="40"></rect><rect height="8" width="8" x="68" y="40"></rect><rect height="8" width="8" x="84" y="40"></rect><rect height="8" width="8" x="40" y="52"></rect><rect height="8" width="8" x="52" y="60"></rect><rect height="8" width="8" x="68" y="56"></rect><rect height="8" width="8" x="80" y="68"></rect><rect height="8" width="8" x="40" y="72"></rect><rect height="8" width="8" x="52" y="80"></rect><rect height="8" width="8" x="64" y="80"></rect><rect height="8" width="8" x="84" y="84"></rect></svg></div><div className="flex flex-col items-center"><span className="font-price-tag text-price-tag text-dark-slate font-mono">CPT-8842-S07</span><span className="font-micro-caption text-micro-caption text-text-muted mt-0.5">صالح للحصة رقم 7 — السبت 22 أكتوبر</span></div></div><div className="w-full flex items-center justify-between text-text-muted font-micro-caption text-micro-caption px-1"><span className="flex items-center gap-1"><Icon name="security" className="material-symbols-outlined text-[14px] text-action-whatsapp" /><span>تحديث تلقائي كل 15 ثانية</span></span><span className="font-mono text-dark-slate">00:14s</span></div></div><div className="bg-surface-card rounded-xl p-space-md shadow-sm flex flex-col gap-space-md"><div className="flex items-center justify-between"><span className="font-card-title-sm text-card-title-sm text-dark-slate flex items-center gap-1.5"><Icon name="insights" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>مؤشرات الأداء ورأي الكابتن</span></span><span className="font-micro-caption text-micro-caption text-athletic-olive font-bold">آخر تحديث: أمس</span></div><div className="flex flex-col gap-space-sm"><div className="flex flex-col gap-1"><div className="flex justify-between text-body-compact text-body-compact"><span className="text-dark-slate">اللياقة والتحمل المائي</span><span className="font-bold text-deep-olive font-mono">85%</span></div><div className="w-full bg-surface-snow h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full transition-all" style={{"width": "85%"}}></div></div></div><div className="flex flex-col gap-1"><div className="flex justify-between text-body-compact text-body-compact"><span className="text-dark-slate">التكنيك وحركات الأرجل</span><span className="font-bold text-deep-olive font-mono">90%</span></div><div className="w-full bg-surface-snow h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full transition-all" style={{"width": "90%"}}></div></div></div><div className="flex flex-col gap-1"><div className="flex justify-between text-body-compact text-body-compact"><span className="text-dark-slate">الانضباط ومواعيد الحضور</span><span className="font-bold text-deep-olive font-mono">100%</span></div><div className="w-full bg-surface-snow h-2 rounded-full overflow-hidden"><div className="bg-athletic-olive h-full rounded-full transition-all" style={{"width": "100%"}}></div></div></div></div><div className="bg-surface-snow p-space-sm rounded-lg flex flex-col gap-space-xs shadow-inner"><div className="flex items-center gap-2"><Icon name="format_quote" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span className="font-badge-label text-badge-label text-dark-slate">ملاحظة الكابتن المباشرة:</span></div><p className="font-body-compact text-body-compact text-text-muted leading-relaxed"> “عمر أظهر تطوراً ممتازاً في ضربات الأرجل وسرعة الدوران خلال حصة الثلاثاء. ننصح بالتركيز على التبادل الحر وانتظام الشهيق والزفير في الحصة القادمة لتأهيله لفريق المنافسات.” </p><div className="flex items-center justify-between pt-1"><span className="font-micro-caption text-micro-caption text-text-muted">— كابتن محمود الشناوي</span><span className="px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-[10px]">ملاحظة معتمدة</span></div></div></div><div className="bg-dark-slate text-surface-card rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm"><div className="flex items-center gap-space-xs"><span className="w-8 h-8 rounded-full bg-action-whatsapp text-surface-card flex items-center justify-center shrink-0"><Icon name="chat" className="material-symbols-outlined text-[18px]" /></span><div className="flex flex-col"><span className="font-card-title-sm text-card-title-sm text-surface-card">مشرف الأكاديمية المباشر</span><span className="font-micro-caption text-micro-caption text-surface-container-high">تعديل المواعيد أو تعويض الحصص</span></div></div><p className="font-body-compact text-body-compact text-surface-container-highest"> هل تحتاج لتغيير موعد حصة السبت أو تقديم إفادة طبية؟ تواصل مباشرة مع الإدارة التنفيذية للمسبح. </p><a className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-action-whatsapp hover:opacity-95 text-surface-card font-card-title-sm text-card-title-sm shadow-sm transition-opacity" rel="noopener noreferrer" target="_blank" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="send" className="material-symbols-outlined text-[18px]" /><span>تواصل عبر واتساب الأكاديمية</span></a></div></div></div></div></div></main>
+    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
+      <div className="max-w-[1220px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
+        {/* Top Offline PWA Status Strip */}
+        <section className="rounded-2xl bg-dark-slate text-surface-card p-5 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                effectiveOffline ? "bg-amber-400 text-dark-slate" : "bg-deep-carbon text-electric-volt"
+              }`}
+            >
+              <Icon name={effectiveOffline ? "wifi_off" : "qr_code_2"} className="text-[20px]" />
+            </div>
+            <div>
+              <h1 className="font-card-title text-surface-card">
+                {isCoach
+                  ? "دفاتر حصص المتدربين والسباحين (QR Ledger)"
+                  : isFacility
+                  ? "دفاتر حصص المشتركين في المنشأة (QR Ledger)"
+                  : "دفتر الحصص الرقمي والأوفلاين PWA (QR Ledger)"}
+              </h1>
+              <p className="text-xs text-surface-container-high mt-0.5">
+                {effectiveOffline
+                  ? "أنت الآن في وضع الأوفلاين — أي حصة تُسجّل الآن تُحفظ محلياً وتُزامَن تلقائياً عند عودة الشبكة."
+                  : isProvider
+                  ? "لكل سباح أو عميل دفتر حصص مستقل برقم تعريفي وباركود خاص؛ يمكنك إضافة أي مشترك بكود العضوية أو خصم الحصة بالـ QR / PIN."
+                  : "كل اشتراك مع كابتن أو أكاديمية — أو لكل ابن — له دفتر حصص مستقل وكود QR يعمل حتى داخل المسابح المغطاة بدون إنترنت."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {pendingOfflineCount > 0 && (
+              <button
+                type="button"
+                onClick={() => syncOfflineQueue()}
+                className="px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold"
+              >
+                مزامنة {pendingOfflineCount} حصة محفوظة أوفلاين ↻
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleOfflineSimulation}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                isOfflineSimulated
+                  ? "bg-amber-400 text-dark-slate"
+                  : "bg-white/10 text-surface-card hover:bg-white/20"
+              }`}
+            >
+              {isOfflineSimulated ? "إيقاف محاكاة انقطاع النت" : "تجربة وضع بدون نت بالمسبح (Offline)"}
+            </button>
+          </div>
+        </section>
+
+        {/* Unlinked Member State vs Multi-Ledger Directory */}
+        {roleLedgers.length === 0 && !isProvider ? (
+          <section className="bg-surface-card rounded-[24px] p-8 md:p-12 shadow-sm border border-surface-container grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-7 flex flex-col gap-4">
+              <div className="inline-flex items-center gap-2 text-deep-olive font-extrabold text-xs w-fit">
+                <Icon name="qr_code_2" className="text-[16px]" />
+                <span>جاهز للتفعيل مع كابتنك أو أكاديميتك</span>
+              </div>
+
+              <h2 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-[1.38]">
+                دفتر الحصص الرقمي يُفعّل لكل اشتراك مع كابتن أو أكاديمية موثقة
+              </h2>
+              <p className="font-body-default text-text-muted leading-relaxed">
+                أنت الآن مسجل بحساب <strong className="text-dark-slate">{currentPersona.fullNameAr}</strong> ولا توجد باقات نشطة مرتبطة بكودك بعد. بمجرد اشتراكك وإعطاء كود عضويتك للكابتن أو إدارة المنشأة، سيظهر لك هنا دفتر حصص منفصل لكل باقة أو لكل فرد في الأسرة.
+              </p>
+
+              <div className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs text-text-muted">كود عضويتك الفريد ({currentPersona.fullNameAr})</span>
+                  <div className="text-2xl md:text-3xl font-mono font-black text-deep-olive tracking-wider mt-1">
+                    {memberCode}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyMemberCode}
+                  className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs flex items-center gap-2 shrink-0 w-fit"
+                >
+                  <Icon name={copiedCode ? "check" : "content_copy"} className="text-[16px]" />
+                  <span>{copiedCode ? "تم النسخ ✓" : "نسخ كود العضوية"}</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <span className="text-xs font-extrabold text-deep-olive">
+                  معاينة تعدد دفاتر الحصص حسب نوع الحساب:
+                </span>
+                <div className="flex flex-wrap gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => switchPersona("persona-coach")}
+                    className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs hover:opacity-95"
+                  >
+                    حساب الكابتن ({sessionLedgers.length} متدربين وعملاء)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchPersona("persona-facility")}
+                    className="px-4 py-2.5 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs hover:brightness-95"
+                  >
+                    إدارة المنشأة (أكاديمية دولفين — {facilityOwnCount} دفاتر)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchPersona("persona-parent")}
+                    className="px-4 py-2.5 rounded-full bg-surface-snow text-dark-slate border border-surface-container font-badge-label text-xs hover:bg-surface-container"
+                  >
+                    حساب الأسرة (دفتران: يوسف وريم)
+                  </button>
+                  <Link
+                    href="/dashboard/coach"
+                    className="px-4 py-2.5 rounded-full bg-surface-card border border-deep-olive/30 text-deep-olive font-badge-label text-xs hover:bg-lime-tint/40"
+                  >
+                    تفعيل كودك من لوحة الكابتن ←
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-3 bg-surface-snow rounded-2xl p-6">
+              <QrCodeBox value={`CAP-MEMBER:${memberCode}`} size={180} label={memberCode} />
+              <span className="text-xs text-text-muted text-center max-w-xs">
+                امسح أو شارك كود عضويتك مع الكابتن أو إدارة المدرسة لتفعيل الباقة (8 أو 12 أو 24 حصة)
+              </span>
+            </div>
+          </section>
+        ) : (
+          <div className="flex flex-col gap-space-lg">
+            {/* Multi-Swimmer / Multi-Client Directory Section */}
+            <section className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="font-section-title text-dark-slate">
+                      {isProvider
+                        ? `سجل دفاتر السباحين والعملاء (${roleLedgers.length})`
+                        : `دفاتر الحصص المرتبطة بحسابك (${roleLedgers.length})`}
+                    </h2>
+                    {isProvider && (
+                      <span className="text-xs font-extrabold text-deep-olive">
+                        • {activeCount} باقات نشطة {renewalCount > 0 ? `• ${renewalCount} قريبة من التجديد` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {isProvider
+                      ? "اختر أي متدرب أو عميل من القائمة لعرض باركود الحضور أو تسجيل حصة جديدة له، أو أضف متدرباً جديداً بكود العضوية."
+                      : "كل باقة أو فرد لديه دفتر حصص مستقل برصيده وسجل حضوره وباركوده الخاص."}
+                  </p>
+                </div>
+
+                {isProvider && (
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {isFacility && (
+                      <div className="inline-flex rounded-full bg-surface-snow p-1 border border-surface-container">
+                        <button
+                          type="button"
+                          onClick={() => setFacilityScope("mine")}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                            facilityScope === "mine"
+                              ? "bg-dark-slate text-electric-volt"
+                              : "text-text-muted hover:text-dark-slate"
+                          }`}
+                        >
+                          منشأتي ({facilityOwnCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFacilityScope("all")}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                            facilityScope === "all"
+                              ? "bg-dark-slate text-electric-volt"
+                              : "text-text-muted hover:text-dark-slate"
+                          }`}
+                        >
+                          كل المنشآت ({sessionLedgers.length})
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowEnrollForm((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95 shadow-sm"
+                    >
+                      <Icon name={showEnrollForm ? "close" : "add"} className="text-[16px]" />
+                      <span>{showEnrollForm ? "إغلاق النموذج" : "إضافة دفتر / مشترك جديد"}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Provider Stats Row */}
+              {isProvider && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-text-muted font-bold">إجمالي الدفاتر</span>
+                    <span className="text-xl font-black text-dark-slate">{roleLedgers.length}</span>
+                  </div>
+                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-text-muted font-bold">باقات نشطة</span>
+                    <span className="text-xl font-black text-deep-olive">{activeCount}</span>
+                  </div>
+                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-text-muted font-bold">قريبة من التجديد</span>
+                    <span className="text-xl font-black text-amber-700">{renewalCount}</span>
+                  </div>
+                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-text-muted font-bold">حصص تم توثيقها</span>
+                    <span className="text-xl font-black text-dark-slate">{totalCheckinsDone}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Enroll Feedback */}
+              {enrollMsg && (
+                <div
+                  className={`rounded-xl px-4 py-3 text-xs font-bold flex items-center justify-between ${
+                    enrollMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-900"
+                  }`}
+                >
+                  <span>{enrollMsg.msg}</span>
+                  <button type="button" onClick={() => setEnrollMsg(null)} className="underline">
+                    إخفاء
+                  </button>
+                </div>
+              )}
+
+              {/* Inline Add Swimmer / Client Form for Provider */}
+              {isProvider && showEnrollForm && (
+                <form
+                  onSubmit={handleQuickEnroll}
+                  className="rounded-2xl bg-surface-snow p-5 border border-deep-olive/25 flex flex-col gap-4"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="font-card-title-sm text-dark-slate">
+                      تفعيل دفتر حصص لسباح أو عميل جديد بكود العضوية
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5 text-[11px]">
+                      <span className="text-text-muted">أكواد سريعة:</span>
+                      {memberRegistry.slice(0, 4).map((m) => (
+                        <button
+                          key={m.memberCode}
+                          type="button"
+                          onClick={() => {
+                            setNewMemberCode(m.memberCode);
+                            setNewAthleteName(m.fullNameAr);
+                          }}
+                          className="px-2 py-0.5 rounded-full bg-surface-card border border-surface-container font-mono font-bold text-deep-olive hover:bg-lime-tint"
+                        >
+                          {m.memberCode} ({m.fullNameAr.split(" ")[0]})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">كود العضوية *</label>
+                      <input
+                        required
+                        value={newMemberCode}
+                        onChange={(e) => setNewMemberCode(e.target.value)}
+                        placeholder="CAP-M-5190"
+                        className="rounded-xl bg-white px-3 py-2 font-mono text-xs outline-none border border-surface-container"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">اسم السباح / العميل</label>
+                      <input
+                        value={newAthleteName}
+                        onChange={(e) => setNewAthleteName(e.target.value)}
+                        placeholder={matchedEnrollMember?.fullNameAr || "تلقائي من الكود أو اكتب الاسم"}
+                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">المنشأة</label>
+                      <select
+                        value={newFacilityId}
+                        onChange={(e) => setNewFacilityId(e.target.value)}
+                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+                      >
+                        {facilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.nameAr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">اسم الباقة والحصص</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          value={newPkgTitle}
+                          onChange={(e) => setNewPkgTitle(e.target.value)}
+                          className="flex-1 min-w-0 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-surface-container"
+                        />
+                        <select
+                          value={newSessionsCount}
+                          onChange={(e) => setNewSessionsCount(Number(e.target.value) as 8 | 12 | 24)}
+                          className="w-20 rounded-xl bg-white px-2 py-2 text-xs outline-none border border-surface-container"
+                        >
+                          <option value={8}>8</option>
+                          <option value={12}>12</option>
+                          <option value={24}>24</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">الرسوم ج.م وتفعيل</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          value={newFeeEgp}
+                          onChange={(e) => setNewFeeEgp(e.target.value)}
+                          className="w-20 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-surface-container"
+                        />
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-xl bg-deep-olive text-white font-bold text-xs px-3 py-2 hover:brightness-110"
+                        >
+                          إضافة ✓
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* Search & Status Filters for Providers */}
+              {isProvider && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center bg-surface-snow rounded-full px-3.5 py-2 border border-surface-container flex-1 max-w-md">
+                    <Icon name="search" className="text-text-muted text-[16px] ml-2 shrink-0" />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="ابحث باسم السباح، المنشأة، أو رقم الدفتر..."
+                      className="w-full bg-transparent text-xs outline-none text-dark-slate"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: "all", label: `الكل (${roleLedgers.length})` },
+                      { id: "active", label: "نشط" },
+                      { id: "renewal_due", label: "تحتاج تجديد" },
+                      { id: "completed", label: "مكتملة" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setStatusFilter(tab.id as typeof statusFilter)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                          statusFilter === tab.id
+                            ? "bg-deep-olive text-white"
+                            : "bg-surface-snow text-text-muted hover:text-dark-slate"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Swimmers / Clients Cards Directory */}
+              {filteredLedgers.length === 0 ? (
+                <div className="rounded-xl bg-surface-snow p-6 text-center text-xs text-text-muted">
+                  لا توجد دفاتر مطابقة لفلتر البحث الحالي.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredLedgers.map((l) => {
+                    const isSelected = activeLedger?.id === l.id;
+                    const pct = Math.min(100, Math.round((l.completedSessions / l.totalSessions) * 100));
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLedgerId(l.id);
+                          setCheckinMsg(null);
+                        }}
+                        className={`text-right rounded-2xl p-4 transition-all border flex flex-col gap-2.5 ${
+                          isSelected
+                            ? "bg-lime-tint/35 border-deep-olive shadow-sm ring-1 ring-deep-olive/30"
+                            : "bg-surface-snow border-surface-container hover:border-deep-olive/40"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-card-title-sm text-dark-slate truncate">
+                              {l.athleteNameAr}
+                            </div>
+                            <div className="text-[11px] text-text-muted truncate mt-0.5">
+                              {l.facilityNameAr}
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[11px] font-extrabold shrink-0 ${
+                              l.status === "completed"
+                                ? "text-text-muted"
+                                : l.status === "renewal_due"
+                                ? "text-amber-700"
+                                : "text-deep-olive"
+                            }`}
+                          >
+                            {l.status === "completed"
+                              ? "مكتملة"
+                              : l.status === "renewal_due"
+                              ? "قارب الانتهاء"
+                              : "نشط ✓"}
+                          </span>
+                        </div>
+
+                        <div className="text-xs font-bold text-dark-slate/85 truncate">
+                          {l.packageTitleAr}
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <div className="h-1.5 w-full rounded-full bg-surface-container overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                l.status === "renewal_due"
+                                  ? "bg-amber-600"
+                                  : l.status === "completed"
+                                  ? "bg-dark-slate"
+                                  : "bg-deep-olive"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-mono text-text-muted">{l.ledgerCode} • PIN {l.pinCode}</span>
+                            <span className="font-extrabold text-deep-olive">
+                              {l.completedSessions} / {l.totalSessions} حصص
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Active Selected Ledger Detail View */}
+            {activeLedger && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+                {/* Left Main Ledger & Attendance Control */}
+                <div className="lg:col-span-7 flex flex-col gap-5">
+                  <section className="bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm border border-surface-container flex flex-col gap-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-extrabold ${
+                              activeLedger.status === "completed"
+                                ? "text-text-muted"
+                                : activeLedger.status === "renewal_due"
+                                ? "text-amber-700"
+                                : "text-deep-olive"
+                            }`}
+                          >
+                            {activeLedger.status === "completed"
+                              ? "الباقة مكتملة"
+                              : activeLedger.status === "renewal_due"
+                              ? "تنبيه: متبقي حصتان أو أقل"
+                              : "باقة نشطة ✓"}
+                          </span>
+                          <span className="font-mono text-xs text-text-muted">• {activeLedger.ledgerCode}</span>
+                        </div>
+                        <h2 className="font-section-title text-dark-slate mt-1.5">
+                          {activeLedger.athleteNameAr}
+                        </h2>
+                        <p className="text-xs text-text-muted mt-0.5">
+                          {activeLedger.packageTitleAr} — {activeLedger.facilityNameAr} • {activeLedger.coachNameAr}
+                        </p>
+                      </div>
+
+                      <div className="text-right sm:text-left shrink-0">
+                        <div className="text-3xl font-black text-deep-olive">
+                          {activeLedger.completedSessions} / {activeLedger.totalSessions}
+                        </div>
+                        <div className="text-xs text-text-muted">حصة مكتملة</div>
+                      </div>
+                    </div>
+
+                    {/* Progress Circles */}
+                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                      {Array.from({ length: activeLedger.totalSessions }, (_, idx) => {
+                        const num = idx + 1;
+                        const done = num <= activeLedger.completedSessions;
+                        return (
+                          <div
+                            key={num}
+                            className={`h-12 rounded-xl flex flex-col items-center justify-center font-bold text-xs border ${
+                              done
+                                ? "bg-lime-tint border-deep-olive text-deep-olive"
+                                : "bg-surface-snow border-surface-container text-text-muted"
+                            }`}
+                          >
+                            <span>{done ? "✓" : num}</span>
+                            <span className="text-[10px]">حصة {num}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Check-in Interactive Box */}
+                    <div className="rounded-2xl bg-surface-snow p-5 flex flex-col gap-3">
+                      <div className="font-card-title-sm text-dark-slate">
+                        {isProvider
+                          ? `تسجيل حضور ${activeLedger.athleteNameAr} وخصم الحصة (${effectiveOffline ? "أوفلاين" : "متصل"})`
+                          : `تسجيل وخصم الحصة الحالية (${effectiveOffline ? "وضع أوفلاين" : "متصل"})`}
+                      </div>
+
+                      {checkinMsg && (
+                        <div
+                          className={`p-3 rounded-xl text-xs font-bold ${
+                            checkinMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-800"
+                          }`}
+                        >
+                          {checkinMsg.msg}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          value={pinInput}
+                          onChange={(e) => setPinInput(e.target.value)}
+                          placeholder={`كود الـ PIN (${activeLedger.pinCode})`}
+                          className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                        />
+                        <input
+                          value={coachNote}
+                          onChange={(e) => setCoachNote(e.target.value)}
+                          placeholder="ملاحظة الحصة (اختياري)"
+                          className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                        />
+                        <button
+                          type="button"
+                          disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
+                          onClick={() => {
+                            const res = checkInSession(
+                              activeLedger.id,
+                              pinInput || activeLedger.pinCode,
+                              pinInput ? "pin_4digit" : "qr_scan",
+                              coachNote
+                            );
+                            setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                            if (res.ok) {
+                              setPinInput("");
+                              setCoachNote("");
+                            }
+                          }}
+                          className="py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-40"
+                        >
+                          {isProvider ? "خصم حصة بالـ QR / PIN ✓" : "تأكيد الحضور بمسح QR / PIN ✓"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* History */}
+                    <div className="flex flex-col gap-2">
+                      <h3 className="font-card-title-sm text-dark-slate">سجل الحصص الموثق</h3>
+                      {activeLedger.checkins.length === 0 ? (
+                        <p className="text-xs text-text-muted">لم تُسجّل أي حصة بعد في هذه الباقة.</p>
+                      ) : (
+                        activeLedger.checkins.map((c) => (
+                          <div
+                            key={c.sessionNumber}
+                            className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div>
+                              <span className="font-bold text-dark-slate">حصة #{c.sessionNumber}</span>
+                              <span className="text-text-muted mx-2">•</span>
+                              <span className="text-text-muted">{c.coachNoteAr}</span>
+                            </div>
+                            <span
+                              className={`text-xs font-bold ${
+                                c.wasOffline ? "text-amber-700" : "text-deep-olive"
+                              }`}
+                            >
+                              {c.dateAr}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </div>
+
+                {/* Right Sidebar: Live Scannable QR & InstaPay Archive */}
+                <aside className="lg:col-span-5 flex flex-col gap-5">
+                  <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col items-center text-center gap-3">
+                    <h3 className="font-card-title text-dark-slate">
+                      {isProvider
+                        ? `باركود المتدرب: ${activeLedger.athleteNameAr}`
+                        : "كارت الـ QR السريع داخل صالة المسبح"}
+                    </h3>
+                    <QrCodeBox
+                      value={`CAP-QR:${activeLedger.ledgerCode}:${activeLedger.pinCode}`}
+                      size={180}
+                      label={`PIN: ${activeLedger.pinCode}`}
+                    />
+                    <p className="text-xs text-text-muted max-w-xs">
+                      {isProvider
+                        ? `امسح هذا الباركود من هاتف «${activeLedger.athleteNameAr}» أو استخدم كود الـ PIN (${activeLedger.pinCode}) لتأكيد الحضور أوفلاين.`
+                        : "أظهر هذا الباركود للكابتن أو إدارة المدرسة عند النزول للحوض لخصم الحصة فورياً (يعمل بدون إنترنت)."}
+                    </p>
+                  </div>
+
+                  <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+                    <h3 className="font-card-title text-dark-slate">
+                      أرشيف إيصالات الدفع المباشر (InstaPay / كاش)
+                    </h3>
+                    <div className="flex flex-col gap-2">
+                      {activeLedger.receipts.map((r) => (
+                        <div key={r.id} className="rounded-xl bg-surface-snow p-3 flex justify-between text-xs">
+                          <div>
+                            <div className="font-bold text-dark-slate">{r.channel}</div>
+                            <div className="text-text-muted font-mono">مرجع: {r.referenceNumber}</div>
+                          </div>
+                          <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!receiptRef.trim()) return;
+                        uploadInstaPayReceipt(activeLedger.id, {
+                          referenceNumber: receiptRef.trim(),
+                          channel: receiptChannel,
+                          amountEgp: Number(receiptAmount) || 750,
+                          packageTitleAr: activeLedger.packageTitleAr,
+                        });
+                        setReceiptRef("");
+                        setReceiptSaved(true);
+                        setTimeout(() => setReceiptSaved(false), 2500);
+                      }}
+                      className="flex flex-col gap-2.5 pt-2 border-t border-surface-container"
+                    >
+                      <div className="text-xs font-bold text-dark-slate">إرفاق مرجع تحويل جديد</div>
+                      <input
+                        required
+                        value={receiptRef}
+                        onChange={(e) => setReceiptRef(e.target.value)}
+                        placeholder="رقم مرجع إنستاباي أو فودافون كاش"
+                        className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={receiptChannel}
+                          onChange={(e) =>
+                            setReceiptChannel(
+                              e.target.value as "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)"
+                            )
+                          }
+                          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                        >
+                          <option value="إنستاباي (InstaPay)">InstaPay</option>
+                          <option value="فودافون كاش (Vodafone Cash)">Vodafone Cash</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={receiptAmount}
+                          onChange={(e) => setReceiptAmount(e.target.value)}
+                          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 rounded-full bg-deep-olive text-white font-bold text-xs"
+                      >
+                        حفظ الإيصال في السجل الدائم
+                      </button>
+                      {receiptSaved && (
+                        <span className="text-xs font-bold text-deep-olive text-center">
+                          ✓ تم توثيق الإيصال في أرشيفك بنجاح
+                        </span>
+                      )}
+                    </form>
+                  </div>
+                </aside>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

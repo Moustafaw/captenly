@@ -1,12 +1,60 @@
-// AUTO-GENERATED from Screens/Screan Desktop/_11/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 
 export default function Desktop11() {
+  const router = useRouter();
+  const [phone, setPhone] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSent(true);
+    setTimeout(() => router.push("/auth/reset"), 1000);
+  };
+
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen flex flex-col justify-between">
-<header className="w-full bg-surface-card shadow-[0_1px_8px_rgba(44,52,55,0.04)]"><div className="h-16 max-w-7xl mx-auto px-margin-desktop flex items-center justify-between"><div className="flex items-center gap-space-sm"><img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_785a47d1_2K.jpg" /><span className="font-card-title text-card-title text-deep-carbon tracking-tight">كابتنلي</span></div><Link className="font-badge-label text-badge-label text-text-muted hover:text-deep-olive transition-colors flex items-center gap-space-xs" data-path="help-support" href="/"><Icon name="help" className="material-symbols-outlined text-[18px]" /><span>المساعدة والدعم</span></Link></div></header><main className="flex-1 w-full max-w-7xl mx-auto px-margin-desktop py-space-xl flex items-center justify-center"><div className="flex flex-col w-full items-center justify-center py-space-md"><div className="w-full max-w-[480px] bg-surface-card rounded-2xl shadow-[0_4px_24px_rgba(44,52,55,0.06)] p-space-xl flex flex-col relative overflow-hidden"><div className="absolute -top-16 -left-16 w-44 h-44 rounded-full bg-lime-tint opacity-40 blur-2xl pointer-events-none"></div><div className="flex justify-center mb-space-md"><div className="w-14 h-14 rounded-full bg-lime-tint flex items-center justify-center text-deep-olive shadow-sm"><Icon name="lock_reset" className="material-symbols-outlined text-[28px]" style={{"fontVariationSettings": "'FILL' 1"}} /></div></div><div className="text-center mb-space-lg"><h1 className="font-section-title text-section-title text-dark-slate mb-space-xs"> استعادة كلمة المرور </h1><p className="font-body-compact text-body-compact text-text-muted leading-relaxed max-w-[400px] mx-auto"> أدخل رقم الهاتف المرتبط بحسابك أو البريد الإلكتروني وسنرسل لك رابطاً أو رمزاً آمناً لإعادة تعيين كلمة المرور عبر واتساب. </p></div><form className="flex flex-col gap-space-md" id="recovery-form"><div className="p-1 bg-surface-container-low rounded-xl flex items-center justify-between text-body-compact"><button className="flex-1 py-2 px-space-xs rounded-lg font-badge-label text-badge-label transition-all duration-200 flex items-center justify-center gap-1.5 bg-surface-card text-dark-slate shadow-sm" id="tab-phone" type="button"><Icon name="chat" className="material-symbols-outlined text-[16px] text-action-whatsapp" style={{"fontVariationSettings": "'FILL' 1"}} /><span>رقم الهاتف (واتساب)</span></button><button className="flex-1 py-2 px-space-xs rounded-lg font-badge-label text-badge-label transition-all duration-200 flex items-center justify-center gap-1.5 text-text-muted hover:text-dark-slate" id="tab-email" type="button"><Icon name="mail" className="material-symbols-outlined text-[16px]" /><span>البريد الإلكتروني</span></button></div><div className="flex flex-col gap-space-xs" id="method-phone-container"><label className="font-badge-label text-badge-label text-dark-slate flex items-center justify-between" htmlFor="phone-input"><span>رقم الهاتف المحمول</span><span className="font-micro-caption text-micro-caption text-text-muted">مطلوب للتحقق</span></label><div className="relative flex items-center bg-surface-snow rounded-xl p-1 focus-within:bg-surface-card transition-colors"><input className="w-full bg-transparent px-space-md py-2.5 font-price-tag text-dark-slate placeholder:text-outline/60 placeholder:font-body-compact text-left focus:outline-none" dir="ltr" id="phone-input" placeholder="010 1234 5678" type="tel" /><div className="flex items-center gap-1 px-3 py-1.5 bg-surface-container rounded-lg font-price-tag text-[13px] text-dark-slate" dir="ltr"><span className="inline-block w-4 h-3 bg-error rounded-[2px] relative overflow-hidden"><span className="absolute inset-x-0 top-1/3 bottom-1/3 bg-surface-card"></span><span className="absolute inset-x-0 bottom-0 top-2/3 bg-deep-carbon"></span></span><span className="font-bold">+20</span></div></div><div className="flex items-center gap-1.5 mt-1 text-deep-olive"><Icon name="verified_user" className="material-symbols-outlined text-[16px]" /><span className="font-micro-caption text-micro-caption">تأكد من وجود حساب واتساب مفعّل على هذا الرقم</span></div></div><div className="hidden flex-col gap-space-xs" id="method-email-container"><label className="font-badge-label text-badge-label text-dark-slate flex items-center justify-between" htmlFor="email-input"><span>البريد الإلكتروني</span><span className="font-micro-caption text-micro-caption text-text-muted">المسجل في الحساب</span></label><div className="relative flex items-center bg-surface-snow rounded-xl p-1 focus-within:bg-surface-card transition-colors"><input className="w-full bg-transparent px-space-md py-2.5 font-body-compact text-dark-slate placeholder:text-outline/60 text-left focus:outline-none" dir="ltr" id="email-input" placeholder="coach@example.com" type="email" /><div className="px-3 text-text-muted"><Icon name="alternate_email" className="material-symbols-outlined text-[20px]" /></div></div><div className="flex items-center gap-1.5 mt-1 text-text-muted"><Icon name="info" className="material-symbols-outlined text-[16px]" /><span className="font-micro-caption text-micro-caption">سيتم إرسال رابط تأكيد صالح لمدة 15 دقيقة</span></div></div><div className="bg-surface-container-low/70 rounded-xl px-space-md py-2.5 flex items-center gap-space-sm"><Icon name="shield" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span className="font-micro-caption text-micro-caption text-text-muted leading-tight"> الروابط والرموز المرسلة مشفرة وشخصية ولا تتم مشاركتها مع أي جهة. </span></div><button className="w-full h-12 mt-space-xs rounded-full bg-dark-slate hover:bg-deep-carbon text-on-primary font-badge-label text-badge-label flex items-center justify-center gap-space-xs transition-colors shadow-sm active:scale-[0.99]" id="submit-btn" type="submit"><span>إرسال رابط الاستعادة</span><Icon name="arrow_forward" className="material-symbols-outlined text-[18px] rotate-180" /></button><div className="hidden flex-col items-center p-space-md bg-lime-tint/60 rounded-xl text-center" id="state-success"><div className="w-8 h-8 rounded-full bg-deep-olive text-on-primary flex items-center justify-center mb-1"><Icon name="check" className="material-symbols-outlined text-[18px]" /></div><p className="font-card-title-sm text-card-title-sm text-dark-slate mb-0.5">تم إرسال الرابط بنجاح</p><p className="font-micro-caption text-micro-caption text-text-muted">يرجى مراجعة رسائل واتساب الواردة لمتابعة تعيين كلمة المرور الجديدة.</p></div></form><div className="mt-space-lg pt-space-md flex flex-col items-center gap-space-sm"><Link className="inline-flex items-center gap-1 font-body-compact text-body-compact font-semibold text-deep-olive hover:text-athletic-olive transition-colors" data-path="login" href="/auth/login"><span>تذكرت كلمة المرور؟ تسجيل الدخول</span><Icon name="arrow_forward" className="material-symbols-outlined text-[16px] rotate-180" /></Link><div className="text-center pt-2"><p className="font-micro-caption text-micro-caption text-text-muted"> هل تواجه مشكلة في الوصول لرقمك؟ <a className="font-semibold text-dark-slate hover:underline mr-0.5" data-path="help-support" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A" target="_blank" rel="noopener noreferrer"> تواصل مع الدعم الفني للمساعدة </a></p></div></div></div></div></main><footer className="w-full py-space-md"><div className="max-w-7xl mx-auto px-margin-desktop text-center"><p className="font-micro-caption text-micro-caption text-text-muted">© 2025 كابتنلي (Captenly). جميع الحقوق محفوظة.</p></div></footer>
+    <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-6">
+      <div className="max-w-[480px] w-full bg-surface-card rounded-[24px] p-8 shadow-xl flex flex-col gap-5">
+        <div className="w-12 h-12 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center">
+          <Icon name="lock_reset" className="text-[24px]" />
+        </div>
+        <div>
+          <h1 className="font-hero-headline text-[24px] text-dark-slate">استعادة الوصول لحسابك</h1>
+          <p className="font-body-compact text-text-muted mt-1">
+            أدخل رقم الموبايل المسجل أو كود العضوية لإرسال رمز الاستعادة.
+          </p>
+        </div>
+
+        {sent ? (
+          <div className="p-4 rounded-xl bg-lime-tint text-deep-olive text-sm font-bold">
+            ✓ تم إرسال الرمز! جاري توجيهك لصفحة التعيين...
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <input
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="010xxxxxxxx"
+              className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm"
+            >
+              إرسال رمز الاستعادة
+            </button>
+          </form>
+        )}
+
+        <Link href="/auth/login" className="text-xs font-bold text-deep-olive hover:underline text-center">
+          العودة لتسجيل الدخول
+        </Link>
+      </div>
     </div>
   );
 }

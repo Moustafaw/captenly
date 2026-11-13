@@ -1,35 +1,85 @@
 "use client";
 
-// Global desktop header — 1:1 port of the header in Screens/Screan Desktop/_24 (72px editorial header),
-// wired to routing, location detection, search and the account menu.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { isChromeless } from "./chromeRoutes";
 import { Icon } from "@/components/Icon";
+import { signOut } from "next-auth/react";
+import { GoogleMark, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
-const NAV = [
+const STATIC_NAV_START = [
   { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
-  { href: "/explore", label: "استكشف المنشآت", match: (p: string) => p.startsWith("/explore") || p.startsWith("/pools") },
-  { href: "/explore?type=coaches", label: "المدربين والأكاديميات", match: (p: string) => p.startsWith("/academy") },
-  { href: "/magazine", label: "المجلة الرياضية", match: (p: string) => p.startsWith("/magazine") },
-  { href: "/favorites", label: "المفضلة 🔖", match: (p: string) => p.startsWith("/favorites") },
+  {
+    href: "/explore",
+    label: "استكشف المنشآت",
+    match: (p: string) => p.startsWith("/explore"),
+  },
+  {
+    href: "/pools",
+    label: "المسابح والمدارس",
+    match: (p: string) => p.startsWith("/pools"),
+  },
+  {
+    href: "/coaches",
+    label: "المدربين والأكاديميات",
+    match: (p: string) =>
+      p.startsWith("/coaches") || p.startsWith("/c/") || p.startsWith("/academy") || p.startsWith("/claim"),
+  },
+  {
+    href: "/compare",
+    label: "مقارنة الباقات",
+    match: (p: string) => p.startsWith("/compare"),
+  },
 ];
 
-const ACTIVE = "transition-colors bg-lime-tint text-primary font-bold rounded-full px-3 py-1.5";
-const IDLE = "text-on-surface-variant hover:text-on-surface transition-colors font-body-compact text-body-compact px-2 py-1";
+const STATIC_NAV_END = [
+  {
+    href: "/magazine",
+    label: "المجلة الرياضية",
+    match: (p: string) => p.startsWith("/magazine"),
+  },
+  {
+    href: "/favorites",
+    label: "المفضلة",
+    match: (p: string) => p.startsWith("/favorites"),
+  },
+];
+
+const ACTIVE_TAB =
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#65A30D] font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+const IDLE_TAB =
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-[#65A30D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 
 export function SiteHeader() {
   const pathname = usePathname() || "/";
   const router = useRouter();
-  const { userLocation, setLocationModalOpen, unreadNotificationsCount } = useCaptenly();
+  const {
+    userLocation,
+    setLocationModalOpen,
+    unreadNotificationsCount,
+    currentPersona,
+    effectiveOffline,
+    allPersonas,
+    switchPersona,
+    signOutToGuest,
+  } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const tabRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const [indicator, setIndicator] = useState<{ left: number; width: number; ready: boolean }>({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl?.closest?.('[data-google-modal="true"]')) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener("mousedown", close);
@@ -37,6 +87,74 @@ export function SiteHeader() {
   }, []);
 
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  const roleNavItems =
+    currentPersona.role === "coach"
+      ? [
+          {
+            href: "/dashboard/coach",
+            label: "لوحة الكابتن والربط",
+            match: (p: string) => p.startsWith("/dashboard/coach"),
+          },
+          {
+            href: "/dashboard/ledger",
+            label: "حصص المتدربين (QR)",
+            match: (p: string) => p.startsWith("/dashboard/ledger"),
+          },
+        ]
+      : currentPersona.role === "facility_manager"
+      ? [
+          {
+            href: "/dashboard/facility",
+            label: "لوحة إدارة المنشأة",
+            match: (p: string) => p.startsWith("/dashboard/facility"),
+          },
+          {
+            href: "/dashboard/ledger",
+            label: "دفاتر المشتركين (QR)",
+            match: (p: string) => p.startsWith("/dashboard/ledger"),
+          },
+        ]
+      : [
+          {
+            href: "/dashboard/ledger",
+            label: "دفتر الحصص الـ QR",
+            match: (p: string) => p.startsWith("/dashboard/ledger"),
+          },
+          {
+            href: "/dashboard/athlete",
+            label: "ملفي الرياضي",
+            match: (p: string) => p.startsWith("/dashboard/athlete"),
+          },
+        ];
+
+  const NAV = [...STATIC_NAV_START, ...roleNavItems, ...STATIC_NAV_END];
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const activeIdx = NAV.findIndex((n) => n.match(pathname));
+      const el = activeIdx >= 0 ? tabRefs.current[activeIdx] : null;
+      const container = navRef.current;
+      if (el && container) {
+        const cRect = container.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
+        setIndicator({
+          left: eRect.left - cRect.left + container.scrollLeft,
+          width: eRect.width,
+          ready: true,
+        });
+      } else {
+        setIndicator((prev) => ({ ...prev, ready: false }));
+      }
+    };
+    const raf = requestAnimationFrame(updateIndicator);
+    window.addEventListener("resize", updateIndicator);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updateIndicator);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, currentPersona.role]);
 
   if (isChromeless(pathname)) return null;
 
@@ -46,93 +164,284 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="hidden lg:block fixed top-0 w-full z-50 bg-surface-card/95 backdrop-blur-md shadow-[0_1px_8px_rgba(44,52,55,0.06)]">
-      <div className="h-[72px] max-w-[1280px] mx-auto px-margin-desktop flex items-center justify-between gap-space-md">
-        <Link href="/" className="flex items-center gap-space-sm shrink-0">
-          <img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_785a47d1_2K.jpg" />
-          <div className="flex flex-col justify-center">
-            <span className="font-card-title text-card-title text-dark-slate tracking-tight">كابتنلي</span>
-            <span className="font-micro-caption text-micro-caption text-text-muted hidden xl:inline">مجتمعك الرياضي الموثق في مصر</span>
-          </div>
+    <header className="hidden lg:block sticky top-0 w-full z-50 bg-surface-card/95 backdrop-blur-md shadow-[0_2px_12px_rgba(44,52,55,0.06)]">
+      {/* Row 1: Brand + Location + Spacious Search + User Controls */}
+      <div className="h-[64px] max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex items-center justify-between gap-4">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <img
+            alt="كابتنلي"
+            className="h-11 w-auto object-contain"
+            src="/images/logo/captenly-logo-horizontal-dark.png"
+          />
         </Link>
 
-        <div className="flex-1 max-w-xl mx-space-sm hidden lg:flex items-center gap-space-xs">
+        <div className="flex-1 max-w-2xl mx-4 flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => setLocationModalOpen(true)}
-            className="flex items-center gap-1.5 px-space-sm py-1.5 bg-surface-container-low rounded-full text-secondary hover:text-on-surface cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-low hover:bg-lime-tint/60 rounded-full text-secondary hover:text-dark-slate cursor-pointer shrink-0 transition-colors"
           >
-            <Icon name="location_on" className="text-athletic-olive" />
-            <span className="font-micro-caption text-micro-caption font-bold">
+            <Icon name="location_on" className="text-athletic-olive text-[16px]" />
+            <span className="font-micro-caption text-[12px] font-bold whitespace-nowrap">
               {userLocation.city}، {userLocation.governorate}
             </span>
             <Icon name="arrow_drop_down" className="text-text-muted" />
           </button>
-          <form onSubmit={submit} className="flex-1 flex items-center bg-surface-snow rounded-full px-space-sm py-1.5 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
-            <Icon name="search" className="text-text-muted ml-space-xs" />
+
+          <form
+            onSubmit={submit}
+            className="flex-1 min-w-0 flex items-center bg-surface-snow rounded-full px-3.5 py-1.5 border border-surface-container focus-within:border-deep-olive transition-colors"
+          >
+            <Icon name="search" className="text-text-muted ml-2 text-[17px] shrink-0" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full bg-transparent border-0 outline-none font-body-compact text-body-compact text-on-surface placeholder:text-text-muted px-1"
+              className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-on-surface placeholder:text-text-muted px-1"
               placeholder="ابحث عن كابتن، أكاديمية، مسبح أو صالة..."
               type="text"
             />
-            <Link href="/explore?filters=1" className="px-2 py-0.5 bg-surface-container text-secondary rounded-full font-micro-caption text-micro-caption shrink-0">
-              الرياضة ▾
+            <Link
+              href="/explore?filters=1"
+              className="px-2.5 py-1 bg-surface-container text-secondary rounded-full font-micro-caption text-[11px] font-bold shrink-0 hover:bg-lime-tint hover:text-deep-olive transition-colors"
+            >
+              فلاتر ▾
             </Link>
           </form>
         </div>
 
-        <div className="flex items-center gap-space-md">
-          <nav className="hidden xl:flex items-center gap-space-sm">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className={n.match(pathname) ? ACTIVE : IDLE} aria-current={n.match(pathname) ? "page" : undefined}>
+        <div className="flex items-center gap-2.5 shrink-0">
+          {effectiveOffline && (
+            <Link
+              href="/dashboard/ledger"
+              title="وضع الأوفلاين مفعل للـ QR"
+              className="px-3 py-1.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold flex items-center gap-1"
+            >
+              <Icon name="wifi_off" className="text-[14px]" />
+              <span>أوفلاين</span>
+            </Link>
+          )}
+
+          <Link
+            href="/notifications"
+            aria-label="الإشعارات"
+            className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+          >
+            <Icon name="notifications" className="text-[18px]" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-deep-olive text-white text-[10px] font-bold flex items-center justify-center">
+                {unreadNotificationsCount}
+              </span>
+            )}
+          </Link>
+
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="w-9 h-9 rounded-full bg-primary overflow-hidden border border-deep-olive/30 flex items-center justify-center cursor-pointer shadow-sm text-on-primary hover:brightness-110 transition-all"
+              aria-label="حسابي"
+            >
+              {currentPersona.avatarUrl ? (
+                <img
+                  src={currentPersona.avatarUrl}
+                  alt={currentPersona.fullNameAr}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Icon name="person" className="text-on-primary text-[18px]" />
+              )}
+            </button>
+            {menuOpen && (
+              <div className="absolute left-0 top-12 w-72 bg-surface-card rounded-2xl shadow-[0_12px_36px_rgba(26,31,33,0.16)] p-2.5 flex flex-col border border-surface-container z-50">
+                <div className="px-3 py-2 rounded-xl bg-surface-snow mb-1.5 flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
+                    {currentPersona.avatarUrl ? (
+                      <img
+                        src={currentPersona.avatarUrl}
+                        alt={currentPersona.fullNameAr}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Icon name="person" className="text-deep-olive text-[18px]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-card-title-sm text-dark-slate truncate">{currentPersona.fullNameAr}</div>
+                    {currentPersona.email && (
+                      <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted truncate" dir="ltr">
+                        <GoogleMark className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{currentPersona.email}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-text-muted mt-0.5">
+                      <span>كود:</span>
+                      <span className="font-mono font-bold text-deep-olive">
+                        {currentPersona.memberCode || "CAP-M"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {[
+                  { href: "/dashboard/athlete", icon: "groups", label: "حسابي الرياضي (والعائلة الاختيارية)" },
+                  { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص والـ QR أوفلاين" },
+                  { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
+                  { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة النادي / الأكاديمية" },
+                  { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت المضافة" },
+                  { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات الخضراء" },
+                  { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
+                ].map((i) => (
+                  <Link
+                    key={i.href}
+                    href={i.href}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-dark-slate"
+                  >
+                    <Icon name={i.icon} className="text-deep-olive text-[17px]" />
+                    {i.label}
+                  </Link>
+                ))}
+
+                <div className="h-px bg-border-hairline my-1.5" />
+                <div className="px-3 py-1 text-[10px] font-bold text-text-muted">تبديل الحساب التجريبي</div>
+                <div className="flex flex-col gap-1 max-h-36 overflow-y-auto px-1">
+                  {allPersonas.slice(0, 5).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => switchPersona(p.id)}
+                      className={`text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                        p.id === currentPersona.id
+                          ? "bg-lime-tint text-deep-olive"
+                          : "hover:bg-surface-snow text-text-muted"
+                      }`}
+                    >
+                      {p.shortLabelAr}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="h-px bg-border-hairline my-1.5" />
+                <div className="flex flex-col gap-1.5 px-1">
+                  {currentPersona.authProvider === "google" ? (
+                    <>
+                      <Link
+                        href="/auth/onboarding?source=google"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                      >
+                        <GoogleMark className="w-4 h-4 shrink-0" />
+                        <span>إعداد نوع الحساب والملف</span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          signOutToGuest();
+                          signOut({ redirect: false }).catch(() => undefined);
+                          setMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-50 font-body-compact text-body-compact text-status-danger font-bold text-right"
+                      >
+                        <Icon name="logout" className="text-[17px]" />
+                        <span>تسجيل الخروج من Google</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <GoogleSignInButton
+                        compact
+                        labelAr="الدخول بحساب Google"
+                        className="w-full"
+                        onSuccessNavigate={() => setMenuOpen(false)}
+                      />
+                      <Link
+                        href="/auth"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                      >
+                        <Icon name="login" className="text-[17px]" />
+                        تسجيل حساب / بوابة الأدوار
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Clean Dedicated Sections Bar with Dynamic Floating Indicator */}
+      <div className="w-full bg-surface-snow/95 border-t border-surface-container/70">
+        <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop h-[48px] flex items-center justify-between gap-4">
+          <nav
+            ref={navRef}
+            className="relative flex items-center gap-0.5 overflow-x-auto scrollbar-none py-1.5"
+          >
+            {indicator.ready && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#65A30D]/10 transition-all duration-300 ease-out"
+                  style={{ left: indicator.left, width: indicator.width }}
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-[#65A30D] transition-all duration-300 ease-out"
+                  style={{
+                    left: indicator.left + 12,
+                    width: Math.max(16, indicator.width - 24),
+                  }}
+                />
+              </>
+            )}
+            {NAV.map((n, idx) => (
+              <Link
+                key={n.href}
+                ref={(el) => {
+                  tabRefs.current[idx] = el;
+                }}
+                href={n.href}
+                className={n.match(pathname) ? ACTIVE_TAB : IDLE_TAB}
+                aria-current={n.match(pathname) ? "page" : undefined}
+              >
                 {n.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-space-xs shrink-0">
-            <a
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low hover:bg-action-whatsapp/10 text-on-surface hover:text-action-whatsapp transition-all"
-              href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"
-              rel="noopener noreferrer"
-              target="_blank"
+
+          {currentPersona.role === "guest" ? (
+            <Link
+              href="/auth/register"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
             >
-              <Icon name="chat" className="text-action-whatsapp" />
-              <span className="font-badge-label text-badge-label">تواصل</span>
-            </a>
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className="w-8 h-8 rounded-full bg-primary flex items-center justify-center cursor-pointer shadow-sm text-on-primary"
-                aria-label="حسابي"
-              >
-                <Icon name="person" className="text-on-primary" />
-              </button>
-              {menuOpen && (
-                <div className="absolute left-0 top-11 w-64 bg-surface-card rounded-2xl shadow-[0_12px_36px_rgba(26,31,33,0.12)] p-2 flex flex-col">
-                  {[
-                    { href: "/dashboard/athlete", icon: "groups", label: "حسابي وإدارة العائلة والأبناء" },
-                    { href: "/dashboard/ledger", icon: "schedule", label: "دفتر الحصص والجواز الرياضي" },
-                    { href: "/dashboard/coach", icon: "sports_score", label: "لوحة تحليلات الكابتن والمنشأة" },
-                    { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات" },
-                    { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات" },
-                  ].map((i) => (
-                    <Link key={i.href} href={i.href} className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-dark-slate">
-                      <Icon name={i.icon} className="text-deep-olive" />
-                      {i.label}
-                    </Link>
-                  ))}
-                  <div className="h-px bg-border-hairline my-1" />
-                  <Link href="/auth" className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-status-danger">
-                    <Icon name="chevron_left" className="text-status-danger" />
-                    تسجيل الخروج
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
+              <span>سجّل للحصول على كود عضويتك</span>
+            </Link>
+          ) : currentPersona.role === "coach" ? (
+            <Link
+              href="/dashboard/coach"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+            >
+              <Icon name="verified" className="text-[14px]" />
+              <span>وضع الكابتن ({currentPersona.memberCode || "CAP-C"})</span>
+            </Link>
+          ) : currentPersona.role === "facility_manager" ? (
+            <Link
+              href="/dashboard/facility"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+            >
+              <Icon name="stadium" className="text-[14px]" />
+              <span>وضع إدارة المنشأة</span>
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard/ledger"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-card border border-surface-container text-[11px] font-bold text-dark-slate hover:border-deep-olive transition-colors shrink-0"
+            >
+              <Icon name="qr_code_2" className="text-[14px] text-deep-olive" />
+              <span>كود العضوية:</span>
+              <span className="font-mono text-deep-olive">{currentPersona.memberCode || "CAP-M-5190"}</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

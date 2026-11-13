@@ -1,12 +1,400 @@
-// AUTO-GENERATED from Screens/Screan Desktop/_23/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
+import { FacilityCard, resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
+import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
+import { getFacilityDistanceKm } from "@/lib/maps";
+
+function Desktop23Inner() {
+  const searchParams = useSearchParams();
+  const {
+    facilities,
+    smartFilters,
+    updateSmartFilters,
+    resetSmartFilters,
+    setFilterModalOpen,
+    compareFacilityIds,
+    userLocation,
+  } = useCaptenly();
+
+  const [selectedMapFacId, setSelectedMapFacId] = useState<string>(facilities[0]?.id || "");
+  const [compareToast, setCompareToast] = useState<string | null>(null);
+
+  // Sync URL query params cleanly once / on change
+  useEffect(() => {
+    const q = searchParams?.get("q");
+    const sport = searchParams?.get("sport");
+    const ladies = searchParams?.get("ladies");
+    const filtersOpen = searchParams?.get("filters");
+
+    const patch: Partial<typeof smartFilters> = {};
+    if (q !== null) patch.searchQuery = q;
+    if (sport === "swimming" || sport === "fitness" || sport === "all") patch.sportCategory = sport;
+    if (ladies === "1") patch.ladiesOnly = true;
+    if (Object.keys(patch).length > 0) updateSmartFilters(patch);
+    if (filtersOpen === "1") setFilterModalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const filtered = useMemo(() => {
+    const q = smartFilters.searchQuery.trim().toLowerCase();
+    const list = facilities.filter((f) => {
+      if (q) {
+        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.specialtiesAr.join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
+      if (smartFilters.sportCategory === "swimming" && f.sportSector === "fitness") return false;
+      if (smartFilters.sportCategory === "fitness" && f.sportSector === "swimming") return false;
+      if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
+      if (
+        smartFilters.ladiesOnly &&
+        !f.poolSpecs?.hasLadiesOnlySlots &&
+        !f.gymSpecs?.hasLadiesOnlySlots
+      ) {
+        return false;
+      }
+      if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
+      const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
+      if (basePrice > smartFilters.maxPriceEgp) return false;
+      return true;
+    });
+
+    if (smartFilters.sortBy === "price_asc") {
+      return [...list].sort(
+        (a, b) =>
+          (a.pricePackages[0]?.baseMonthlyEgp || 9999) -
+          (b.pricePackages[0]?.baseMonthlyEgp || 9999)
+      );
+    }
+    if (smartFilters.sortBy === "nearest") {
+      return [...list].sort(
+        (a, b) =>
+          getFacilityDistanceKm(a, userLocation) - getFacilityDistanceKm(b, userLocation)
+      );
+    }
+    return [...list].sort((a, b) => b.rating - a.rating);
+  }, [facilities, smartFilters, userLocation]);
+
+  const activeMapFacility =
+    filtered.find((f) => f.id === selectedMapFacId) || filtered[0] || facilities[0];
+
+  const activeFilterChips: { label: string; clear: () => void }[] = [];
+  if (smartFilters.searchQuery.trim()) {
+    activeFilterChips.push({
+      label: `بحث: ${smartFilters.searchQuery}`,
+      clear: () => updateSmartFilters({ searchQuery: "" }),
+    });
+  }
+  if (smartFilters.city !== "الكل") {
+    activeFilterChips.push({
+      label: `المدينة: ${smartFilters.city}`,
+      clear: () => updateSmartFilters({ city: "الكل" }),
+    });
+  }
+  if (smartFilters.sportCategory !== "all") {
+    activeFilterChips.push({
+      label: smartFilters.sportCategory === "swimming" ? "السباحة" : "الجيم واللياقة",
+      clear: () => updateSmartFilters({ sportCategory: "all" }),
+    });
+  }
+  if (smartFilters.heatedOnly) {
+    activeFilterChips.push({
+      label: "مدفأ شتاءً",
+      clear: () => updateSmartFilters({ heatedOnly: false }),
+    });
+  }
+  if (smartFilters.ladiesOnly) {
+    activeFilterChips.push({
+      label: "ساعات سيدات",
+      clear: () => updateSmartFilters({ ladiesOnly: false }),
+    });
+  }
+
+  return (
+    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
+      <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-md">
+        {/* Top Search & Controls */}
+        <section className="bg-surface-card rounded-[20px] p-5 shadow-sm flex flex-col gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <h1 className="font-section-title text-[24px] text-dark-slate">
+                استكشف الأندية والمسابح وصالات اللياقة ({filtered.length} منشأة)
+              </h1>
+              <p className="font-body-compact text-text-muted mt-0.5">
+                قارن الأندية والمسابح وصالات اللياقة المتاحة في نطاقك وتواصل مع الإدارة عبر واتساب مباشرة
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-surface-snow rounded-full px-4 py-2 border border-surface-container">
+                <Icon name="search" className="text-text-muted ml-2 text-[17px]" />
+                <input
+                  value={smartFilters.searchQuery}
+                  onChange={(e) => updateSmartFilters({ searchQuery: e.target.value })}
+                  placeholder="ابحث بالاسم أو المنطقة..."
+                  className="bg-transparent outline-none text-sm w-48 text-dark-slate"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(true)}
+                className="px-4 py-2 rounded-full bg-surface-snow hover:bg-lime-tint text-dark-slate font-badge-label text-xs flex items-center gap-1.5 border border-surface-container"
+              >
+                <Icon name="tune" className="text-[16px]" />
+                <span>الفلاتر الذكية</span>
+              </button>
+
+              <select
+                value={smartFilters.sortBy}
+                onChange={(e) =>
+                  updateSmartFilters({
+                    sortBy: e.target.value as "rating" | "price_asc" | "nearest",
+                  })
+                }
+                className="rounded-full bg-surface-snow px-4 py-2 text-xs font-bold text-dark-slate outline-none border border-surface-container"
+              >
+                <option value="rating">الأعلى تقييماً</option>
+                <option value="price_asc">الأقل سعراً</option>
+                <option value="nearest">حسب المدينة</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {["الكل", "المحلة الكبرى", "طنطا", "زفتى"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => updateSmartFilters({ city: c })}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                    smartFilters.city === c
+                      ? "bg-dark-slate text-electric-volt"
+                      : "bg-surface-snow text-text-muted hover:text-dark-slate"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() =>
+                  updateSmartFilters({
+                    sportCategory: smartFilters.sportCategory === "swimming" ? "all" : "swimming",
+                  })
+                }
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
+                  smartFilters.sportCategory === "swimming"
+                    ? "bg-lime-tint text-deep-olive"
+                    : "bg-surface-snow text-text-muted"
+                }`}
+              >
+                <Icon name="pool" className="text-[14px]" />
+                <span>سباحة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  updateSmartFilters({
+                    sportCategory: smartFilters.sportCategory === "fitness" ? "all" : "fitness",
+                  })
+                }
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
+                  smartFilters.sportCategory === "fitness"
+                    ? "bg-lime-tint text-deep-olive"
+                    : "bg-surface-snow text-text-muted"
+                }`}
+              >
+                <Icon name="fitness_center" className="text-[14px]" />
+                <span>جيم ولياقة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateSmartFilters({ heatedOnly: !smartFilters.heatedOnly })}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
+                  smartFilters.heatedOnly
+                    ? "bg-lime-tint text-deep-olive"
+                    : "bg-surface-snow text-text-muted"
+                }`}
+              >
+                <Icon name="thermostat" className="text-[14px]" />
+                <span>مدفأ شتاءً</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateSmartFilters({ ladiesOnly: !smartFilters.ladiesOnly })}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
+                  smartFilters.ladiesOnly
+                    ? "bg-lime-tint text-deep-olive"
+                    : "bg-surface-snow text-text-muted"
+                }`}
+              >
+                <Icon name="female" className="text-[14px]" />
+                <span>ساعات سيدات</span>
+              </button>
+            </div>
+
+            {compareFacilityIds.length > 0 && (
+              <Link
+                href="/compare"
+                className="px-4 py-1.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold flex items-center gap-1.5"
+              >
+                <Icon name="compare_arrows" className="text-[15px]" />
+                <span>جدول المقارنة ({compareFacilityIds.length} من 4)</span>
+              </Link>
+            )}
+          </div>
+
+          {/* Removable Chips + Price Slider */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-container pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={chip.clear}
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold"
+                >
+                  <span>{chip.label}</span>
+                  <Icon name="close" className="text-[13px]" />
+                </button>
+              ))}
+              {activeFilterChips.length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetSmartFilters}
+                  className="text-xs font-bold text-text-muted hover:text-dark-slate underline"
+                >
+                  مسح الكل
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 text-xs text-text-muted">
+              <span>الحد الأقصى للسعر الشهري:</span>
+              <input
+                type="range"
+                min={400}
+                max={2500}
+                step={50}
+                value={smartFilters.maxPriceEgp}
+                onChange={(e) => updateSmartFilters({ maxPriceEgp: Number(e.target.value) })}
+                className="accent-deep-olive cursor-pointer"
+              />
+              <span className="font-bold text-deep-olive">{smartFilters.maxPriceEgp} ج.م</span>
+            </div>
+          </div>
+        </section>
+
+        {compareToast && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-amber-900 text-xs font-bold">
+            {compareToast}
+          </div>
+        )}
+
+        {filtered.length === 0 ? (
+          <DemandRadarFallback
+            queryText={smartFilters.searchQuery}
+            onResetFilters={resetSmartFilters}
+          />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+            {/* Cards Column */}
+            <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
+              {filtered.map((fac) => (
+                <FacilityCard
+                  key={fac.id}
+                  facility={fac}
+                  onSelectCompareFeedback={(msg) => {
+                    setCompareToast(msg);
+                    setTimeout(() => setCompareToast(null), 3000);
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Interactive Sticky Map Column */}
+            <aside className="lg:col-span-4 lg:sticky lg:top-[124px] flex flex-col gap-4">
+              <div className="bg-surface-card rounded-[20px] p-5 shadow-sm border border-surface-container flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-card-title text-dark-slate">خريطة التوزيع الميداني</h2>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive">
+                    {filtered.length} مواقع
+                  </span>
+                </div>
+
+                {/* Live Google Map + Interactive Facility Switcher */}
+                <CaptenlyGoogleMap
+                  facilities={filtered}
+                  selectedFacilityId={activeMapFacility?.id}
+                  onSelectFacility={setSelectedMapFacId}
+                  userCoordinates={{ lat: userLocation.lat, lng: userLocation.lng }}
+                  heightClass="h-64"
+                />
+
+                {activeMapFacility && (
+                  <div className="rounded-2xl bg-surface-snow p-4 flex flex-col gap-2.5">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={resolveFacilityImage(activeMapFacility.heroImage)}
+                        alt={activeMapFacility.nameAr}
+                        className="w-16 h-16 rounded-xl object-cover shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-deep-olive">
+                          {activeMapFacility.city} • {activeMapFacility.district}
+                        </div>
+                        <h3 className="font-card-title-sm text-dark-slate truncate">
+                          {activeMapFacility.nameAr}
+                        </h3>
+                        <span className="text-[11px] font-bold text-deep-olive">
+                          {activeMapFacility.supplyStatus === "seeded_unclaimed"
+                            ? "بانتظار تفعيل الإدارة المباشر"
+                            : "موثقة رسمياً ✓"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Link
+                        href={`/academy/${activeMapFacility.slug}`}
+                        className="flex-1 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center"
+                      >
+                        فتح صفحة المنشأة
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Desktop23() {
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased selection:bg-lime-tint selection:text-primary">
-<main className="w-full pt-[72px] bg-canvas-alabaster min-h-screen"><div className="flex flex-col w-full"><section className="w-full bg-surface-card shadow-sm py-4 mb-4"><div className="max-w-[1280px] mx-auto px-margin-desktop flex flex-col gap-4"><div className="flex items-center justify-between gap-4 flex-wrap"><div className="flex items-center gap-2 overflow-x-auto pb-1 text-nowrap"><button className="px-4 py-2 rounded-full bg-deep-olive text-on-primary font-badge-label text-badge-label flex items-center gap-1.5 shadow-sm transition-transform active:scale-95"><Icon name="pool" className="material-symbols-outlined text-[18px]" /><span>السباحة والرياضات المائية (١٨)</span></button><button className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface font-badge-label text-badge-label flex items-center gap-1.5 transition-all"><Icon name="fitness_center" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>صالات اللياقة وكروس فت (٩)</span></button><button className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface font-badge-label text-badge-label flex items-center gap-1.5 transition-all"><Icon name="sports_soccer" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>أكاديميات كرة القدم (١٢)</span></button><button className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface font-badge-label text-badge-label flex items-center gap-1.5 transition-all"><Icon name="sports_martial_arts" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>فنون قتالية ودفاع عن النفس (٦)</span></button><button className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface font-badge-label text-badge-label flex items-center gap-1.5 transition-all"><Icon name="sports_tennis" className="material-symbols-outlined text-[18px] text-athletic-olive" /><span>بادل وتنس أرضي (٤)</span></button></div><div className="flex items-center gap-3 shrink-0"><div className="flex items-center gap-2 bg-lime-tint px-3 py-1.5 rounded-full text-deep-olive font-badge-label text-badge-label"><span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span><span>٢٤ منشأة متاحة الآن للحجز الفوري</span></div><button className="w-9 h-9 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-secondary transition-colors" title="إعادة ضبط الفلاتر"><Icon name="tune" className="material-symbols-outlined text-[18px]" /></button></div></div><div className="flex items-center justify-between gap-6 pt-3 bg-surface-snow rounded-xl p-3 shadow-inner flex-wrap xl:flex-nowrap"><div className="flex items-center gap-3 flex-1 min-w-[280px]"><div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-deep-olive shrink-0"><Icon name="near_me" className="material-symbols-outlined text-[18px]" /></div><div className="flex-1 flex flex-col gap-1"><div className="flex items-center justify-between font-micro-caption text-micro-caption"><span className="text-text-muted">نطاق المسافة الأقصى</span><span className="font-bold text-dark-slate" id="distanceLabel">٥ كم من موقعك الحالي</span></div><input className="w-full h-1.5 bg-surface-variant rounded-full appearance-none accent-deep-olive cursor-pointer" id="distanceRange" max="25" min="1" type="range" defaultValue="5" /></div></div><div className="w-px h-8 bg-surface-variant hidden xl:block"></div><div className="flex items-center gap-3 flex-1 min-w-[280px]"><div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-deep-olive shrink-0"><Icon name="payments" className="material-symbols-outlined text-[18px]" /></div><div className="flex-1 flex flex-col gap-1"><div className="flex items-center justify-between font-micro-caption text-micro-caption"><span className="text-text-muted">ميزانية الاشتراك الشهري</span><span className="font-bold text-dark-slate" id="priceLabel">حتى ١,٢٠٠ ج.م / شهر</span></div><input className="w-full h-1.5 bg-surface-variant rounded-full appearance-none accent-deep-olive cursor-pointer" id="priceRange" max="3000" min="400" step="50" type="range" defaultValue="1200" /></div></div><div className="w-px h-8 bg-surface-variant hidden xl:block"></div><div className="flex items-center gap-3 shrink-0"><label className="flex items-center gap-2 cursor-pointer select-none"><input defaultChecked className="w-4 h-4 accent-deep-olive rounded cursor-pointer" type="checkbox" /><span className="font-body-compact text-body-compact text-dark-slate font-semibold">توفير حصص تجريبية مجانية</span></label></div></div></div></section><main className="max-w-[1280px] w-full mx-auto px-margin-desktop mb-8"><div className="flex flex-col lg:flex-row gap-6 items-start"><div className="w-full lg:w-[58%] flex flex-col gap-4"><div className="bg-surface-card p-4 rounded-2xl shadow-sm flex flex-col gap-3"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Icon name="explore" className="material-symbols-outlined text-deep-olive text-[20px]" /><div className="flex items-baseline gap-1.5"><h1 className="font-section-title text-section-title text-dark-slate">مسابح وأكاديميات السباحة</h1><span className="font-micro-caption text-micro-caption text-text-muted">(المحلة الكبرى والسنطة)</span></div></div><div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full"><Icon name="swap_vert" className="material-symbols-outlined text-[16px] text-text-muted" /><span className="font-micro-caption text-micro-caption text-text-muted">الترتيب:</span><select className="bg-transparent font-badge-label text-badge-label text-dark-slate outline-none cursor-pointer"><option>الأعلى تقييماً (★ 4.8+)</option><option>الأقرب لموقعي (أقل من 2 كم)</option><option>الأقل سعراً أولاً</option><option>الأحدث اعتماداً</option></select></div></div><div className="flex items-center gap-2 flex-wrap pt-1"><span className="font-micro-caption text-micro-caption text-text-muted">المعايير المطبقة:</span><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label shadow-xs"><span>حمام مدفأ 28°C</span><Icon name="close" className="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" /></span><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label shadow-xs"><span>منقذ معتمد نقابياً</span><Icon name="close" className="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" /></span><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label shadow-xs"><span>كثافة ٥ أطفال بالمدرب</span><Icon name="close" className="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" /></span><button className="font-micro-caption text-micro-caption text-text-muted hover:text-status-danger underline mr-auto transition-colors"> مسح الكل </button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><article className="bg-surface-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group relative"><div className="relative w-full h-44 overflow-hidden bg-surface-container"><img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Modern indoor semi-olympic swimming pool in Mahalla Egypt with crystal-clear turquoise heated water, lane dividers, bright daylight skylight, clean poolside lounge and professional swimming coach in olive sport uniform instructing kids." src="/screens/69f517d66cb7.jpg" /><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/60 via-transparent to-transparent"></div><div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between"><span className="px-2.5 py-1 rounded-full bg-dark-slate/90 backdrop-blur-md text-electric-volt font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="verified" className="material-symbols-outlined text-[14px]" /><span>معتمد كابتنلي</span></span><button aria-label="حفظ بالمفضلة" className="w-8 h-8 rounded-full bg-surface-card/90 backdrop-blur-md flex items-center justify-center text-dark-slate hover:text-status-danger transition-colors shadow-sm"><Icon name="bookmark" className="material-symbols-outlined text-[18px]" /></button></div><div className="absolute bottom-2 inset-x-2.5 flex items-center justify-between text-surface-container-lowest"><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="thermostat" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>حرارة ٢٨.٥°C</span></span><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="schedule" className="material-symbols-outlined text-[13px] text-action-whatsapp" /><span>متاح اليوم ٤ م</span></span></div></div><div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between"><div><div className="flex items-center justify-between gap-1 mb-1"><span className="font-micro-caption text-micro-caption text-text-muted flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>شارع الجيش، بلدية المحلة (1.2 كم)</span></span><div className="flex items-center gap-1 bg-lime-tint px-1.5 py-0.5 rounded-full"><span className="font-badge-label text-badge-label text-deep-olive font-bold">4.9</span><Icon name="star" className="material-symbols-outlined text-[13px] text-status-warning fill-current" /><span className="font-micro-caption text-micro-caption text-text-muted">(١١٤)</span></div></div><h3 className="font-card-title text-card-title text-dark-slate leading-tight hover:text-deep-olive cursor-pointer transition-colors"> أكاديمية الشناوي المائية — نادي بلدية المحلة </h3><div className="flex items-center gap-1.5 flex-wrap mt-2"><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="roofing" className="material-symbols-outlined text-[12px] text-athletic-olive" /> حمام مغطى ومعزول </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="water_voc" className="material-symbols-outlined text-[12px] text-athletic-olive" /> فحص أوزون مستمر </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="badge" className="material-symbols-outlined text-[12px] text-athletic-olive" /> مدرب نقابي </span></div></div><div className="pt-2 mt-2 bg-surface-snow -mx-3.5 -mb-3.5 p-3 flex items-center justify-between rounded-b-2xl"><div><div className="font-micro-caption text-micro-caption text-text-muted">الاشتراك (٨ حصص)</div><div className="flex items-baseline gap-1"><span className="font-price-tag text-price-tag text-deep-olive">٩٠٠</span><span className="font-micro-caption text-micro-caption font-bold text-dark-slate">ج.م / شهر</span></div></div><div className="flex items-center gap-1.5"><a className="h-9 w-9 rounded-full bg-action-whatsapp/15 hover:bg-action-whatsapp text-action-whatsapp hover:text-surface-card flex items-center justify-center transition-all" rel="noopener noreferrer" target="_blank" title="تواصل واتساب فوري" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="chat" className="material-symbols-outlined text-[18px]" /></a><Link className="px-3.5 py-1.5 rounded-full bg-deep-olive text-on-primary hover:bg-tertiary font-badge-label text-badge-label transition-colors shadow-xs" href="/booking"> حجز تجربة </Link></div></div></div></article><article className="bg-surface-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"><div className="relative w-full h-44 overflow-hidden bg-surface-container"><img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Spacious Olympic outdoor training swimming pool complex in Egypt, lane ropes stretched across 50 meters, early morning sunshine with clear blue water and clean concrete bleachers in background." src="/screens/6d0c31e3c068.jpg" /><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/60 via-transparent to-transparent"></div><div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between"><span className="px-2.5 py-1 rounded-full bg-surface-card/90 backdrop-blur-md text-dark-slate font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="verified" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>اتحاد السباحة</span></span><button aria-label="حفظ بالمفضلة" className="w-8 h-8 rounded-full bg-surface-card/90 backdrop-blur-md flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors shadow-sm"><Icon name="bookmark_border" className="material-symbols-outlined text-[18px]" /></button></div><div className="absolute bottom-2 inset-x-2.5 flex items-center justify-between text-surface-container-lowest"><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="straighten" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>مسبح أولمبي ٥٠ م</span></span><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="family_restroom" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>فترات سيدات مخصصة</span></span></div></div><div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between"><div><div className="flex items-center justify-between gap-1 mb-1"><span className="font-micro-caption text-micro-caption text-text-muted flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>استاد غزل المحلة (2.4 كم)</span></span><div className="flex items-center gap-1 bg-surface-container-low px-1.5 py-0.5 rounded-full"><span className="font-badge-label text-badge-label text-dark-slate font-bold">4.8</span><Icon name="star" className="material-symbols-outlined text-[13px] text-status-warning fill-current" /><span className="font-micro-caption text-micro-caption text-text-muted">(٨٢)</span></div></div><h3 className="font-card-title text-card-title text-dark-slate leading-tight hover:text-deep-olive cursor-pointer transition-colors"> مجمع السباحة الأولمبي — نادي غزل المحلة </h3><div className="flex items-center gap-1.5 flex-wrap mt-2"><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="clean_hands" className="material-symbols-outlined text-[12px] text-athletic-olive" /> فحص أوزون مستمر </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="sports" className="material-symbols-outlined text-[12px] text-athletic-olive" /> تجهيز بطولات الجمهورية </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="lock" className="material-symbols-outlined text-[12px] text-athletic-olive" /> خزائن إلكترونية </span></div></div><div className="pt-2 mt-2 bg-surface-snow -mx-3.5 -mb-3.5 p-3 flex items-center justify-between rounded-b-2xl"><div><div className="font-micro-caption text-micro-caption text-text-muted">الاشتراك (١٢ حصة)</div><div className="flex items-baseline gap-1"><span className="font-price-tag text-price-tag text-deep-olive">٨٥٠</span><span className="font-micro-caption text-micro-caption font-bold text-dark-slate">ج.م / شهر</span></div></div><div className="flex items-center gap-1.5"><a className="h-9 w-9 rounded-full bg-action-whatsapp/15 hover:bg-action-whatsapp text-action-whatsapp hover:text-surface-card flex items-center justify-center transition-all" rel="noopener noreferrer" target="_blank" title="تواصل واتساب فوري" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="chat" className="material-symbols-outlined text-[18px]" /></a><Link className="px-3.5 py-1.5 rounded-full bg-deep-olive text-on-primary hover:bg-tertiary font-badge-label text-badge-label transition-colors shadow-xs" href="/booking"> حجز تجربة </Link></div></div></div></article><article className="bg-surface-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"><div className="relative w-full h-44 overflow-hidden bg-surface-container"><img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Indoor kid-friendly heated swimming pool facility with training kickboards, pool noodles, clean non-slip rubber decking, and coach helping young boy swim with goggles." src="/screens/13fa2f75e587.jpg" /><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/60 via-transparent to-transparent"></div><div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between"><span className="px-2.5 py-1 rounded-full bg-dark-slate/90 backdrop-blur-md text-electric-volt font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="child_care" className="material-symbols-outlined text-[14px]" /><span>براعم وتأهيل أولي</span></span><button aria-label="حفظ بالمفضلة" className="w-8 h-8 rounded-full bg-surface-card/90 backdrop-blur-md flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors shadow-sm"><Icon name="bookmark_border" className="material-symbols-outlined text-[18px]" /></button></div><div className="absolute bottom-2 inset-x-2.5 flex items-center justify-between text-surface-container-lowest"><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="groups" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>حد أقصى ٤ براعم</span></span><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="verified_user" className="material-symbols-outlined text-[13px] text-status-success" /><span>طبيبة أطفال مقيمة</span></span></div></div><div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between"><div><div className="flex items-center justify-between gap-1 mb-1"><span className="font-micro-caption text-micro-caption text-text-muted flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>منطقة الشون، المحلة (0.8 كم)</span></span><div className="flex items-center gap-1 bg-lime-tint px-1.5 py-0.5 rounded-full"><span className="font-badge-label text-badge-label text-deep-olive font-bold">5.0</span><Icon name="star" className="material-symbols-outlined text-[13px] text-status-warning fill-current" /><span className="font-micro-caption text-micro-caption text-text-muted">(٥٤)</span></div></div><h3 className="font-card-title text-card-title text-dark-slate leading-tight hover:text-deep-olive cursor-pointer transition-colors"> أكاديمية تايجرز للسباحة للأطفال والناشئين </h3><div className="flex items-center gap-1.5 flex-wrap mt-2"><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="roofing" className="material-symbols-outlined text-[12px] text-athletic-olive" /> حمام مغطى ومعزول </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="security" className="material-symbols-outlined text-[12px] text-athletic-olive" /> منقذ معتمد نقابياً </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="videocam" className="material-symbols-outlined text-[12px] text-athletic-olive" /> بث مباشر لأولياء الأمور </span></div></div><div className="pt-2 mt-2 bg-surface-snow -mx-3.5 -mb-3.5 p-3 flex items-center justify-between rounded-b-2xl"><div><div className="font-micro-caption text-micro-caption text-text-muted">الاشتراك (٨ حصص تعليم)</div><div className="flex items-baseline gap-1"><span className="font-price-tag text-price-tag text-deep-olive">١,١٠٠</span><span className="font-micro-caption text-micro-caption font-bold text-dark-slate">ج.م / شهر</span></div></div><div className="flex items-center gap-1.5"><a className="h-9 w-9 rounded-full bg-action-whatsapp/15 hover:bg-action-whatsapp text-action-whatsapp hover:text-surface-card flex items-center justify-center transition-all" rel="noopener noreferrer" target="_blank" title="تواصل واتساب فوري" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="chat" className="material-symbols-outlined text-[18px]" /></a><Link className="px-3.5 py-1.5 rounded-full bg-deep-olive text-on-primary hover:bg-tertiary font-badge-label text-badge-label transition-colors shadow-xs" href="/booking"> حجز تجربة </Link></div></div></div></article><article className="bg-surface-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"><div className="relative w-full h-44 overflow-hidden bg-surface-container"><img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="High-end luxury wellness health club with indoor heated pool, soft warm recessed LED lighting, modern wooden panels, steam room glass doors, and sparkling clean water in Egypt." src="/screens/3511aba157bb.jpg" /><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/60 via-transparent to-transparent"></div><div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between"><span className="px-2.5 py-1 rounded-full bg-surface-card/90 backdrop-blur-md text-dark-slate font-badge-label text-badge-label flex items-center gap-1 shadow-sm"><Icon name="spa" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>لياقة واستشفاء</span></span><button aria-label="حفظ بالمفضلة" className="w-8 h-8 rounded-full bg-surface-card/90 backdrop-blur-md flex items-center justify-center text-text-muted hover:text-dark-slate transition-colors shadow-sm"><Icon name="bookmark_border" className="material-symbols-outlined text-[18px]" /></button></div><div className="absolute bottom-2 inset-x-2.5 flex items-center justify-between text-surface-container-lowest"><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="hot_tub" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>جاكوزي وساونا مجاناً</span></span><span className="font-micro-caption text-micro-caption flex items-center gap-1 bg-dark-slate/80 backdrop-blur-md px-2 py-0.5 rounded-full"><Icon name="fitness_center" className="material-symbols-outlined text-[13px] text-electric-volt" /><span>شامل الجيم</span></span></div></div><div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between"><div><div className="flex items-center justify-between gap-1 mb-1"><span className="font-micro-caption text-micro-caption text-text-muted flex items-center gap-0.5"><Icon name="location_on" className="material-symbols-outlined text-[14px] text-athletic-olive" /><span>طريق طنطا - المحلة السريع (3.6 كم)</span></span><div className="flex items-center gap-1 bg-surface-container-low px-1.5 py-0.5 rounded-full"><span className="font-badge-label text-badge-label text-dark-slate font-bold">4.7</span><Icon name="star" className="material-symbols-outlined text-[13px] text-status-warning fill-current" /><span className="font-micro-caption text-micro-caption text-text-muted">(٣٩)</span></div></div><h3 className="font-card-title text-card-title text-dark-slate leading-tight hover:text-deep-olive cursor-pointer transition-colors"> نادي سيتي فيتنس &amp; بول هيلث كلوب </h3><div className="flex items-center gap-1.5 flex-wrap mt-2"><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="roofing" className="material-symbols-outlined text-[12px] text-athletic-olive" /> حمام مغطى ومعزول </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="water_voc" className="material-symbols-outlined text-[12px] text-athletic-olive" /> فحص أوزون مستمر </span><span className="font-micro-caption text-micro-caption bg-surface-container-low text-secondary px-2 py-0.5 rounded-md flex items-center gap-1"><Icon name="badge" className="material-symbols-outlined text-[12px] text-athletic-olive" /> مدرب نقابي </span></div></div><div className="pt-2 mt-2 bg-surface-snow -mx-3.5 -mb-3.5 p-3 flex items-center justify-between rounded-b-2xl"><div><div className="font-micro-caption text-micro-caption text-text-muted">الاشتراك (حر + مدرب)</div><div className="flex items-baseline gap-1"><span className="font-price-tag text-price-tag text-deep-olive">١,٢٥٠</span><span className="font-micro-caption text-micro-caption font-bold text-dark-slate">ج.م / شهر</span></div></div><div className="flex items-center gap-1.5"><a className="h-9 w-9 rounded-full bg-action-whatsapp/15 hover:bg-action-whatsapp text-action-whatsapp hover:text-surface-card flex items-center justify-center transition-all" rel="noopener noreferrer" target="_blank" title="تواصل واتساب فوري" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="chat" className="material-symbols-outlined text-[18px]" /></a><Link className="px-3.5 py-1.5 rounded-full bg-deep-olive text-on-primary hover:bg-tertiary font-badge-label text-badge-label transition-colors shadow-xs" href="/booking"> حجز تجربة </Link></div></div></div></article></div><div className="flex items-center justify-between bg-surface-card p-3 rounded-xl shadow-xs text-text-muted mt-2"><div className="flex items-center gap-1 font-micro-caption text-micro-caption"><Icon name="verified_user" className="material-symbols-outlined text-[16px] text-status-success" /><span>جميع الأسعار شاملة ضريبة القيمة المضافة ولا توجد أي رسوم إضافية خفية.</span></div><div className="flex items-center gap-1"><button className="w-8 h-8 rounded-lg bg-deep-olive text-on-primary font-bold font-badge-label text-badge-label">١</button><button className="w-8 h-8 rounded-lg bg-surface-container-low hover:bg-surface-container font-badge-label text-badge-label transition-colors">٢</button><button className="w-8 h-8 rounded-lg bg-surface-container-low hover:bg-surface-container font-badge-label text-badge-label transition-colors">٣</button><span className="px-1 text-text-muted">...</span></div></div></div><aside className="w-full lg:w-[42%] lg:sticky lg:top-[90px] h-[780px] rounded-3xl overflow-hidden shadow-xl relative bg-surface-container-highest flex flex-col"><div className="absolute inset-0 w-full h-full bg-cover bg-center" data-location="El Mahalla El Kubra, Gharbia, Egypt" style={{"backgroundImage": "url('/screens/1e729fa30031.jpg')"}}><div className="absolute inset-0 bg-gradient-to-t from-dark-slate/40 via-transparent to-dark-slate/20 pointer-events-none"></div><svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg"><defs><pattern height="60" id="map-grid" patternunits="userSpaceOnUse" width="60"><path d="M 60 0 L 0 0 0 60" fill="none" stroke="#2C3437" strokeWidth="1"></path></pattern></defs><rect fill="url(#map-grid)" height="100%" width="100%"></rect></svg></div><div className="relative z-10 p-4 flex items-center justify-between pointer-events-auto"><div className="flex items-center gap-2"><button className="bg-surface-card/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md font-badge-label text-badge-label text-dark-slate flex items-center gap-1.5 hover:bg-surface-card transition-colors"><Icon name="layers" className="material-symbols-outlined text-[16px] text-athletic-olive" /><span>خريطة هجينة</span></button><button className="bg-surface-card/95 backdrop-blur-md w-9 h-9 rounded-full shadow-md flex items-center justify-center text-dark-slate hover:bg-surface-card transition-colors" title="موقعي الحالي"><Icon name="my_location" className="material-symbols-outlined text-[18px] text-deep-olive" /></button></div><div className="bg-dark-slate/90 backdrop-blur-md text-surface-container-lowest px-3 py-1.5 rounded-full font-micro-caption text-micro-caption flex items-center gap-1.5 shadow-md"><span className="w-2 h-2 rounded-full bg-electric-volt"></span><span>نطاق البحث: ٥ كم</span></div></div><div className="absolute top-[32%] right-[44%] z-20 cursor-pointer group" style={{"transform": "translate(50%, -50%)"}}><div className="absolute -inset-2 bg-electric-volt/40 rounded-full animate-ping pointer-events-none"></div><div className="relative flex items-center gap-1 px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-card-title-sm shadow-xl ring-2 ring-electric-volt transition-transform group-hover:scale-110"><Icon name="pool" className="material-symbols-outlined text-[16px] text-electric-volt" /><span className="tracking-tight">٩٠٠ ج.م</span></div><div className="w-0 h-0 border-x-4 border-x-transparent border-t-[6px] border-t-dark-slate mx-auto"></div></div><div className="absolute top-[20%] right-[72%] z-10 cursor-pointer group" style={{"transform": "translate(50%, -50%)"}}><div className="relative flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-lg hover:bg-deep-olive hover:text-on-primary transition-all"><Icon name="sports_score" className="material-symbols-outlined text-[14px] text-athletic-olive group-hover:text-on-primary" /><span>٨٥٠ ج.م</span></div><div className="w-0 h-0 border-x-4 border-x-transparent border-t-[5px] border-t-surface-card mx-auto"></div></div><div className="absolute top-[58%] right-[28%] z-10 cursor-pointer group" style={{"transform": "translate(50%, -50%)"}}><div className="relative flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-lg hover:bg-deep-olive hover:text-on-primary transition-all"><Icon name="pool" className="material-symbols-outlined text-[14px] text-athletic-olive group-hover:text-on-primary" /><span>١,١٠٠ ج.م</span></div><div className="w-0 h-0 border-x-4 border-x-transparent border-t-[5px] border-t-surface-card mx-auto"></div></div><div className="absolute top-[72%] right-[60%] z-10 cursor-pointer group" style={{"transform": "translate(50%, -50%)"}}><div className="relative flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-lg hover:bg-deep-olive hover:text-on-primary transition-all"><Icon name="fitness_center" className="material-symbols-outlined text-[14px] text-athletic-olive group-hover:text-on-primary" /><span>١,٢٥٠ ج.م</span></div><div className="w-0 h-0 border-x-4 border-x-transparent border-t-[5px] border-t-surface-card mx-auto"></div></div><div className="mt-auto relative z-30 p-4 w-full"><div className="bg-surface-card/95 backdrop-blur-xl rounded-2xl p-4 shadow-[0_12px_36px_rgba(26,31,33,0.18)] flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="w-14 h-14 rounded-xl overflow-hidden bg-surface-container shrink-0"><img className="w-full h-full object-cover" data-alt="Close up photo of the entrance and heated water basin of El Shennawy Swimming Academy inside Baladiyat El Mahalla Club." src="/screens/6e52bf9d69ff.jpg" /></div><div><div className="flex items-center gap-1.5"><span className="font-badge-label text-badge-label bg-lime-tint text-deep-olive px-2 py-0.5 rounded-full font-bold">الموقع المختار</span><span className="font-micro-caption text-micro-caption text-text-muted">يبعد 1.2 كم فقط</span></div><h4 className="font-card-title text-card-title text-dark-slate leading-tight mt-0.5"> أكاديمية الشناوي — نادي بلدية المحلة </h4><div className="flex items-center gap-2 font-micro-caption text-micro-caption text-text-muted mt-0.5"><span className="flex items-center text-status-warning"><Icon name="star" className="material-symbols-outlined text-[14px] fill-current" /> 4.9</span><span>•</span><span>حمام أولمبي مغطى مدفأ</span><span>•</span><span className="text-status-success font-semibold">مفتوح حتى 11:00 م</span></div></div></div><button className="w-7 h-7 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-text-muted" title="إغلاق المعاينة"><Icon name="close" className="material-symbols-outlined text-[16px]" /></button></div><div className="grid grid-cols-3 gap-2 bg-surface-snow p-2.5 rounded-xl font-micro-caption text-micro-caption text-dark-slate text-center"><div className="flex flex-col"><span className="text-text-muted">حرارة الماء</span><span className="font-bold text-deep-olive">28.5°C ثابتة</span></div><div className="flex flex-col border-x border-surface-variant"><span className="text-text-muted">سعة الحصة</span><span className="font-bold text-dark-slate">٥ سباحين / مدرب</span></div><div className="flex flex-col"><span className="text-text-muted">التعقيم</span><span className="font-bold text-dark-slate">أوزون + فلاتر رملية</span></div></div><div className="flex items-center gap-2 pt-1"><a className="flex-1 h-11 rounded-full bg-action-whatsapp hover:bg-action-whatsapp/90 text-surface-card flex items-center justify-center gap-2 font-card-title-sm text-card-title-sm transition-all shadow-sm" rel="noopener noreferrer" target="_blank" href="https://wa.me/201000000000?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%D9%83%D8%A7%D8%A8%D8%AA%D9%86%D9%84%D9%8A"><Icon name="chat" className="material-symbols-outlined text-[20px]" /><span>تواصل واستفسر فوراً</span></a><button className="px-4 h-11 rounded-full bg-dark-slate hover:bg-deep-carbon text-surface-container-lowest flex items-center gap-1.5 font-card-title-sm text-card-title-sm transition-colors shadow-sm"><Icon name="directions_car" className="material-symbols-outlined text-[18px] text-electric-volt" /><span>اتجاهات السير</span></button></div></div></div><div className="absolute bottom-40 left-4 z-20 flex flex-col gap-1.5 shadow-md rounded-xl overflow-hidden"><button className="w-9 h-9 bg-surface-card/95 hover:bg-surface-card flex items-center justify-center text-dark-slate transition-colors" title="تكبير"><Icon name="add" className="material-symbols-outlined text-[18px]" /></button><button className="w-9 h-9 bg-surface-card/95 hover:bg-surface-card flex items-center justify-center text-dark-slate transition-colors" title="تصغير"><Icon name="remove" className="material-symbols-outlined text-[18px]" /></button></div></aside></div></main></div></main>
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-canvas-alabaster pt-6 text-center text-text-muted">
+          جاري تحميل دليل المنشآت...
+        </div>
+      }
+    >
+      <Desktop23Inner />
+    </Suspense>
   );
 }

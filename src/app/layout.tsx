@@ -3,8 +3,12 @@ import "./globals.css";
 import { CaptenlyProvider } from "@/context/CaptenlyContext";
 import { SiteHeader } from "@/components/chrome/SiteHeader";
 import { SiteFooter } from "@/components/chrome/SiteFooter";
+import { MobileHeader } from "@/components/chrome/MobileHeader";
+import { SiteDock } from "@/components/chrome/SiteDock";
 import { LocationModal } from "@/components/LocationModal";
 import { FilterModal } from "@/components/FilterModal";
+import { AuthSessionWrapper } from "@/components/auth/AuthSessionWrapper";
+import { GoogleSessionBridge } from "@/components/auth/GoogleSessionBridge";
 
 export const metadata: Metadata = {
   title: "كابتنلي CAPTENLY — مجتمعك الرياضي الموثق في مصر",
@@ -38,13 +42,18 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col bg-canvas-alabaster text-on-surface antialiased font-cairo">
-        <CaptenlyProvider>
-          <SiteHeader />
-          <div className="flex-1 w-full pt-[72px]">{children}</div>
-          <SiteFooter />
-          <LocationModal />
-          <FilterModal />
-        </CaptenlyProvider>
+        <AuthSessionWrapper>
+          <CaptenlyProvider>
+            <GoogleSessionBridge />
+            <SiteHeader />
+            <MobileHeader />
+            <div className="flex-1 w-full">{children}</div>
+            <SiteFooter />
+            <SiteDock />
+            <LocationModal />
+            <FilterModal />
+          </CaptenlyProvider>
+        </AuthSessionWrapper>
       </body>
     </html>
   );

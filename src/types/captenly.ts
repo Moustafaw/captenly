@@ -65,6 +65,9 @@ export interface Facility {
   rating: number;
   reviewsCount: number;
   heroImage: string;
+  scheduleSummaryAr?: string;
+  sourcePublicNoteAr?: string;
+  verifiedClaimDateAr?: string;
   badges: VerificationBadge[];
   // Swimming specs
   poolSpecs?: {
@@ -131,6 +134,7 @@ export interface Coach {
   rating: number;
   verifiedReviewsCount: number;
   activeAthletesCount: number;
+  isVerifiedCoach?: boolean;
   badges: VerificationBadge[];
   specialties: {
     nameAr: string;
@@ -255,6 +259,12 @@ export interface DemandRadarEntry {
 export interface PersonaAccount {
   id: string;
   role: AccountRole;
+  memberCode?: string;
+  hasParentSupervision?: boolean;
+  avatarUrl?: string;
+  email?: string;
+  authProvider?: "google" | "phone" | "demo";
+  needsOnboarding?: boolean;
   shortLabelAr: string;
   fullNameAr: string;
   personaTitleAr: string;
@@ -311,4 +321,43 @@ export interface DemandRadarSubmission {
   targetSport: "swimming" | "fitness" | "other";
   notes?: string;
   createdAt: string;
+}
+
+export interface MemberRegistryEntry {
+  memberCode: string;
+  athleteId: string;
+  fullNameAr: string;
+  phone: string;
+  city: string;
+  role: "adult_athlete" | "parent";
+  isMinor?: boolean;
+  parentNameAr?: string;
+}
+
+export interface OfflineCheckinQueueItem {
+  id: string;
+  ledgerId: string;
+  athleteNameAr: string;
+  sessionNumber: number;
+  method: "pin_4digit" | "qr_scan" | "offline_sync";
+  coachNoteAr?: string;
+  queuedAtIso: string;
+  synced: boolean;
+}
+
+export interface SmartFiltersState {
+  searchQuery: string;
+  sportCategory: string;
+  city: string;
+  maxDistanceKm: number;
+  maxPriceEgp: number;
+  heatedOnly: boolean;
+  ladiesOnly: boolean;
+  freeTrialOnly: boolean;
+  ozoneOnly: boolean;
+  lifeguardOnly: boolean;
+  warmChangingOnly: boolean;
+  aedOnly: boolean;
+  laneDensity: "all" | "1:1" | "2-4" | "5-6" | "7-10";
+  sortBy: "rating" | "price_asc" | "nearest";
 }

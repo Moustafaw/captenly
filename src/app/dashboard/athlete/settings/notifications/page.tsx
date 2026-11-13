@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { Icon } from "@/components/Icon";
 
 export default function NotificationSettingsPage() {
   const { currentPersona, userSettings, updateUserSettings } = useCaptenly();
@@ -15,7 +16,7 @@ export default function NotificationSettingsPage() {
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6" dir="rtl">
+    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 pt-6 lg:pt-6 pb-12 flex flex-col gap-6" dir="rtl">
       {/* Breadcrumbs & Header */}
       <div className="flex flex-col gap-2">
         <nav className="flex items-center gap-1.5 text-micro-caption text-text-muted">
@@ -36,7 +37,7 @@ export default function NotificationSettingsPage() {
 
       {savedSuccess && (
         <div className="p-3 rounded-xl bg-status-success/15 border border-status-success/30 text-deep-olive text-body-compact font-bold flex items-center gap-2 animate-fade-in">
-          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+          <Icon name="check_circle" className="text-[18px]" />
           <span>تم حفظ التفضيلات بنجاح!</span>
         </div>
       )}
@@ -45,14 +46,14 @@ export default function NotificationSettingsPage() {
       <div className="p-4 rounded-2xl bg-surface-card border border-border-hairline shadow-sm flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-action-whatsapp/15 text-action-whatsapp flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-[24px]">chat</span>
+            <Icon name="chat" className="text-[24px]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-card-title-sm text-dark-slate">
                 رقم واتساب المرتبط بالتنبيهات
               </span>
-              <span className="px-2 py-0.5 rounded bg-lime-tint text-deep-olive text-[10px] font-bold">
+              <span className="text-deep-olive text-[11px] font-extrabold">
                 نشط ✓
               </span>
             </div>

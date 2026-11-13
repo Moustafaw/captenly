@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
 
 export function LegalFooter() {
   return (
@@ -23,9 +24,7 @@ export function LegalFooter() {
               المنظومة الرقمية لاكتشاف الأكاديميات والمسابح وصالات الجيم، توثيق الكباتن بـ 6 شارات معتمدة، جواز السفر الرياضي الموثق، ودفتر الحصص الرقمي لحفظ حقوق أولياء الأمور والرياضيين.
             </p>
             <div className="inline-flex items-center gap-2 text-micro-caption bg-white/5 border border-white/10 text-surface-snow px-3.5 py-1.5 rounded-full">
-              <span className="material-symbols-outlined text-[16px] text-electric-volt">
-                location_on
-              </span>
+              <Icon name="location_on" className="text-[16px] text-electric-volt" />
               <span>
                 نقطة الانطلاق التشغيلية: المحلة الكبرى — محافظة الغربية والدلتا — مصر
               </span>
@@ -78,25 +77,19 @@ export function LegalFooter() {
             </h4>
             <ul className="space-y-2 text-micro-caption text-surface-variant">
               <li className="flex items-start gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-electric-volt shrink-0 mt-0.5">
-                  gavel
-                </span>
+                <Icon name="gavel" className="text-[15px] text-electric-volt shrink-0 mt-0.5" />
                 <span>
                   <strong>القانون رقم 3 لسنة 1985:</strong> حظر الإدعاءات الطبية غير المرخصة وحصر التدريب في النطاق الرياضي البدني.
                 </span>
               </li>
               <li className="flex items-start gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-electric-volt shrink-0 mt-0.5">
-                  lock
-                </span>
+                <Icon name="lock" className="text-[15px] text-electric-volt shrink-0 mt-0.5" />
                 <span>
                   <strong>القانون رقم 151 لسنة 2020:</strong> حماية مشددة لبيانات وسجلات الأطفال القُصّر بموافقة ولي الأمر الصريحة.
                 </span>
               </li>
               <li className="flex items-start gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-electric-volt shrink-0 mt-0.5">
-                  price_check
-                </span>
+                <Icon name="price_check" className="text-[15px] text-electric-volt shrink-0 mt-0.5" />
                 <span>
                   <strong>سياسة الشفافية السعرية:</strong> التزام المنشآت بثبات السعر الشامل وتحديثه دورياً.
                 </span>

@@ -9,6 +9,8 @@ next-env.d.ts
 # Environment variables & secrets
 .env
 .env*.local
+client_secret_*.json
+.vercel/
 
 # OS & editor files
 .DS_Store

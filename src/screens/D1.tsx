@@ -1,12 +1,311 @@
-// AUTO-GENERATED from Screens/Screan Desktop/_1/code.html — faithful port of the reference design.
-/* eslint-disable */
+"use client";
+
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
+import { QrCodeBox } from "@/components/editorial/QrCodeBox";
+import { AvatarUploader } from "@/components/editorial/AvatarUploader";
+import { GoogleMark } from "@/components/auth/GoogleSignInButton";
+
+type OnboardRole = "adult_athlete" | "parent" | "coach" | "facility_manager";
+
+const ROLE_OPTIONS: {
+  key: OnboardRole;
+  titleAr: string;
+  descAr: string;
+  icon: string;
+  prefix: "CAP-M" | "CAP-C" | "CAP-F";
+}[] = [
+  {
+    key: "adult_athlete",
+    titleAr: "سبّاح / رياضي مستقل",
+    descAr: "متابعة باقاتي وحصصي الـ QR وأرقامي القياسية الشخصية.",
+    icon: "person",
+    prefix: "CAP-M",
+  },
+  {
+    key: "parent",
+    titleAr: "ولي أمر (إشراف عائلي)",
+    descAr: "متابعة دفاتر وحضور الأبناء تحت 14 سنة من موبايلك.",
+    icon: "groups",
+    prefix: "CAP-M",
+  },
+  {
+    key: "coach",
+    titleAr: "كابتن للتوثيق والاعتماد",
+    descAr: "إدارة حصص المتدربين والتقديم على الشارات الخضراء الـ 6.",
+    icon: "workspace_premium",
+    prefix: "CAP-C",
+  },
+  {
+    key: "facility_manager",
+    titleAr: "إدارة نادي أو أكاديمية",
+    descAr: "توثيق صفحة المنشأة، تحديث الباقات، وإدارة المشتركين بـ 0% عمولة.",
+    icon: "stadium",
+    prefix: "CAP-F",
+  },
+];
+
+function Desktop1Inner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { currentPersona, addMinorAthlete, completeGoogleOnboarding } = useCaptenly();
+
+  const initialRole: OnboardRole =
+    currentPersona.role === "parent" ||
+    currentPersona.role === "coach" ||
+    currentPersona.role === "facility_manager"
+      ? currentPersona.role
+      : "adult_athlete";
+
+  const [selectedRole, setSelectedRole] = useState<OnboardRole>(initialRole);
+  const [phone, setPhone] = useState(currentPersona.phone || "");
+  const [city, setCity] = useState(currentPersona.city || "المحلة الكبرى");
+  const [copied, setCopied] = useState(false);
+  const [addChildOptional, setAddChildOptional] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childAge, setChildAge] = useState("8");
+
+  const isGoogleSource =
+    searchParams?.get("source") === "google" || currentPersona.authProvider === "google";
+  const isPreview = searchParams?.get("preview") === "1";
+
+  const rawCode = currentPersona.memberCode || "CAP-M-5190";
+  const codeSuffix = rawCode.split("-").pop() || "5190";
+  const selectedRoleMeta =
+    ROLE_OPTIONS.find((r) => r.key === selectedRole) || ROLE_OPTIONS[0];
+  const displayMemberCode = `${selectedRoleMeta.prefix}-${codeSuffix}`;
+
+  const copyCode = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(displayMemberCode).catch(() => undefined);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const handleFinish = (e: React.FormEvent) => {
+    e.preventDefault();
+    completeGoogleOnboarding({
+      role: selectedRole,
+      phone: phone.trim(),
+      city,
+      hasParentSupervision: selectedRole === "parent",
+    });
+
+    if (
+      (selectedRole === "adult_athlete" || selectedRole === "parent") &&
+      addChildOptional &&
+      childName.trim()
+    ) {
+      addMinorAthlete({
+        fullNameAr: childName.trim(),
+        age: Number(childAge) || 8,
+        gender: "male",
+        primarySport: "swimming",
+      });
+    }
+
+    if (selectedRole === "coach") {
+      router.push("/claim?mode=coach");
+    } else if (selectedRole === "facility_manager") {
+      router.push("/claim");
+    } else {
+      router.push("/welcome");
+    }
+  };
+
+  return (
+    <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-4 sm:p-6">
+      <div className="max-w-[860px] w-full bg-surface-card rounded-[24px] p-6 sm:p-8 md:p-10 shadow-xl flex flex-col gap-6">
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold">
+                تجهيز الحساب واختيار الدور
+              </span>
+              {isGoogleSource && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate">
+                  <GoogleMark className="w-3.5 h-3.5" />
+                  <span>
+                    {isPreview ? "تم السحب في وضع معاينة Google" : "تم التوثيق عبر Google"}
+                  </span>
+                </span>
+              )}
+            </div>
+            <h1 className="font-hero-headline text-[24px] sm:text-[26px] text-dark-slate mt-2">
+              أهلاً {currentPersona.fullNameAr}! تم تجهيز كود عضويتك الرقمي
+            </h1>
+            {currentPersona.email && (
+              <p className="text-xs font-mono text-text-muted mt-1" dir="ltr">
+                {currentPersona.email}
+              </p>
+            )}
+          </div>
+          <Link href="/welcome" className="text-xs font-bold text-text-muted hover:text-dark-slate">
+            تخطي للرئيسية ←
+          </Link>
+        </div>
+
+        {/* Pulled Google Profile + Member Code & QR Banner */}
+        <div className="rounded-2xl bg-dark-slate text-surface-card p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-right">
+            <AvatarUploader size="lg" labelAr="تعديل الصورة" darkSurface />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-electric-volt font-bold">كود العضوية الفريد</span>
+              <div className="text-3xl font-mono font-black tracking-wider text-white">
+                {displayMemberCode}
+              </div>
+              <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
+                عند الاشتراك مع أي كابتن أو أكاديمية موثقة على كابتنلي، سلّمهم هذا الكود لتفعيل باقتك وعمل دفتر الحصص الـ QR أوفلاين فوراً.
+              </p>
+              <button
+                type="button"
+                onClick={copyCode}
+                className="mt-1 px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold w-fit mx-auto sm:mx-0 flex items-center gap-1.5"
+              >
+                <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
+                <span>{copied ? "تم نسخ كود العضوية!" : "نسخ كود العضوية"}</span>
+              </button>
+            </div>
+          </div>
+          <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
+        </div>
+
+        <form onSubmit={handleFinish} className="flex flex-col gap-5">
+          {/* Role Picker */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-dark-slate">
+              1) اختر نوع حسابك الأساسي داخل كابتنلي:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ROLE_OPTIONS.map((r) => {
+                const active = selectedRole === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => setSelectedRole(r.key)}
+                    className={`text-right p-4 rounded-2xl border transition-all flex items-start gap-3 ${
+                      active
+                        ? "bg-lime-tint/70 border-deep-olive shadow-sm"
+                        : "bg-surface-snow border-surface-container hover:border-deep-olive/50"
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        active ? "bg-dark-slate text-electric-volt" : "bg-white text-deep-olive"
+                      }`}
+                    >
+                      <Icon name={r.icon} className="text-[20px]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-card-title-sm text-dark-slate">{r.titleAr}</div>
+                      <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">{r.descAr}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Optional Phone + City */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-dark-slate">
+                2) رقم الموبايل / الواتساب{" "}
+                <span className="text-deep-olive font-normal">(اختياري — يُنصح به لإشعارات الحصص)</span>
+              </label>
+              <input
+                type="tel"
+                dir="ltr"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="010xxxxxxxx"
+                className="rounded-xl bg-surface-snow px-4 py-3 text-sm text-right outline-none border border-surface-container focus:border-deep-olive"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-dark-slate">المدينة</label>
+              <select
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container focus:border-deep-olive"
+              >
+                <option value="المحلة الكبرى">المحلة الكبرى</option>
+                <option value="طنطا">طنطا</option>
+                <option value="زفتى">زفتى</option>
+                <option value="سمنود">سمنود</option>
+                <option value="القاهرة">القاهرة</option>
+                <option value="الإسكندرية">الإسكندرية</option>
+              </select>
+            </div>
+          </div>
+
+          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
+            <>
+              <label className="flex items-center gap-3 p-4 rounded-2xl bg-surface-snow cursor-pointer border border-surface-container">
+                <input
+                  type="checkbox"
+                  checked={addChildOptional}
+                  onChange={(e) => setAddChildOptional(e.target.checked)}
+                  className="w-4 h-4 accent-deep-olive"
+                />
+                <div>
+                  <div className="font-card-title-sm text-dark-slate">
+                    (اختياري) إضافة طفل تحت 14 سنة لمتابعته من حسابي
+                  </div>
+                  <div className="text-xs text-text-muted">
+                    إن كنت تسجل لنفسك كسباح أو متدرب جيم مستقل، اتركه غير محدد واضغط حفظ ومتابعة.
+                  </div>
+                </div>
+              </label>
+
+              {addChildOptional && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-surface-snow">
+                  <input
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    placeholder="اسم الطفل"
+                    className="rounded-xl bg-white px-4 py-2.5 text-sm outline-none border border-surface-container"
+                  />
+                  <input
+                    type="number"
+                    min={4}
+                    max={14}
+                    value={childAge}
+                    onChange={(e) => setChildAge(e.target.value)}
+                    placeholder="العمر"
+                    className="rounded-xl bg-white px-4 py-2.5 text-sm outline-none border border-surface-container"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          <button
+            type="submit"
+            className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title shadow-md hover:opacity-95"
+          >
+            {selectedRole === "coach"
+              ? "حفظ الدور والانتقال لتوثيق شارات الكابتن ←"
+              : selectedRole === "facility_manager"
+              ? "حفظ الدور والانتقال لصفحة توثيق المنشأة ←"
+              : "حفظ الإعدادات والدخول للمنصة ←"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function Desktop1() {
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen flex flex-col justify-between">
-<header className="fixed top-0 w-full z-50 bg-surface-card/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(44,52,55,0.04)]"><div className="h-16 max-w-7xl mx-auto px-margin-desktop flex items-center justify-between"><div className="flex items-center gap-space-lg"><div className="flex items-center gap-space-sm"><img alt="كابتنلي" className="h-8 w-auto object-contain" src="/images/logo/Captenly_minimalist_logo_design_785a47d1_2K.jpg" /><span className="font-card-title text-card-title text-deep-carbon tracking-tight">كابتنلي</span></div><nav className="hidden md:flex items-center gap-space-sm" data-active-classes="bg-primary-container text-on-primary-container font-bold rounded-full px-space-md py-space-xs"><Link className="text-on-surface-variant hover:text-on-surface font-badge-label text-badge-label px-space-md py-space-xs transition-colors" data-path="account-type-selection" href="/">نوع الحساب</Link><Link aria-current="page" className="transition-colors bg-primary-container text-on-primary-container font-bold rounded-full px-space-md py-space-xs" data-path="profile-setup" href="/academy/shennawy">الملف الشخصي</Link><Link className="text-on-surface-variant hover:text-on-surface font-badge-label text-badge-label px-space-md py-space-xs transition-colors" data-path="sports-credentials" href="/">البيانات الرياضية</Link><Link className="text-on-surface-variant hover:text-on-surface font-badge-label text-badge-label px-space-md py-space-xs transition-colors" data-path="onboarding-complete" href="/">التأكيد النهائي</Link></nav></div><div className="flex items-center gap-space-md"><div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><Icon name="person" className="material-symbols-outlined text-on-primary text-[18px]" /></div></div></div></header><main className="flex-1 w-full pt-16 max-w-7xl mx-auto px-margin-desktop py-space-xl"><div className="flex flex-col w-full items-center justify-start pb-space-xl"><div className="w-full max-w-2xl px-space-md mb-space-lg"><div className="bg-surface-card rounded-xl p-space-md shadow-sm"><div className="flex items-center justify-between relative"><div className="absolute top-1/2 -translate-y-1/2 right-8 left-8 h-1 bg-surface-container rounded-full z-0"><div className="h-full bg-deep-olive rounded-full w-1/4 transition-all duration-500"></div></div><div className="flex items-center gap-space-sm relative z-10 bg-surface-card pe-space-sm"><div className="w-8 h-8 rounded-full bg-deep-olive text-on-primary flex items-center justify-center font-metric-headline text-badge-label shadow-sm"> 1 </div><div className="flex flex-col"><span className="font-card-title-sm text-card-title-sm text-deep-carbon">المعلومات الأساسية والصورة</span><span className="font-micro-caption text-micro-caption text-athletic-olive">قيد الإكمال الآن</span></div></div><div className="flex items-center gap-space-sm relative z-10 bg-surface-card px-space-sm"><div className="w-8 h-8 rounded-full bg-surface-container text-text-muted flex items-center justify-center font-metric-headline text-badge-label"> 2 </div><span className="hidden sm:inline font-body-compact text-body-compact text-text-muted">الاهتمامات والمدينة</span></div><div className="flex items-center gap-space-sm relative z-10 bg-surface-card ps-space-sm"><div className="w-8 h-8 rounded-full bg-surface-container text-text-muted flex items-center justify-center font-metric-headline text-badge-label"> 3 </div><span className="hidden sm:inline font-body-compact text-body-compact text-text-muted">إعداد المتدربين</span></div></div></div></div><div className="w-full max-w-[680px] bg-surface-card rounded-xl p-space-xl shadow-md relative overflow-hidden"><div className="absolute -top-12 -left-12 w-48 h-48 bg-lime-tint/30 rounded-full blur-2xl pointer-events-none"></div><div className="mb-space-lg text-start"><div className="inline-flex items-center gap-space-xs bg-lime-tint text-deep-olive px-space-sm py-space-xs rounded-full font-badge-label text-badge-label mb-space-sm"><Icon name="verified_user" className="material-symbols-outlined text-[16px]" /><span>الخطوة الأولى من ٣ لإكمال الحساب</span></div><h1 className="font-section-title text-section-title text-dark-slate mb-space-xs"> مرحباً بك في كابتنلي! لنقم بإعداد ملفك الشخصي </h1><p className="font-body-default text-body-default text-text-muted leading-relaxed"> خطوات بسيطة لتخصيص تجربتك والوصول السريع للمدربين والمسابح المناسبة لاحتياجاتك. </p></div><form className="space-y-space-lg" id="onboarding-form"><div className="bg-surface-container-low rounded-xl p-space-md flex flex-col sm:flex-row items-center gap-space-md"><div className="relative group cursor-pointer"><div className="w-[88px] h-[88px] rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden shadow-inner" id="avatar-preview"><Icon name="photo_camera" className="material-symbols-outlined text-text-muted text-[36px]" /></div><div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-deep-olive text-on-primary flex items-center justify-center shadow-md"><Icon name="add" className="material-symbols-outlined text-[16px]" /></div><input accept="image/*" className="hidden" id="avatar-input" type="file" /></div><div className="flex-1 text-center sm:text-start"><div className="flex flex-wrap items-center justify-center sm:justify-start gap-space-sm mb-space-xs"><button className="px-space-md py-space-xs bg-surface-card hover:bg-surface-container text-deep-carbon rounded-full font-badge-label text-badge-label shadow-sm transition-all duration-200" type="button"> رفع صورة شخصية </button><span className="font-micro-caption text-micro-caption text-text-muted">PNG, JPG بحد أقصى 5 ميجابايت</span></div><p className="font-body-compact text-body-compact text-text-muted"> الصورة تساعد المدربين والأكاديميات في التعرف عليك وإضفاء طابع موثوق على ملفك. </p></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-space-md"><div><label className="block font-card-title-sm text-card-title-sm text-deep-carbon mb-space-xs"> الاسم الذي تود أن يظهر في حسابك </label><div className="relative"><input className="w-full h-12 bg-surface rounded-lg px-space-md text-deep-carbon font-body-default text-body-default placeholder:text-text-muted outline-none focus:bg-surface-card shadow-sm transition-all" placeholder="مثال: عمر الشاذلي" type="text" defaultValue="عمر الشاذلي" /><Icon name="badge" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[20px]" /></div></div><div><div className="flex items-center justify-between mb-space-xs"><label className="block font-card-title-sm text-card-title-sm text-deep-carbon"> نوع الحساب المختار </label><button className="font-micro-caption text-micro-caption text-athletic-olive hover:underline" type="button"> تغيير النوع </button></div><div className="h-12 bg-lime-tint/60 rounded-lg px-space-md flex items-center justify-between"><div className="flex items-center gap-space-xs text-deep-olive font-badge-label text-badge-label"><Icon name="family_restroom" className="material-symbols-outlined text-[20px]" /><span>متدرب / ولي أمر</span></div><span className="font-micro-caption text-micro-caption bg-surface-card text-deep-olive px-space-xs py-0.5 rounded-full shadow-sm"> مفعّل </span></div></div></div><div><label className="block font-card-title-sm text-card-title-sm text-deep-carbon mb-space-xs"> المدينة والحي المفضل للتدريب </label><div className="grid grid-cols-1 sm:grid-cols-2 gap-space-sm"><div className="relative"><select className="w-full h-12 bg-surface rounded-lg px-space-md text-deep-carbon font-body-default text-body-default appearance-none outline-none focus:bg-surface-card shadow-sm cursor-pointer"><option value="gharbia">المحافظة: الغربية</option><option value="cairo">القاهرة</option><option value="alex">الإسكندرية</option><option value="giza">الجيزة</option></select><Icon name="expand_more" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" /></div><div className="relative"><select className="w-full h-12 bg-surface rounded-lg px-space-md text-deep-carbon font-body-default text-body-default appearance-none outline-none focus:bg-surface-card shadow-sm cursor-pointer"><option value="tanta">المدينة / الحي: طنطا</option><option value="mahalla">المحلة الكبرى</option><option value="kafr-zayat">كفر الزيات</option><option value="zefta">زفتى</option></select><Icon name="location_on" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" /></div></div></div><div><div className="flex items-center justify-between mb-space-xs"><label className="block font-card-title-sm text-card-title-sm text-deep-carbon"> الرياضات التي تهتم بها </label><span className="font-micro-caption text-micro-caption text-text-muted">اختر رياضة واحدة على الأقل</span></div><div className="flex flex-wrap gap-space-xs pt-space-xs" id="sports-chips"><button className="sport-chip px-space-md py-space-xs rounded-full font-badge-label text-badge-label bg-lime-tint text-deep-olive flex items-center gap-space-xs transition-all shadow-sm" data-selected="true" type="button"><span>🏊</span><span>السباحة وتعليم البراعم</span><Icon name="check" className="material-symbols-outlined text-[16px] check-icon" /></button><button className="sport-chip px-space-md py-space-xs rounded-full font-badge-label text-badge-label bg-lime-tint text-deep-olive flex items-center gap-space-xs transition-all shadow-sm" data-selected="true" type="button"><span>🏋️</span><span>لياقة بدنية وجيم</span><Icon name="check" className="material-symbols-outlined text-[16px] check-icon" /></button><button className="sport-chip px-space-md py-space-xs rounded-full font-badge-label text-badge-label bg-surface hover:bg-surface-container text-text-muted flex items-center gap-space-xs transition-all" data-selected="false" type="button"><span>👶</span><span>تأهيل أطفال</span><Icon name="check" className="material-symbols-outlined text-[16px] check-icon hidden" /></button><button className="sport-chip px-space-md py-space-xs rounded-full font-badge-label text-badge-label bg-surface hover:bg-surface-container text-text-muted flex items-center gap-space-xs transition-all" data-selected="false" type="button"><span>🌊</span><span>إنقاذ وغوص</span><Icon name="check" className="material-symbols-outlined text-[16px] check-icon hidden" /></button><button className="sport-chip px-space-md py-space-xs rounded-full font-badge-label text-badge-label bg-surface hover:bg-surface-container text-text-muted flex items-center gap-space-xs transition-all" data-selected="false" type="button"><span>⚽</span><span>كرة قدم</span><Icon name="check" className="material-symbols-outlined text-[16px] check-icon hidden" /></button></div></div><div><label className="block font-card-title-sm text-card-title-sm text-deep-carbon mb-space-xs"> هل تقوم بالتسجيل لنفسك أم لأبنائك؟ </label><div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md" id="registration-type-group"><div className="cursor-pointer rounded-xl p-space-md transition-all duration-200 bg-surface hover:bg-surface-container relative" id="type-self"><div className="flex items-start gap-space-sm"><div className="radio-indicator w-5 h-5 rounded-full bg-surface-card flex items-center justify-center mt-0.5 shadow-xs"><div className="radio-dot w-2.5 h-2.5 rounded-full bg-transparent"></div></div><div className="flex-1"><span className="block font-card-title-sm text-card-title-sm text-deep-carbon mb-0.5">لنفسي فقط</span><span className="block font-micro-caption text-micro-caption text-text-muted leading-relaxed"> متابعة تماريني الشخصية، حجز مدربين خاصين، وجدول التدريبات المباشرة. </span></div></div></div><div className="cursor-pointer rounded-xl p-space-md transition-all duration-200 bg-lime-tint/50 shadow-sm relative" id="type-family"><div className="flex items-start gap-space-sm"><div className="radio-indicator w-5 h-5 rounded-full bg-deep-olive flex items-center justify-center mt-0.5 shadow-xs"><div className="radio-dot w-2 h-2 rounded-full bg-on-primary"></div></div><div className="flex-1"><div className="flex items-center gap-space-xs mb-0.5"><span className="font-card-title-sm text-card-title-sm text-deep-carbon">لأطفالي / أفراد العائلة</span><span className="font-micro-caption text-micro-caption bg-deep-olive text-on-primary px-space-xs rounded-full">مُوصى به</span></div><span className="block font-micro-caption text-micro-caption text-text-muted leading-relaxed"> يتيح لك إضافة سجلات الأبناء لمتابعة حصصهم وجوازهم الرياضي مع الأكاديمية. </span></div></div></div></div></div><div className="pt-space-md flex flex-col sm:flex-row items-center justify-between gap-space-md"><Link className="w-full sm:w-auto px-space-xl h-12 bg-dark-slate hover:bg-deep-carbon text-on-primary rounded-full font-card-title-sm text-card-title-sm flex items-center justify-center gap-space-sm shadow-md transition-all transform active:scale-95" data-path="sports-credentials" href="/"><span>حفظ ومتابعة للخطوة التالية</span><Icon name="arrow_back" className="material-symbols-outlined text-[20px] transition-transform group-hover:-translate-x-1" /></Link><Link className="font-body-compact text-body-compact text-text-muted hover:text-deep-carbon transition-colors text-center sm:text-start py-space-xs" data-path="sports-credentials" href="/"> تخطي هذه الخطوة الآن </Link></div></form></div><div className="mt-space-lg flex flex-wrap items-center justify-center gap-space-md text-text-muted"><div className="flex items-center gap-space-xs"><Icon name="verified" className="material-symbols-outlined text-athletic-olive text-[18px]" /><span className="font-micro-caption text-micro-caption">بياناتك مشفرة ومحمية وفق لوائح الخصوصية</span></div><span className="w-1 h-1 rounded-full bg-outline-variant hidden sm:inline"></span><div className="flex items-center gap-space-xs"><Icon name="support_agent" className="material-symbols-outlined text-athletic-olive text-[18px]" /><span className="font-micro-caption text-micro-caption">مساعدة فورية خلال التسجيل متوفرة على مدار اليوم</span></div></div></div></main><footer className="w-full bg-surface-container-low py-space-lg"><div className="max-w-7xl mx-auto px-margin-desktop flex flex-col md:flex-row items-center justify-between gap-space-sm"><p className="font-micro-caption text-micro-caption text-text-muted">© 2025 كابتنلي (Captenly). تجربة تسجيل الرياضيين والمدربين المعتمدة.</p><div className="flex items-center gap-space-md"><Link className="font-micro-caption text-micro-caption text-text-muted hover:text-deep-olive transition-colors" data-path="privacy-policy" href="/">سياسة الخصوصية</Link><Link className="font-micro-caption text-micro-caption text-text-muted hover:text-deep-olive transition-colors" data-path="terms-conditions" href="/">شروط الاستخدام</Link></div></div></footer>
-    </div>
+    <Suspense fallback={<div className="min-h-screen bg-canvas-alabaster" />}>
+      <Desktop1Inner />
+    </Suspense>
   );
 }
