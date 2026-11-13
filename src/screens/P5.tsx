@@ -5,11 +5,12 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Phone5() {
   const {
     currentPersona,
-    switchPersona,
+    isAuthenticated,
     facilities,
     memberRegistry,
     sessionLedgers,
@@ -33,11 +34,11 @@ export default function Phone5() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnrollForm, setShowEnrollForm] = useState(false);
 
-  const [newMemberCode, setNewMemberCode] = useState("CAP-M-5190");
+  const [newMemberCode, setNewMemberCode] = useState("");
   const [newAthleteName, setNewAthleteName] = useState("");
   const [newFacilityId, setNewFacilityId] = useState(linkedFacilityId);
   const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
-  const [newFeeEgp, setNewFeeEgp] = useState("750");
+  const [newFeeEgp, setNewFeeEgp] = useState("");
 
   const facilityOwnCount = useMemo(
     () => sessionLedgers.filter((l) => l.facilityId === linkedFacilityId).length,
@@ -89,9 +90,9 @@ export default function Phone5() {
   const [copied, setCopied] = useState(false);
 
   const [refNum, setRefNum] = useState("");
-  const [amountEgp, setAmountEgp] = useState("750");
+  const [amountEgp, setAmountEgp] = useState("");
 
-  const memberCode = currentPersona.memberCode || "CAP-M-5190";
+  const memberCode = currentPersona.memberCode || "";
   const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
 
   const matchedEnrollMember = useMemo(
@@ -101,6 +102,15 @@ export default function Phone5() {
       ),
     [memberRegistry, newMemberCode]
   );
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="دفتر الحصص الـ QR وكود العضوية"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك على Captenly للحصول على كود عضويتك ومتابعة حصصك."
+      />
+    );
+  }
 
   const copyCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -260,7 +270,7 @@ export default function Phone5() {
                     coachId: isCoach ? currentPersona.id : undefined,
                     packageTitleAr: `باقة تدريبية — ${newSessionsCount} حصص`,
                     totalSessions: newSessionsCount,
-                    amountEgp: Number(newFeeEgp) || 750,
+                    amountEgp: Number(newFeeEgp) || 0,
                   });
                   setMsg({ ok: res.ok, text: res.messageAr });
                   if (res.ok && res.ledger) {
@@ -276,7 +286,7 @@ export default function Phone5() {
                   required
                   value={newMemberCode}
                   onChange={(e) => setNewMemberCode(e.target.value)}
-                  placeholder="كود العضوية (مثال: CAP-M-5190)"
+                  placeholder="كود العضوية (CAP-M-XXXX)"
                   className="rounded-xl bg-white px-3 py-2 font-mono text-xs outline-none border border-surface-container"
                 />
                 <input
@@ -533,7 +543,7 @@ export default function Phone5() {
                   uploadInstaPayReceipt(activeLedger.id, {
                     referenceNumber: refNum.trim(),
                     channel: "إنستاباي (InstaPay)",
-                    amountEgp: Number(amountEgp) || 750,
+                    amountEgp: Number(amountEgp) || 0,
                     packageTitleAr: activeLedger.packageTitleAr,
                   });
                   setRefNum("");

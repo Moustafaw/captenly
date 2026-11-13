@@ -72,8 +72,8 @@ function Desktop1Inner() {
     searchParams?.get("source") === "google" || currentPersona.authProvider === "google";
   const isPreview = searchParams?.get("preview") === "1";
 
-  const rawCode = currentPersona.memberCode || "CAP-M-5190";
-  const codeSuffix = rawCode.split("-").pop() || "5190";
+  const rawCode = currentPersona.memberCode || "";
+  const codeSuffix = rawCode ? rawCode.split("-").pop() || "" : "";
   const selectedRoleMeta =
     ROLE_OPTIONS.find((r) => r.key === selectedRole) || ROLE_OPTIONS[0];
   const displayMemberCode = `${selectedRoleMeta.prefix}-${codeSuffix}`;

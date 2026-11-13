@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 function calcImprovementPct(previousValue: number, currentValue: number): number | null {
   if (!previousValue || previousValue <= 0) return null;
@@ -16,6 +17,7 @@ function calcImprovementPct(previousValue: number, currentValue: number): number
 export default function Desktop15() {
   const {
     currentPersona,
+    isAuthenticated,
     minorAthletes,
     addMinorAthlete,
     pbRecords,
@@ -32,9 +34,9 @@ export default function Desktop15() {
   const [childAge, setChildAge] = useState("8");
 
   // Add PB Record form
-  const [eventTitle, setEventTitle] = useState("50م سباحة حرة");
-  const [newVal, setNewVal] = useState("32.4");
-  const [prevVal, setPrevVal] = useState("34.1");
+  const [eventTitle, setEventTitle] = useState("");
+  const [newVal, setNewVal] = useState("");
+  const [prevVal, setPrevVal] = useState("");
 
   const myLedgers = sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
   const myPBs = useMemo(
@@ -68,20 +70,33 @@ export default function Desktop15() {
 
   const handleAddPB = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!eventTitle.trim() || !Number(newVal)) return;
     addNewPBRecord({
       athleteId: currentPersona.id,
       athleteNameAr: currentPersona.fullNameAr,
       sportType: "swimming",
-      eventTitleAr: eventTitle,
-      currentValue: Number(newVal) || 33,
-      previousValue: Number(prevVal) || 35,
+      eventTitleAr: eventTitle.trim(),
+      currentValue: Number(newVal) || 0,
+      previousValue: Number(prevVal) || 0,
       unitAr: "ثانية",
       verificationSource: "self_entered",
       verificationLabelAr: "سجل شخصي عبر الجواز الرياضي",
       coachNameAr: "متابعة ذاتية",
       facilityNameAr: currentPersona.city,
     });
+    setEventTitle("");
+    setNewVal("");
+    setPrevVal("");
   };
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="ملفك الرياضي وجواز السفر المائي"
+        descriptionAr="أنشئ حسابك أو سجّل دخولك في Captenly للحصول على كود عضوية فريد، متابعة الأرقام القياسية، وحفظ دفاتر حصصك."
+      />
+    );
+  }
 
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
@@ -109,9 +124,11 @@ export default function Desktop15() {
                   <h1 className="text-[24px] md:text-[28px] font-extrabold leading-snug text-surface-card">
                     {currentPersona.fullNameAr}
                   </h1>
-                  <span className="px-3 py-1 rounded-full bg-deep-carbon text-electric-volt font-mono text-xs font-bold">
-                    {currentPersona.memberCode || "CAP-M-5190"}
-                  </span>
+                  {currentPersona.memberCode && (
+                    <span className="px-3 py-1 rounded-full bg-deep-carbon text-electric-volt font-mono text-xs font-bold">
+                      {currentPersona.memberCode}
+                    </span>
+                  )}
                   <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold">
                     {currentPersona.city}
                   </span>

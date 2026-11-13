@@ -15,8 +15,8 @@ export default function Desktop18() {
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
-      const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
-      if (basePrice > smartFilters.maxPriceEgp) return false;
+      const basePrice = f.pricePackages[0]?.baseMonthlyEgp ?? null;
+      if (basePrice != null && basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     }).length;
   }, [facilities, smartFilters]);

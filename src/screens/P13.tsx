@@ -9,6 +9,7 @@ import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 
 export default function Phone13() {
   const params = useParams();
@@ -23,6 +24,8 @@ export default function Phone13() {
     toggleCompareFacility,
     createStructuredWhatsappLead,
     currentPersona,
+    isAuthenticated,
+    openAuthGateModal,
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
@@ -92,6 +95,9 @@ export default function Phone13() {
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
   const pkg = facility.pricePackages[0];
+  const schoolPrograms = facility.schoolPrograms || [];
+  const hasRealScheduleOrPricing =
+    !isUnclaimed && (facility.pricePackages.length > 0 || schoolPrograms.length > 0);
   const affiliatedCoaches = coaches.filter(
     (c) =>
       c.isVerifiedCoach &&
@@ -202,33 +208,63 @@ export default function Phone13() {
 
       {tab === "packages" && (
         <div className="flex flex-col gap-3">
-          {facility.pricePackages.map((p) => (
-            <div key={p.id} className="bg-surface-card rounded-2xl p-4 shadow-sm flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="font-card-title-sm text-sm text-dark-slate leading-snug">{p.nameAr}</div>
-                <div className="text-[11px] text-text-muted mt-0.5">
-                  {p.sessionsCount} حصة • {p.durationMinutes} دقيقة
-                </div>
-              </div>
-              <div className="text-lg font-black text-deep-olive shrink-0">{p.baseMonthlyEgp} ج.م</div>
+          {!hasRealScheduleOrPricing ? (
+            <div className="bg-surface-card rounded-2xl p-5 shadow-sm border border-surface-container text-center flex flex-col items-center gap-1.5">
+              <Icon name="info" className="text-[24px] text-text-muted" />
+              <div className="font-card-title-sm text-dark-slate">لا توجد بيانات متوفرة الآن</div>
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                {isUnclaimed
+                  ? "هذه المنشأة غير مسجلة على منصة Captenly بعد — لم تُضف أي باقات أو مواعيد حصص حتى الآن."
+                  : "لم تقم إدارة المنشأة بنشر بطاقات المواعيد والأسعار بعد."}
+              </p>
             </div>
-          ))}
-          {facility.schoolPrograms && facility.schoolPrograms.length > 0 && (
-            <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
-              <div className="font-card-title-sm text-sm text-dark-slate">مسارات مدارس السباحة</div>
-              {facility.schoolPrograms.map((prog) => (
-                <div key={prog.id} className="rounded-xl bg-surface-snow p-3 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-[10px] font-bold text-deep-olive">
-                      {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+          ) : (
+            <>
+              {facility.pricePackages.map((p) => (
+                <div key={p.id} className="bg-surface-card rounded-2xl p-4 shadow-sm flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-card-title-sm text-sm text-dark-slate leading-snug">{p.nameAr}</div>
+                    <div className="text-[11px] text-text-muted mt-0.5">
+                      {p.sessionsCount} حصة • {p.durationMinutes} دقيقة
                     </div>
-                    <div className="font-bold text-xs text-dark-slate">{prog.titleAr}</div>
-                    <div className="text-[11px] text-text-muted">{prog.scheduleAr}</div>
                   </div>
-                  <div className="text-base font-black text-deep-olive shrink-0">{prog.priceEgp} ج.م</div>
+                  <div className="text-lg font-black text-deep-olive shrink-0">{p.baseMonthlyEgp} ج.م</div>
                 </div>
               ))}
-            </div>
+              {schoolPrograms.length > 0 && (
+                <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="font-card-title-sm text-sm text-dark-slate">
+                    بطاقات المواعيد والمدارس ({schoolPrograms.length})
+                  </div>
+                  {schoolPrograms.map((prog) => (
+                    <div key={prog.id} className="rounded-xl bg-surface-snow p-3.5 border border-surface-container/70 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-[10px] font-bold text-deep-olive">
+                            {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+                          </div>
+                          <div className="font-bold text-xs text-dark-slate">{prog.titleAr}</div>
+                        </div>
+                        <div className="text-base font-black text-deep-olive shrink-0">{prog.priceEgp} ج.م</div>
+                      </div>
+                      <div className="text-[11px] text-dark-slate/85 flex items-center gap-1">
+                        <Icon name="schedule" className="text-[13px] text-deep-olive" />
+                        <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
+                      </div>
+                      <div className="text-[10px] text-text-muted">
+                        مدة الحصة: {prog.durationMinutes || 60} دقيقة
+                        {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
+                      </div>
+                      {prog.notesAr && (
+                        <p className="text-[11px] text-text-muted bg-surface-card p-2 rounded-lg leading-relaxed">
+                          {prog.notesAr}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -311,12 +347,19 @@ export default function Phone13() {
           />
           <Link
             href={`/booking?facility=${facility.slug}&pkg=${pkg?.id || ""}`}
+            onClick={(e) => {
+              if (!isAuthenticated) {
+                e.preventDefault();
+                openAuthGateModal("تجهيز الحجز والتسجيل");
+              }
+            }}
             className="py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center shadow"
           >
             تجهيز الحجز ←
           </Link>
         </div>
       )}
+      <GuestFloatingAuthBar contextLabelAr={`أنشئ حسابك على Captenly لحفظ ${facility.nameAr} أو مقارنتها والتواصل المباشر`} />
     </div>
   );
 }

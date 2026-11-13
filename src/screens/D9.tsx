@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 function Desktop9Inner() {
   const searchParams = useSearchParams();
   const facSlug = searchParams?.get("facility") || "";
   const pkgParam = searchParams?.get("pkg") || "";
 
-  const { facilities, currentPersona, createStructuredWhatsappLead, placesHydrating } = useCaptenly();
+  const { facilities, currentPersona, createStructuredWhatsappLead, placesHydrating, isAuthenticated } = useCaptenly();
 
   const initialFacility = useMemo(
     () => (facSlug ? facilities.find((f) => f.slug === facSlug || f.id === facSlug) : facilities[0]),
@@ -34,6 +35,15 @@ function Desktop9Inner() {
     referralCode: string;
     whatsappUrl: string;
   } | null>(null);
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="يرجى إنشاء حساب أو تسجيل الدخول لتجهيز الحجز"
+        descriptionAr="لتجهيز طلب الحجز وإرسال كود عضويتك للأكاديمية أو الكابتن مباشرة بدون عمولة، يرجى تسجيل الدخول أولاً."
+      />
+    );
+  }
 
   if (!facility) {
     return (
@@ -175,7 +185,7 @@ function Desktop9Inner() {
           <div className="rounded-xl bg-surface-snow p-4 text-xs text-text-muted flex items-center justify-between flex-wrap gap-2">
             <span>سيُدرج كود عضويتك تلقائياً في الرسالة لتسهيل تفعيل دفتر الـ QR:</span>
             <span className="font-mono font-bold text-deep-olive">
-              {currentPersona.memberCode || "CAP-M-5190"}
+              {currentPersona.memberCode}
             </span>
           </div>
 

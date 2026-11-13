@@ -9,7 +9,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 
 export function SiteDock() {
   const pathname = usePathname() || "/";
-  const { currentPersona } = useCaptenly();
+  const { currentPersona, isAuthenticated, openAuthGateModal } = useCaptenly();
   const dockRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicator, setIndicator] = useState<{ left: number; width: number; ready: boolean }>({
@@ -22,24 +22,27 @@ export function SiteDock() {
   const isFacility = currentPersona.role === "facility_manager";
 
   const tabs = [
-    { href: "/", icon: "home", label: "الرئيسية", active: pathname === "/" },
+    { href: "/", icon: "home", label: "الرئيسية", active: pathname === "/", gated: false },
     {
       href: "/explore",
       icon: "explore",
       label: "استكشف",
       active: pathname.startsWith("/explore") || pathname.startsWith("/pools"),
+      gated: false,
     },
     {
       href: "/compare",
       icon: "compare_arrows",
       label: "قارن",
       active: pathname.startsWith("/compare"),
+      gated: true,
     },
     {
       href: "/dashboard/ledger",
       icon: "qr_code_2",
       label: "حصصي QR",
       active: pathname.startsWith("/dashboard/ledger"),
+      gated: true,
     },
     isCoach
       ? {
@@ -47,6 +50,7 @@ export function SiteDock() {
           icon: "sports_score",
           label: "الكابتن",
           active: pathname.startsWith("/dashboard/coach"),
+          gated: true,
         }
       : isFacility
       ? {
@@ -54,12 +58,14 @@ export function SiteDock() {
           icon: "stadium",
           label: "المنشأة",
           active: pathname.startsWith("/dashboard/facility"),
+          gated: true,
         }
       : {
           href: "/dashboard/athlete",
           icon: "account_circle",
           label: "حسابي",
           active: pathname.startsWith("/dashboard/athlete"),
+          gated: true,
         },
   ];
 
@@ -124,6 +130,12 @@ export function SiteDock() {
                 itemRefs.current[idx] = el;
               }}
               href={t.href}
+              onClick={(e) => {
+                if (t.gated && !isAuthenticated) {
+                  e.preventDefault();
+                  openAuthGateModal(t.label);
+                }
+              }}
               className={`relative z-10 min-w-[52px] min-h-[46px] px-2.5 py-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-300 ${
                 t.active ? "text-[#65A30D] font-extrabold" : "text-text-muted hover:text-[#65A30D]"
               }`}

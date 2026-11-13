@@ -7,9 +7,19 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { AthleteProfileSocialEditor } from "@/components/editorial/AthleteProfileSocialEditor";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function SettingsHubPage() {
-  const { currentPersona, userLocation, setLocationModalOpen, minorAthletes } = useCaptenly();
+  const { currentPersona, userLocation, setLocationModalOpen, minorAthletes, isAuthenticated } = useCaptenly();
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="إعدادات الحساب وصورة البروفايل"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك على Captenly لإدارة صورتك الشخصية، بياناتك، وإعدادات الأمان."
+      />
+    );
+  }
 
   const settingsLinks = [
     {

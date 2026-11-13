@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
 
 export default function Desktop13() {
   const {
@@ -16,44 +18,36 @@ export default function Desktop13() {
     checkInSession,
     publishSchoolPackage,
     validateAndSaveCoachBio,
-    addCoachSessionOffer,
-    removeCoachSessionOffer,
     recordCoachSkillAndPB,
     verifiedLeads,
     currentPersona,
+    isAuthenticated,
   } = useCaptenly();
 
   const activeCoach =
     coaches.find((c) => c.id === currentPersona.linkedCoachId) || coaches[0] || null;
 
   // Member Code enrollment
-  const [memberCode, setMemberCode] = useState("CAP-M-5190");
+  const [memberCode, setMemberCode] = useState("");
   const [selectedFacId, setSelectedFacId] = useState(facilities[0]?.id || "");
   const [packageTitle, setPackageTitle] = useState("باقة التأسيس والمتابعة — 8 حصص");
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
-  const [feeEgp, setFeeEgp] = useState("750");
+  const [feeEgp, setFeeEgp] = useState("");
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Publish School Card
-  const [schoolPkgName, setSchoolPkgName] = useState("مدرسة الأطفال الصباحية (8 حصص)");
-  const [schoolPkgPrice, setSchoolPkgPrice] = useState("700");
+  const [schoolPkgName, setSchoolPkgName] = useState("");
+  const [schoolPkgPrice, setSchoolPkgPrice] = useState("");
 
   // Bio Law 3/1985 check
   const [bioDraft, setBioDraft] = useState(
     activeCoach?.bioAr || "مدرب سباحة تأسيس وإنقاذ مائي معتمد، التزام كامل بتدريب اللياقة والمهارات المائية."
   );
 
-  // Coach session offer publisher
-  const [offerTitle, setOfferTitle] = useState("باقة تعليم وإتقان السباحة (8 حصص)");
-  const [offerSessions, setOfferSessions] = useState("8");
-  const [offerPrice, setOfferPrice] = useState("850");
-  const [offerDuration, setOfferDuration] = useState("60");
-  const [offerNotes, setOfferNotes] = useState("تقييم مبدئي + متابعة رقم قياسي فردي");
-
   // Coach PB & Skill Assessment logger
-  const [pbSwimmerName, setPbSwimmerName] = useState("يوسف كريم");
-  const [pbEventTitle, setPbEventTitle] = useState("50م سباحة حرة");
-  const [pbTimeSeconds, setPbTimeSeconds] = useState("31.8");
+  const [pbSwimmerName, setPbSwimmerName] = useState("");
+  const [pbEventTitle, setPbEventTitle] = useState("");
+  const [pbTimeSeconds, setPbTimeSeconds] = useState("");
   const [pbRatingOverall, setPbRatingOverall] = useState("5");
 
   const matchedMember = useMemo(
@@ -70,10 +64,19 @@ export default function Desktop13() {
       coachId: activeCoach?.id,
       packageTitleAr: packageTitle,
       totalSessions: sessionsCount,
-      amountEgp: Number(feeEgp) || 750,
+      amountEgp: Number(feeEgp) || 0,
     });
     setStatusMsg({ ok: res.ok, msg: res.messageAr });
   };
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="لوحة الكابتن وتفعيل دفاتر الحصص"
+        descriptionAr="سجّل دخولك أو أنشئ حساب كابتن على Captenly لإدارة عروض حصصك وتفعيل دفاتر المتدربين بكود العضوية."
+      />
+    );
+  }
 
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
@@ -169,7 +172,7 @@ export default function Desktop13() {
                   required
                   value={memberCode}
                   onChange={(e) => setMemberCode(e.target.value)}
-                  placeholder="CAP-M-5190"
+                  placeholder="CAP-M-XXXX"
                   className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-sm outline-none border border-surface-container"
                 />
                 {matchedMember && (
@@ -247,7 +250,7 @@ export default function Desktop13() {
                   sessionsCount: 8,
                   sessionsPerWeek: 2,
                   durationMinutes: 60,
-                  baseMonthlyEgp: Number(schoolPkgPrice) || 700,
+                  baseMonthlyEgp: Number(schoolPkgPrice) || 0,
                 });
                 setStatusMsg({ ok: res.ok, msg: res.messageAr });
               }}
@@ -306,101 +309,23 @@ export default function Desktop13() {
           </div>
         </div>
 
-        {/* Coach Custom Session Offers & Verified PB Assessment */}
+        {/* Coach Dynamic Schedule/Session Cards & Verified PB Assessment */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
           <div className="lg:col-span-6 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
+            <div>
               <h2 className="font-card-title text-dark-slate">
-                عروض الحصص والأسعار على ملفي العام
+                عروض الحصص والمواعيد والأسعار على ملفي العام
               </h2>
-              <span className="text-[11px] font-bold text-deep-olive bg-lime-tint px-3 py-1 rounded-full">
-                {(activeCoach?.sessionOffers || []).length} عروض منشورة
-              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                أضف أي عدد من بطاقات المواعيد والأسعار (الساعة، مدة الحصة، السعر، ومزيد من التفاصيل).
+              </p>
             </div>
-
-            {activeCoach && (activeCoach.sessionOffers || []).length > 0 && (
-              <div className="flex flex-col gap-2">
-                {activeCoach.sessionOffers!.map((o) => (
-                  <div
-                    key={o.id}
-                    className="rounded-xl bg-surface-snow p-3.5 flex items-center justify-between gap-2 border border-surface-container/60"
-                  >
-                    <div>
-                      <div className="font-card-title-sm text-sm text-dark-slate">{o.titleAr}</div>
-                      <div className="text-[11px] text-text-muted">
-                        {o.sessionsCount} حصص • {o.durationMinutes || 60} دقيقة • {o.notesAr}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-black text-deep-olive text-base">{o.priceEgp} ج.م</span>
-                      <button
-                        type="button"
-                        onClick={() => removeCoachSessionOffer(activeCoach.id, o.id)}
-                        className="text-xs text-status-danger font-bold hover:underline"
-                      >
-                        حذف
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!activeCoach) {
-                  setStatusMsg({
-                    ok: false,
-                    msg: "يرجى توثيق ملفك ككابتن أولاً لنشر عروض الحصص على صفحتك العامة.",
-                  });
-                  return;
-                }
-                const res = addCoachSessionOffer(activeCoach.id, {
-                  titleAr: offerTitle.trim(),
-                  sessionsCount: Number(offerSessions) || 8,
-                  priceEgp: Number(offerPrice) || 850,
-                  durationMinutes: Number(offerDuration) || 60,
-                  notesAr: offerNotes.trim() || undefined,
-                });
-                setStatusMsg({ ok: res.ok, msg: res.messageAr });
-              }}
-              className="grid grid-cols-2 gap-2.5 pt-2 border-t border-surface-container"
-            >
-              <input
-                required
-                value={offerTitle}
-                onChange={(e) => setOfferTitle(e.target.value)}
-                placeholder="عنوان الباقة (مثال: تدريب خاص 8 حصص)"
-                className="col-span-2 rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
-              />
-              <input
-                type="number"
-                value={offerSessions}
-                onChange={(e) => setOfferSessions(e.target.value)}
-                placeholder="عدد الحصص"
-                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
-              />
-              <input
-                type="number"
-                value={offerPrice}
-                onChange={(e) => setOfferPrice(e.target.value)}
-                placeholder="السعر ج.م"
-                className="rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
-              />
-              <input
-                value={offerNotes}
-                onChange={(e) => setOfferNotes(e.target.value)}
-                placeholder="ملاحظة مختصرة (مثلاً: شامل التقييم)"
-                className="col-span-2 rounded-xl bg-surface-snow px-3.5 py-2 text-xs outline-none border border-surface-container"
-              />
-              <button
-                type="submit"
-                className="col-span-2 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs"
-              >
-                + نشر عرض الحصة على ملفي العام
-              </button>
-            </form>
+            <DynamicScheduleCardsBuilder
+              mode="coach"
+              targetId={activeCoach?.id}
+              coachOffers={activeCoach?.sessionOffers || []}
+              onFeedback={setStatusMsg}
+            />
           </div>
 
           <form
@@ -409,8 +334,8 @@ export default function Desktop13() {
               const score = Math.max(1, Math.min(5, Number(pbRatingOverall) || 4));
               recordCoachSkillAndPB({
                 swimmerNameAr: pbSwimmerName.trim() || "سبّاح كابتنلي",
-                eventTitleAr: pbEventTitle.trim() || "50م سباحة حرة",
-                currentValue: Number(pbTimeSeconds) || 32.0,
+                eventTitleAr: pbEventTitle.trim() || "سباق حر",
+                currentValue: Number(pbTimeSeconds) || 0,
                 unitAr: "ثانية",
                 coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
                 facilityNameAr:

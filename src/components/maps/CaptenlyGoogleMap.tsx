@@ -88,19 +88,20 @@ export function CaptenlyGoogleMap({
           const pos = { lat: fac.coordinates.lat, lng: fac.coordinates.lng };
           bounds.extend(pos);
 
-          const basePrice = fac.pricePackages[0]?.baseMonthlyEgp || 600;
+          const basePrice = fac.pricePackages[0]?.baseMonthlyEgp ?? null;
           const marker = new maps.Marker({
             position: pos,
             map: mapInstanceRef.current,
-            title: `${fac.nameAr} — ${basePrice} ج.م`,
-            label: isSelected
-              ? {
-                  text: `${basePrice}`,
-                  color: "#C4F135",
-                  fontWeight: "bold",
-                  fontSize: "11px",
-                }
-              : undefined,
+            title: basePrice != null ? `${fac.nameAr} — ${basePrice} ج.م` : fac.nameAr,
+            label:
+              isSelected && basePrice != null
+                ? {
+                    text: `${basePrice}`,
+                    color: "#C4F135",
+                    fontWeight: "bold",
+                    fontSize: "11px",
+                  }
+                : undefined,
             zIndex: isSelected ? 10 : 1,
           });
 
@@ -219,7 +220,7 @@ export function CaptenlyGoogleMap({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {facilities.map((fac) => {
             const active = activeFacility.id === fac.id;
-            const price = fac.pricePackages[0]?.baseMonthlyEgp || 600;
+            const price = fac.pricePackages[0]?.baseMonthlyEgp ?? null;
             const facDist = userCoordinates
               ? formatDistanceAr(getFacilityDistanceKm(fac, userCoordinates))
               : "";
@@ -235,7 +236,7 @@ export function CaptenlyGoogleMap({
                 }`}
               >
                 <Icon name="location_on" className="text-[12px]" />
-                <span>{price} ج.م</span>
+                <span>{price != null ? `${price} ج.م` : fac.nameAr}</span>
                 <span className="opacity-75">• {fac.city}</span>
                 {facDist && <span className="opacity-75">({facDist})</span>}
               </button>

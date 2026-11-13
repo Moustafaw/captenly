@@ -230,7 +230,7 @@ function Desktop10Inner() {
                   required
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="01022334455 أو CAP-M-5190"
+                  placeholder="010xxxxxxxx أو CAP-M-XXXX"
                   className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                 />
               </div>

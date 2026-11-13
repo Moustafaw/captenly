@@ -125,8 +125,8 @@ function Phone6Inner() {
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
-      const basePrice = f.pricePackages[0]?.baseMonthlyEgp || 600;
-      if (basePrice > smartFilters.maxPriceEgp) return false;
+      const basePrice = f.pricePackages[0]?.baseMonthlyEgp ?? null;
+      if (basePrice != null && basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     });
 

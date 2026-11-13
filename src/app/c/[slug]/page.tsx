@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 
 export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
   const { coaches, createStructuredWhatsappLead, currentPersona } = useCaptenly();
@@ -235,9 +236,12 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                           <span className="font-bold text-xs text-dark-slate">{offer.titleAr}</span>
                           <span className="text-base font-black text-deep-olive">{offer.priceEgp} ج.م</span>
                         </div>
-                        <div className="text-[11px] text-text-muted mt-0.5">
-                          {offer.sessionsCount} حصص {offer.durationMinutes ? `• ${offer.durationMinutes} د` : ""}
-                          {offer.notesAr ? ` • ${offer.notesAr}` : ""}
+                        <div className="text-[11px] text-text-muted mt-0.5 flex flex-col gap-0.5">
+                          <div>
+                            {offer.sessionsCount} حصص {offer.durationMinutes ? `• ${offer.durationMinutes} د` : ""}
+                            {offer.sessionTimeAr ? ` • ${offer.sessionTimeAr}` : ""}
+                          </div>
+                          {offer.notesAr && <div>{offer.notesAr}</div>}
                         </div>
                       </button>
                     );
@@ -285,6 +289,7 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
           </aside>
         </div>
       </div>
+      <GuestFloatingAuthBar contextLabelAr={`أنشئ حسابك على Captenly لحفظ الكابتن ${coach.fullNameAr} والتواصل المباشر معه`} />
     </div>
   );
 }

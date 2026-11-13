@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Desktop12() {
   const {
@@ -14,15 +15,25 @@ export default function Desktop12() {
     clearComparison,
     createStructuredWhatsappLead,
     currentPersona,
+    isAuthenticated,
   } = useCaptenly();
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="يرجى إنشاء حساب أو تسجيل الدخول لاستخدام المقارنة"
+        descriptionAr="أنشئ حسابك المجاني على Captenly لمقارنة حتى 4 منشآت وأكاديميات جنباً إلى جنب حسب الأسعار والمواصفات والمسافة."
+      />
+    );
+  }
 
   const compared = facilities.filter((f) => compareFacilityIds.includes(f.id));
   const availableToAdd = facilities.filter((f) => !compareFacilityIds.includes(f.id));
 
-  const getPrice = (f: (typeof facilities)[number]) =>
-    f.pricePackages[0]?.baseMonthlyEgp || 600;
-  const lowestPrice =
-    compared.length > 1 ? Math.min(...compared.map((f) => getPrice(f))) : null;
+  const getPrice = (f: (typeof facilities)[number]): number | null =>
+    f.pricePackages[0]?.baseMonthlyEgp ?? null;
+  const numericPrices = compared.map((f) => getPrice(f)).filter((p): p is number => p !== null);
+  const lowestPrice = numericPrices.length > 1 ? Math.min(...numericPrices) : null;
 
   const openWhatsapp = (f: (typeof facilities)[number]) => {
     const { whatsappUrl } = createStructuredWhatsappLead({
@@ -36,7 +47,9 @@ export default function Desktop12() {
       requestedSpecialtyAr: f.specialtiesAr[0] || "اشتراك",
       preferredScheduleAr: "بالتنسيق",
     });
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const criteriaRows = [
@@ -45,6 +58,11 @@ export default function Desktop12() {
       icon: "payments",
       render: (f: (typeof facilities)[number]) => {
         const price = getPrice(f);
+        if (price === null) {
+          return (
+            <span className="text-xs font-bold text-text-muted">غير معلن</span>
+          );
+        }
         const isLowest = lowestPrice !== null && price === lowestPrice;
         return (
           <div className="flex flex-col">
@@ -232,8 +250,17 @@ export default function Desktop12() {
                       </span>
                     </div>
                     <div className="text-sm font-black text-deep-olive pt-1 border-t border-surface-container/60">
-                      {getPrice(f).toLocaleString("en-US")}{" "}
-                      <span className="text-[10px] font-bold">ج.م/شهر</span>
+                      {(() => {
+                        const price = getPrice(f);
+                        return price != null ? (
+                          <>
+                            {price.toLocaleString("en-US")}{" "}
+                            <span className="text-[10px] font-bold">ج.م/شهر</span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-bold text-text-muted">غير معلن</span>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}

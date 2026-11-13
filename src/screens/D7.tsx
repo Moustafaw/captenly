@@ -4,15 +4,25 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Desktop7() {
-  const { notifications, markNotificationAsRead, unreadNotificationsCount } = useCaptenly();
+  const { notifications, markNotificationAsRead, unreadNotificationsCount, isAuthenticated } = useCaptenly();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   const visible = useMemo(() => {
     if (filter === "unread") return notifications.filter((n) => !n.isRead);
     return notifications;
   }, [notifications, filter]);
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="يرجى إنشاء حساب أو تسجيل الدخول لمتابعة الإشعارات"
+        descriptionAr="احصل على تنبيهات فورية عند تفعيل باقاتك، مواعيد حصصك الـ QR، أو تحديثات الأكاديميات بمجرد تسجيل الدخول."
+      />
+    );
+  }
 
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">

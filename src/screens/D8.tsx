@@ -5,11 +5,12 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Desktop8() {
   const {
     currentPersona,
-    switchPersona,
+    isAuthenticated,
     facilities,
     memberRegistry,
     sessionLedgers,
@@ -34,12 +35,12 @@ export default function Desktop8() {
   const [showEnrollForm, setShowEnrollForm] = useState(false);
 
   // Quick enroll form inside ledger for coaches / facilities
-  const [newMemberCode, setNewMemberCode] = useState("CAP-M-5190");
+  const [newMemberCode, setNewMemberCode] = useState("");
   const [newAthleteName, setNewAthleteName] = useState("");
   const [newFacilityId, setNewFacilityId] = useState(linkedFacilityId);
   const [newPkgTitle, setNewPkgTitle] = useState("مدرسة السباحة — 8 حصص");
   const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
-  const [newFeeEgp, setNewFeeEgp] = useState("750");
+  const [newFeeEgp, setNewFeeEgp] = useState("");
   const [enrollMsg, setEnrollMsg] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const facilityOwnCount = useMemo(
@@ -97,10 +98,10 @@ export default function Desktop8() {
   const [receiptChannel, setReceiptChannel] = useState<
     "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)"
   >("إنستاباي (InstaPay)");
-  const [receiptAmount, setReceiptAmount] = useState("750");
+  const [receiptAmount, setReceiptAmount] = useState("");
   const [receiptSaved, setReceiptSaved] = useState(false);
 
-  const memberCode = currentPersona.memberCode || "CAP-M-5190";
+  const memberCode = currentPersona.memberCode || "";
   const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
 
   const matchedEnrollMember = useMemo(
@@ -110,6 +111,15 @@ export default function Desktop8() {
       ),
     [memberRegistry, newMemberCode]
   );
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="دفتر الحصص الـ QR وكود العضوية"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك على Captenly للحصول على كود عضويتك الفريد وإدارة دفاتر الحصص."
+      />
+    );
+  }
 
   const copyMemberCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -128,7 +138,7 @@ export default function Desktop8() {
       coachId: isCoach ? currentPersona.id : undefined,
       packageTitleAr: newPkgTitle,
       totalSessions: newSessionsCount,
-      amountEgp: Number(newFeeEgp) || 750,
+      amountEgp: Number(newFeeEgp) || 0,
     });
     setEnrollMsg({ ok: res.ok, msg: res.messageAr });
     if (res.ok && res.ledger) {
@@ -390,7 +400,7 @@ export default function Desktop8() {
                         required
                         value={newMemberCode}
                         onChange={(e) => setNewMemberCode(e.target.value)}
-                        placeholder="CAP-M-5190"
+                        placeholder="CAP-M-XXXX"
                         className="rounded-xl bg-white px-3 py-2 font-mono text-xs outline-none border border-surface-container"
                       />
                     </div>
@@ -764,7 +774,7 @@ export default function Desktop8() {
                         uploadInstaPayReceipt(activeLedger.id, {
                           referenceNumber: receiptRef.trim(),
                           channel: receiptChannel,
-                          amountEgp: Number(receiptAmount) || 750,
+                          amountEgp: Number(receiptAmount) || 0,
                           packageTitleAr: activeLedger.packageTitleAr,
                         });
                         setReceiptRef("");

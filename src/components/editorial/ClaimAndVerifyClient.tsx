@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 interface ClaimAndVerifyClientProps {
   initialSlug?: string;
@@ -17,6 +18,7 @@ export function ClaimAndVerifyClient({
   initialMode = "facility",
 }: ClaimAndVerifyClientProps) {
   const {
+    isAuthenticated,
     facilities,
     claimFacilityAndVerify,
     registerAndVerifyCoach,
@@ -40,7 +42,7 @@ export function ClaimAndVerifyClient({
   const [updatedPrice, setUpdatedPrice] = useState<string>(
     preselected?.pricePackages[0]?.baseMonthlyEgp
       ? String(preselected.pricePackages[0].baseMonthlyEgp)
-      : "700"
+      : ""
   );
   const [commercialRef, setCommercialRef] = useState("");
   const [claimSuccessFacSlug, setClaimSuccessFacSlug] = useState<string | null>(null);
@@ -60,8 +62,8 @@ export function ClaimAndVerifyClient({
   const [coachBio, setCoachBio] = useState(
     "خبرة في تأسيس الأطفال وكسر رهبة الماء وبناء اللياقة البدنية وفق المعايير الرياضية المعتمدة."
   );
-  const [pkg8Egp, setPkg8Egp] = useState("750");
-  const [pkg12Egp, setPkg12Egp] = useState("1050");
+  const [pkg8Egp, setPkg8Egp] = useState("");
+  const [pkg12Egp, setPkg12Egp] = useState("");
   const [syndicateRef, setSyndicateRef] = useState("");
   const [edlfRef, setEdlfRef] = useState("");
   const [affiliatedFacId, setAffiliatedFacId] = useState<string>(preselected?.id || "");
@@ -70,6 +72,12 @@ export function ClaimAndVerifyClient({
   const [verifiedCoachIdCode, setVerifiedCoachIdCode] = useState<string | null>(null);
 
   const selectedFacility = facilities.find((f) => f.id === selectedFacilityId) || preselected;
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen descriptionAr="يرجى إنشاء حساب أو تسجيل الدخول في Captenly لتوثيق وربط منشأتك أو اعتماد ملفك التدريبي." />
+    );
+  }
 
   const toggleSpec = (spec: string) => {
     setSelectedSpecs((prev) =>
@@ -113,8 +121,8 @@ export function ClaimAndVerifyClient({
       whatsappNumber: coachWhatsapp.trim() || undefined,
       facebookUrl: coachFacebook.trim() || undefined,
       instagramUrl: coachInstagram.trim() || undefined,
-      privatePackage8Egp: Number(pkg8Egp) || 700,
-      privatePackage12Egp: Number(pkg12Egp) || 950,
+      privatePackage8Egp: Number(pkg8Egp) || 0,
+      privatePackage12Egp: Number(pkg12Egp) || 0,
       specialtiesAr: selectedSpecs,
       syndicateCardRef: syndicateRef.trim(),
       edlfCertRef: edlfRef.trim() || undefined,

@@ -34,7 +34,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
   const inCompare = compareFacilityIds.includes(facility.id);
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const basePackage = facility.pricePackages[0];
-  const monthlyPrice = basePackage ? basePackage.baseMonthlyEgp : 650;
+  const monthlyPrice = basePackage ? basePackage.baseMonthlyEgp : null;
 
   const handleCompareClick = () => {
     const res = toggleCompareFacility(facility.id);
@@ -63,11 +63,14 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
       requestedSpecialtyAr: facility.specialtiesAr[0] || "استفسار عن الباقات",
       preferredScheduleAr: "الفترة المسائية",
     });
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleShareWhatsapp = () => {
-    const shareText = `شوف باقة ${facility.nameAr} (${facility.city}) على كابتنلي — الاشتراك المتداول من ${monthlyPrice} ج.م: ${
+    const priceSnippet = monthlyPrice ? ` — الاشتراك يبدأ من ${monthlyPrice} ج.م` : "";
+    const shareText = `شوف صفحة ${facility.nameAr} (${facility.city}) على كابتنلي${priceSnippet}: ${
       typeof window !== "undefined" ? `${window.location.origin}/academy/${facility.slug}` : ""
     }`;
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -186,12 +189,20 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
                 الاشتراك الشهري الموثق
               </span>
               <div className="flex items-baseline gap-1">
-                <span className="font-price-tag text-price-tag text-deep-olive">
-                  {monthlyPrice.toLocaleString("en-US")}
-                </span>
-                <span className="font-badge-label text-badge-label text-deep-olive">
-                  ج.م {basePackage ? `/ ${basePackage.sessionsCount} حصة` : ""}
-                </span>
+                {monthlyPrice ? (
+                  <>
+                    <span className="font-price-tag text-price-tag text-deep-olive">
+                      {monthlyPrice.toLocaleString("en-US")}
+                    </span>
+                    <span className="font-badge-label text-badge-label text-deep-olive">
+                      ج.م {basePackage ? `/ ${basePackage.sessionsCount} حصة` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <span className="font-badge-label text-xs text-text-muted">
+                    الأسعار والمواعيد داخل الصفحة
+                  </span>
+                )}
               </div>
             </div>
           ) : (

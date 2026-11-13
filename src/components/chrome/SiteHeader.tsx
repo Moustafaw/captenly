@@ -7,7 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { isChromeless } from "./chromeRoutes";
 import { Icon } from "@/components/Icon";
 import { signOut } from "next-auth/react";
-import { GoogleMark, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 
 const STATIC_NAV_START = [
   { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
@@ -47,6 +47,8 @@ export function SiteHeader() {
     unreadNotificationsCount,
     savedFavoriteIds,
     currentPersona,
+    isAuthenticated,
+    openAuthGateModal,
     effectiveOffline,
     signOutToGuest,
   } = useCaptenly();
@@ -73,30 +75,37 @@ export function SiteHeader() {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  const roleNavItems =
-    currentPersona.role === "coach"
-      ? [
-          {
-            href: "/dashboard/coach",
-            label: "لوحة الكابتن",
-            match: (p: string) => p.startsWith("/dashboard/coach") || p.startsWith("/dashboard/ledger"),
-          },
-        ]
-      : currentPersona.role === "facility_manager"
-      ? [
-          {
-            href: "/dashboard/facility",
-            label: "لوحة المنشأة",
-            match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
-          },
-        ]
-      : [
-          {
-            href: "/dashboard/athlete",
-            label: "مساحتي وحصصي",
-            match: (p: string) => p.startsWith("/dashboard/athlete") || p.startsWith("/dashboard/ledger"),
-          },
-        ];
+  const roleNavItems = !isAuthenticated
+    ? [
+        {
+          href: "/coaches",
+          label: "الكباتن الموثقون",
+          match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
+        },
+      ]
+    : currentPersona.role === "coach"
+    ? [
+        {
+          href: "/dashboard/coach",
+          label: "لوحة الكابتن",
+          match: (p: string) => p.startsWith("/dashboard/coach") || p.startsWith("/dashboard/ledger"),
+        },
+      ]
+    : currentPersona.role === "facility_manager"
+    ? [
+        {
+          href: "/dashboard/facility",
+          label: "لوحة المنشأة",
+          match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
+        },
+      ]
+    : [
+        {
+          href: "/dashboard/athlete",
+          label: "مساحتي وحصصي",
+          match: (p: string) => p.startsWith("/dashboard/athlete") || p.startsWith("/dashboard/ledger"),
+        },
+      ];
 
   const NAV = [...STATIC_NAV_START, ...roleNavItems, ...STATIC_NAV_END];
 
@@ -179,8 +188,8 @@ export function SiteHeader() {
           </form>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          {effectiveOffline && (
+        <div className="flex items-center gap-2 shrink-0">
+          {effectiveOffline && isAuthenticated && (
             <Link
               href="/dashboard/ledger"
               title="وضع الأوفلاين مفعل للـ QR"
@@ -191,168 +200,176 @@ export function SiteHeader() {
             </Link>
           )}
 
-          <Link
-            href="/favorites"
-            aria-label="المفضلة"
-            title="المفضلة"
-            className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
-          >
-            <Icon name="bookmark" className="text-[18px]" />
-            {savedFavoriteIds.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold flex items-center justify-center">
-                {savedFavoriteIds.length}
-              </span>
-            )}
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link
+                href="/favorites"
+                aria-label="المفضلة"
+                title="المفضلة"
+                className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+              >
+                <Icon name="bookmark" className="text-[18px]" />
+                {savedFavoriteIds.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold flex items-center justify-center">
+                    {savedFavoriteIds.length}
+                  </span>
+                )}
+              </Link>
 
-          <Link
-            href="/notifications"
-            aria-label="الإشعارات"
-            className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
-          >
-            <Icon name="notifications" className="text-[18px]" />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-deep-olive text-white text-[10px] font-bold flex items-center justify-center">
-                {unreadNotificationsCount}
-              </span>
-            )}
-          </Link>
+              <Link
+                href="/notifications"
+                aria-label="الإشعارات"
+                className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+              >
+                <Icon name="notifications" className="text-[18px]" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-deep-olive text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadNotificationsCount}
+                  </span>
+                )}
+              </Link>
 
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-primary overflow-hidden border border-deep-olive/30 flex items-center justify-center cursor-pointer shadow-sm text-on-primary hover:brightness-110 transition-all"
-              aria-label="حسابي"
-            >
-              {currentPersona.avatarUrl ? (
-                <img
-                  src={currentPersona.avatarUrl}
-                  alt={currentPersona.fullNameAr}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Icon name="person" className="text-on-primary text-[18px]" />
-              )}
-            </button>
-            {menuOpen && (
-              <div className="absolute left-0 top-12 w-72 bg-surface-card rounded-2xl shadow-[0_12px_36px_rgba(26,31,33,0.16)] p-2.5 flex flex-col border border-surface-container z-50">
-                <div className="px-3 py-2 rounded-xl bg-surface-snow mb-1.5 flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
-                    {currentPersona.avatarUrl ? (
-                      <img
-                        src={currentPersona.avatarUrl}
-                        alt={currentPersona.fullNameAr}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Icon name="person" className="text-deep-olive text-[18px]" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-card-title-sm text-dark-slate truncate">{currentPersona.fullNameAr}</div>
-                    {currentPersona.email && (
-                      <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted truncate" dir="ltr">
-                        <GoogleMark className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{currentPersona.email}</span>
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="w-9 h-9 rounded-full bg-primary overflow-hidden border border-deep-olive/30 flex items-center justify-center cursor-pointer shadow-sm text-on-primary hover:brightness-110 transition-all"
+                  aria-label="حسابي"
+                >
+                  {currentPersona.avatarUrl ? (
+                    <img
+                      src={currentPersona.avatarUrl}
+                      alt={currentPersona.fullNameAr}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Icon name="person" className="text-on-primary text-[18px]" />
+                  )}
+                </button>
+                {menuOpen && (
+                  <div className="absolute left-0 top-12 w-72 bg-surface-card rounded-2xl shadow-[0_12px_36px_rgba(26,31,33,0.16)] p-2.5 flex flex-col border border-surface-container z-50">
+                    <div className="px-3 py-2 rounded-xl bg-surface-snow mb-1.5 flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
+                        {currentPersona.avatarUrl ? (
+                          <img
+                            src={currentPersona.avatarUrl}
+                            alt={currentPersona.fullNameAr}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Icon name="person" className="text-deep-olive text-[18px]" />
+                        )}
                       </div>
-                    )}
-                    <div className="flex items-center justify-between text-[11px] text-text-muted mt-0.5">
-                      <span>كود:</span>
-                      <span className="font-mono font-bold text-deep-olive">
-                        {currentPersona.memberCode || "CAP-M"}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-card-title-sm text-dark-slate truncate">{currentPersona.fullNameAr}</div>
+                        {currentPersona.email && (
+                          <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted truncate" dir="ltr">
+                            <GoogleMark className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{currentPersona.email}</span>
+                          </div>
+                        )}
+                        {currentPersona.memberCode && (
+                          <div className="flex items-center justify-between text-[11px] text-text-muted mt-0.5">
+                            <span>كود:</span>
+                            <span className="font-mono font-bold text-deep-olive">
+                              {currentPersona.memberCode}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {(currentPersona.role === "coach"
-                  ? [
-                      { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
-                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر طلابي (QR)" },
-                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                      { href: "/badges", icon: "verified", label: "مركز الشارات الخضراء" },
-                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
-                    ]
-                  : currentPersona.role === "facility_manager"
-                  ? [
-                      { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة الأكاديمية" },
-                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفاتر المشتركين (QR)" },
-                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                      { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات" },
-                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
-                    ]
-                  : currentPersona.role === "guest"
-                  ? [
-                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                      { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
-                      { href: "/claim", icon: "verified", label: "توثيق أكاديمية أو كابتن" },
-                    ]
-                  : [
-                      { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والعائلة" },
-                      { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
-                      { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                      { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
-                      { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات والأمان" },
-                    ]
-                ).map((i) => (
-                  <Link
-                    key={i.href}
-                    href={i.href}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-dark-slate"
-                  >
-                    <Icon name={i.icon} className="text-deep-olive text-[17px]" />
-                    {i.label}
-                  </Link>
-                ))}
-
-                <div className="h-px bg-border-hairline my-1.5" />
-                <div className="flex flex-col gap-1.5 px-1">
-                  {currentPersona.authProvider === "google" ? (
-                    <>
+                    {(currentPersona.role === "coach"
+                      ? [
+                          { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
+                          { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر طلابي (QR)" },
+                          { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                          { href: "/badges", icon: "verified", label: "مركز الشارات الخضراء" },
+                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                        ]
+                      : currentPersona.role === "facility_manager"
+                      ? [
+                          { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة الأكاديمية" },
+                          { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفاتر المشتركين (QR)" },
+                          { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                          { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات" },
+                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                        ]
+                      : [
+                          { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والعائلة" },
+                          { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
+                          { href: "/favorites", icon: "bookmark", label: "المفضلة" },
+                          { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
+                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
+                        ]
+                    ).map((i) => (
                       <Link
-                        href="/auth/onboarding?source=google"
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                        key={i.href}
+                        href={i.href}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-dark-slate"
                       >
-                        <GoogleMark className="w-4 h-4 shrink-0" />
-                        <span>إعداد نوع الحساب والملف</span>
+                        <Icon name={i.icon} className="text-deep-olive text-[17px]" />
+                        {i.label}
                       </Link>
+                    ))}
+
+                    <div className="h-px bg-border-hairline my-1.5" />
+                    <div className="flex flex-col gap-1.5 px-1">
+                      {currentPersona.authProvider === "google" && (
+                        <Link
+                          href="/auth/onboarding?source=google"
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                        >
+                          <GoogleMark className="w-4 h-4 shrink-0" />
+                          <span>إعداد نوع الحساب والملف</span>
+                        </Link>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
                           signOutToGuest();
-                          signOut({ redirect: false }).catch(() => undefined);
+                          if (currentPersona.authProvider === "google") {
+                            signOut({ redirect: false }).catch(() => undefined);
+                          }
                           setMenuOpen(false);
                         }}
                         className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-50 font-body-compact text-body-compact text-status-danger font-bold text-right"
                       >
                         <Icon name="logout" className="text-[17px]" />
-                        <span>تسجيل الخروج من Google</span>
+                        <span>تسجيل الخروج</span>
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      <GoogleSignInButton
-                        compact
-                        labelAr="الدخول بحساب Google"
-                        className="w-full"
-                        onSuccessNavigate={() => setMenuOpen(false)}
-                      />
-                      <Link
-                        href="/auth"
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
-                      >
-                        <Icon name="login" className="text-[17px]" />
-                        تسجيل حساب / بوابة الأدوار
-                      </Link>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openAuthGateModal("حفظ المنشآت في المفضلة")}
+                aria-label="المفضلة"
+                title="المفضلة (يتطلب تسجيل الدخول)"
+                className="w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+              >
+                <Icon name="bookmark" className="text-[18px]" />
+              </button>
+              <Link
+                href="/auth/login"
+                className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-dark-slate text-xs font-bold transition-colors whitespace-nowrap"
+              >
+                تسجيل الدخول
+              </Link>
+              <Link
+                href="/auth/register"
+                className="px-4 py-2 rounded-full bg-dark-slate hover:bg-deep-carbon text-electric-volt text-xs font-extrabold transition-colors whitespace-nowrap shadow-sm"
+              >
+                إنشاء حساب
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -425,7 +442,7 @@ export function SiteHeader() {
             >
               <Icon name="qr_code_2" className="text-[14px] text-deep-olive" />
               <span>كود العضوية:</span>
-              <span className="font-mono text-deep-olive">{currentPersona.memberCode || "CAP-M-5190"}</span>
+              <span className="font-mono text-deep-olive">{currentPersona.memberCode}</span>
             </Link>
           )}
         </div>

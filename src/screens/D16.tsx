@@ -6,9 +6,19 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Desktop16() {
-  const { facilities, coaches, articles, savedFavoriteIds, toggleFavorite } = useCaptenly();
+  const { facilities, coaches, articles, savedFavoriteIds, toggleFavorite, isAuthenticated } = useCaptenly();
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="يرجى إنشاء حساب أو تسجيل الدخول لعرض المفضلة"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك المجاني على Captenly لحفظ المسابح والأكاديميات والكباتن المفضلة لديك والرجوع إليها في أي وقت."
+      />
+    );
+  }
 
   const savedFacilities = facilities.filter((f) => savedFavoriteIds.includes(f.id));
   const savedCoaches = coaches.filter((c) => savedFavoriteIds.includes(c.id));

@@ -37,95 +37,23 @@ export const PROHIBITED_MEDICAL_KEYWORDS = [
   "تأهيل إصابات طبية",
 ];
 
-export const INITIAL_MEMBER_REGISTRY: MemberRegistryEntry[] = [
-  {
-    memberCode: "CAP-M-5190",
-    athleteId: "persona-athlete-independent",
-    fullNameAr: "كريم محمود الدسوقي",
-    phone: "01022334455",
-    city: "المحلة الكبرى",
-    role: "adult_athlete",
-    isMinor: false,
-  },
-  {
-    memberCode: "CAP-M-4821",
-    athleteId: "athlete-youssef",
-    fullNameAr: "يوسف خالد المنشاوي",
-    phone: "01001122334",
-    city: "المحلة الكبرى",
-    role: "parent",
-    isMinor: true,
-    parentNameAr: "مدام نهى المنشاوي",
-  },
-];
+export const INITIAL_MEMBER_REGISTRY: MemberRegistryEntry[] = [];
 
-export const PERSONA_ACCOUNTS: PersonaAccount[] = [
-  {
-    id: "persona-athlete-independent",
-    role: "adult_athlete",
-    memberCode: "CAP-M-5190",
-    hasParentSupervision: false,
-    shortLabelAr: "حساب سباح مستقل (كريم)",
-    fullNameAr: "كريم محمود الدسوقي",
-    personaTitleAr: "سبّاح مستقل — كود العضوية CAP-M-5190",
-    city: "المحلة الكبرى",
-    phone: "01022334455",
-    descriptionAr:
-      "حساب سبّاح مستقل يدير باقاته وسجلاته بنفسه، وجاهز لتسليم كود العضوية لأي كابتن أو أكاديمية موثقة لتفعيل دفتر الحصص.",
-  },
-  {
-    id: "persona-parent",
-    role: "parent",
-    memberCode: "CAP-M-4821",
-    hasParentSupervision: true,
-    shortLabelAr: "ولي أمر (نهى)",
-    fullNameAr: "مدام نهى المنشاوي",
-    personaTitleAr: "ولي أمر لمتابعة حصص السباحة للأطفال",
-    city: "المحلة الكبرى",
-    phone: "01001122334",
-    descriptionAr:
-      "حساب ولي أمر لمتابعة حصص السباحة للأطفال وتقييماتهم وإيصالات الاشتراك مع دعم دفتر الحصص الأوفلاين.",
-  },
-  {
-    id: "persona-guest",
-    role: "guest",
-    memberCode: "CAP-M-GUEST",
-    hasParentSupervision: false,
-    shortLabelAr: "زائر (بدون تسجيل)",
-    fullNameAr: "زائر كابتنلي",
-    personaTitleAr: "تصفح مجاني بدون حساب",
-    city: "المحلة الكبرى",
-    phone: "",
-    descriptionAr:
-      "استكشاف المسابح القريبة ومجلة السباحة متاح بالكامل مجاناً بدون أي تسجيل مسبق.",
-  },
-  {
-    id: "persona-facility",
-    role: "facility_manager",
-    memberCode: "CAP-F-3011",
-    hasParentSupervision: false,
-    shortLabelAr: "إدارة أكاديمية / مسبح",
-    fullNameAr: "إدارة أكاديمية سباحة",
-    personaTitleAr: "حساب إدارة مسبح أو أكاديمية سباحة",
-    city: "المحلة الكبرى",
-    phone: "01055667788",
-    descriptionAr:
-      "إدارة صفحة الأكاديمية أو المسبح، المطالبة بالملكية، إضافة برامج المدرسة المائية، وتسجيل السباحين بكود العضوية.",
-  },
-  {
-    id: "persona-coach",
-    role: "coach",
-    memberCode: "CAP-C-9001",
-    hasParentSupervision: false,
-    shortLabelAr: "بوابة الكابتن والتوثيق",
-    fullNameAr: "كابتن متقدم للاعتماد",
-    personaTitleAr: "حساب كابتن — التوثيق والملف المهني",
-    city: "المحلة الكبرى",
-    phone: "01099887766",
-    descriptionAr:
-      "توثيق الشهادات لإصدار الشارات الخضراء، نشر عروض التدريب، ربط السباحين بكود العضوية، وتسجيل الحضور بالـ QR.",
-  },
-];
+export const GUEST_PERSONA: PersonaAccount = {
+  id: "persona-guest",
+  role: "guest",
+  memberCode: "",
+  hasParentSupervision: false,
+  shortLabelAr: "زائر (بدون تسجيل)",
+  fullNameAr: "زائر كابتنلي",
+  personaTitleAr: "تصفح واستكشاف مجاني",
+  city: "المحلة الكبرى",
+  phone: "",
+  descriptionAr:
+    "استكشف المسابح القريبة والكباتن المعتمدين ومجلة السباحة مجاناً — أنشئ حسابك لحفظ المفضلة والمقارنة والتواصل.",
+};
+
+export const PERSONA_ACCOUNTS: PersonaAccount[] = [GUEST_PERSONA];
 
 // سياسة صفر بيانات وهمية:
 // لا تُزرع منشآت أو كباتن وهميون داخل الكود — تظهر المنشآت المسجلة فعلياً من Supabase + دليل خرائط Google Places الحيّ حسب موقع المستخدم.
@@ -137,7 +65,7 @@ export const INITIAL_SESSION_LEDGERS: SessionLedger[] = [];
 export const INITIAL_VERIFIED_LEADS: VerifiedLeadItem[] = [];
 
 export const INITIAL_SKILL_EVALUATION: SkillEvaluation5Point = {
-  athleteId: "persona-athlete-independent",
+  athleteId: "",
   evaluatedDateAr: "بانتظار أول تقييم رسمي من الكابتن",
   coachNameAr: "لم يُسجل تقييم معتمد بعد",
   metrics: [
@@ -151,52 +79,7 @@ export const INITIAL_SKILL_EVALUATION: SkillEvaluation5Point = {
     "عند ربط كود عضويتك بكابتن موثق أو أكاديمية سيظهر تقييم المهارات المائي المعتمد هنا تلقائياً.",
 };
 
-export const INITIAL_DEMAND_RADAR: DemandRadarEntry[] = [
-  {
-    city: "المحلة الكبرى",
-    governorate: "الغربية",
-    totalSearchesMonth: 412,
-    topUnmetFilters: [
-      {
-        filterTitleAr: "مسبح شتوي مدفأ لتأسيس الأطفال",
-        searchCount: 146,
-        percentage: 35,
-        opportunityNoteAr: "أعلى فجوة طلب في المحلة الكبرى لأولياء الأمور أعمار 5-9 سنوات",
-      },
-      {
-        filterTitleAr: "حصص سباحة للسيدات بإشراف مدربات معتمدات",
-        searchCount: 118,
-        percentage: 29,
-        opportunityNoteAr: "طلب متزايد على المواعيد المسائية المغطاة تماماً",
-      },
-      {
-        filterTitleAr: "حوض تدريب شتوي دافئ لمجموعات الناشئين",
-        searchCount: 74,
-        percentage: 18,
-        opportunityNoteAr: "فرصة لبرامج مدرسة السباحة في نطاق المحلة",
-      },
-    ],
-  },
-  {
-    city: "طنطا",
-    governorate: "الغربية",
-    totalSearchesMonth: 328,
-    topUnmetFilters: [
-      {
-        filterTitleAr: "مجموعات بحد أقصى 4 أطفال في الحارة (VIP)",
-        searchCount: 114,
-        percentage: 35,
-        opportunityNoteAr: "بحث مرتفع في حي أول طنطا وطريق الاستاد",
-      },
-      {
-        filterTitleAr: "مقارنة شاملة للرسوم النهائية بلا مصاريف إضافية",
-        searchCount: 92,
-        percentage: 28,
-        opportunityNoteAr: "المستخدمون يفضلون المنشآت المعلنة لأسعار الكارنيه والتقييم بوضوح",
-      },
-    ],
-  },
-];
+export const INITIAL_DEMAND_RADAR: DemandRadarEntry[] = [];
 
 export const INITIAL_ARTICLES: EditorialArticle[] = [
   {
@@ -337,27 +220,4 @@ export const INITIAL_ARTICLES: EditorialArticle[] = [
   },
 ];
 
-export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "notif-1",
-    titleAr: "كود عضويتك جاهز للتفعيل",
-    messageAr:
-      "شارك كود عضويتك مع الكابتن أو إدارة أكاديمية السباحة لتفعيل باقة الحصص والـ QR أوفلاين فوراً.",
-    timeAr: "الآن",
-    type: "school_card",
-    actionLabelAr: "فتح دفتر الحصص",
-    actionHref: "/dashboard/ledger",
-    isRead: false,
-  },
-  {
-    id: "notif-2",
-    titleAr: "دليل الشتاء للمسابح الدافئة",
-    messageAr:
-      "نُشر دليل 7 معايير أساسية لاختيار مسبح شتوي آمن في مجلة كابتنلي.",
-    timeAr: "منذ 3 ساعات",
-    type: "editorial",
-    actionLabelAr: "قراءة المقال",
-    actionHref: "/magazine/winter-swimming-pool-safety-guide",
-    isRead: false,
-  },
-];
+export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];

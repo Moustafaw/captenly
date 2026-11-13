@@ -24,6 +24,7 @@ import {
 } from "@/types/captenly";
 import { EGYPT_CITY_PRESETS, calculateDistanceKm } from "@/lib/maps";
 import {
+  GUEST_PERSONA,
   INITIAL_ARTICLES,
   INITIAL_COACHES,
   INITIAL_DEMAND_RADAR,
@@ -59,6 +60,11 @@ const DEFAULT_SMART_FILTERS: SmartFiltersState = {
 interface CaptenlyContextType {
   // Active Persona / Auth State
   currentPersona: PersonaAccount;
+  isAuthenticated: boolean;
+  authGateModalOpen: boolean;
+  authGateFeatureNameAr: string;
+  openAuthGateModal: (featureNameAr?: string) => void;
+  closeAuthGateModal: () => void;
   switchPersona: (personaId: string) => void;
   updateCurrentPersonaAvatar: (avatarDataUrl: string) => void;
   updateCurrentPersonaProfile: (patch: {
@@ -267,8 +273,10 @@ interface CaptenlyContextType {
   }) => { ok: boolean; coach?: Coach; detectedKeyword?: string; messageAr: string };
 
   addCoachSessionOffer: (coachId: string, offer: Omit<CoachSessionOffer, "id">) => { ok: boolean; messageAr: string };
+  updateCoachSessionOffer: (coachId: string, offerId: string, patch: Partial<Omit<CoachSessionOffer, "id">>) => { ok: boolean; messageAr: string };
   removeCoachSessionOffer: (coachId: string, offerId: string) => void;
   addFacilitySchoolProgram: (facilityId: string, program: Omit<FacilitySchoolProgram, "id">) => { ok: boolean; messageAr: string };
+  updateFacilitySchoolProgram: (facilityId: string, programId: string, patch: Partial<Omit<FacilitySchoolProgram, "id">>) => { ok: boolean; messageAr: string };
   removeFacilitySchoolProgram: (facilityId: string, programId: string) => void;
   mergeExternalPlacesFacilities: (externalPlaces: Facility[]) => void;
   placesHydrating: boolean;
@@ -330,12 +338,20 @@ interface CaptenlyContextType {
 
 const CaptenlyContext = createContext<CaptenlyContextType | undefined>(undefined);
 
-const STORAGE_KEY = "captenly_platform_state_v5";
-const LEGACY_STORAGE_KEY_V4 = "captenly_platform_state_v4";
+const STORAGE_KEY = "captenly_platform_state_v6";
+const LEGACY_STORAGE_KEY_V5 = "captenly_platform_state_v5";
+const LEGACY_FAKE_PERSONA_IDS = new Set([
+  "persona-athlete-independent",
+  "persona-parent",
+  "persona-facility",
+  "persona-coach",
+]);
 
 export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [allPersonas, setAllPersonas] = useState<PersonaAccount[]>(PERSONA_ACCOUNTS);
-  const [currentPersona, setCurrentPersona] = useState<PersonaAccount>(PERSONA_ACCOUNTS[0]);
+  const [currentPersona, setCurrentPersona] = useState<PersonaAccount>(GUEST_PERSONA);
+  const [authGateModalOpen, setAuthGateModalOpen] = useState<boolean>(false);
+  const [authGateFeatureNameAr, setAuthGateFeatureNameAr] = useState<string>("");
   const [memberRegistry, setMemberRegistry] = useState<MemberRegistryEntry[]>(INITIAL_MEMBER_REGISTRY);
   const [isOfflineSimulated, setIsOfflineSimulated] = useState<boolean>(false);
   const [isBrowserOffline, setIsBrowserOffline] = useState<boolean>(false);
@@ -368,9 +384,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [filterModalOpen, setFilterModalOpen] = useState<boolean>(false);
   const [smartFilters, setSmartFilters] = useState<SmartFiltersState>(DEFAULT_SMART_FILTERS);
 
-  const [savedFavoriteIds, setSavedFavoriteIds] = useState<string[]>([
-    "art-winter-safety",
-  ]);
+  const [savedFavoriteIds, setSavedFavoriteIds] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [articles] = useState<EditorialArticle[]>(INITIAL_ARTICLES);
   const [userSettings, setUserSettings] = useState({
@@ -381,16 +395,34 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     privacyProfilePublic: false,
   });
 
+  const isAuthenticated =
+    currentPersona.role !== "guest" && currentPersona.id !== "persona-guest";
+  const openAuthGateModal = (featureNameAr = "استخدام هذه الميزة") => {
+    setAuthGateFeatureNameAr(featureNameAr);
+    setAuthGateModalOpen(true);
+  };
+  const closeAuthGateModal = () => setAuthGateModalOpen(false);
   const effectiveOffline = isOfflineSimulated || isBrowserOffline;
 
-  // Hydrate persisted Offline-First state from localStorage (purging old seeded mock facilities)
+  // Hydrate persisted Offline-First state from localStorage (zero fake seeded personas/favorites/notifications)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.allPersonas) setAllPersonas(parsed.allPersonas);
-        if (parsed.memberRegistry) setMemberRegistry(parsed.memberRegistry);
+        if (Array.isArray(parsed.allPersonas)) {
+          const cleanPersonas = (parsed.allPersonas as PersonaAccount[]).filter(
+            (p) => p && !LEGACY_FAKE_PERSONA_IDS.has(p.id)
+          );
+          setAllPersonas(cleanPersonas.length ? cleanPersonas : PERSONA_ACCOUNTS);
+        }
+        if (Array.isArray(parsed.memberRegistry)) {
+          setMemberRegistry(
+            (parsed.memberRegistry as MemberRegistryEntry[]).filter(
+              (m) => m && !LEGACY_FAKE_PERSONA_IDS.has(m.athleteId) && m.memberCode !== "CAP-M-5190" && m.memberCode !== "CAP-M-4821"
+            )
+          );
+        }
         if (Array.isArray(parsed.facilities)) {
           setFacilities(
             (parsed.facilities as Facility[]).filter(
@@ -406,43 +438,43 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (parsed.demandRadar) setDemandRadar(parsed.demandRadar);
         if (parsed.demandSubmissions) setDemandSubmissions(parsed.demandSubmissions);
         if (parsed.offlineQueue) setOfflineQueue(parsed.offlineQueue);
-        if (parsed.savedFavoriteIds) setSavedFavoriteIds(parsed.savedFavoriteIds);
-        if (parsed.compareFacilityIds) setCompareFacilityIds(parsed.compareFacilityIds);
-        if (parsed.notifications) setNotifications(parsed.notifications);
+        if (Array.isArray(parsed.savedFavoriteIds)) setSavedFavoriteIds(parsed.savedFavoriteIds);
+        if (Array.isArray(parsed.compareFacilityIds)) setCompareFacilityIds(parsed.compareFacilityIds);
+        if (Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
         if (parsed.userSettings) setUserSettings(parsed.userSettings);
         if (parsed.newsletterEmails) setNewsletterEmails(parsed.newsletterEmails);
         if (parsed.userLocation) setUserLocation(parsed.userLocation);
-        if (parsed.personaId) {
-          const pool = parsed.allPersonas || PERSONA_ACCOUNTS;
+        if (parsed.personaId && !LEGACY_FAKE_PERSONA_IDS.has(parsed.personaId)) {
+          const pool = Array.isArray(parsed.allPersonas) ? parsed.allPersonas : PERSONA_ACCOUNTS;
           const found = pool.find((p: PersonaAccount) => p.id === parsed.personaId);
-          if (found) setCurrentPersona(found);
+          setCurrentPersona(found || GUEST_PERSONA);
+        } else {
+          setCurrentPersona(GUEST_PERSONA);
         }
       } else {
-        // Migrate avatar, bio, social links, and location cleanly from v4 without carrying old mock facilities
-        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY_V4);
-        if (legacy) {
-          const parsed = JSON.parse(legacy);
+        // One-time clean migration from v5: preserve userLocation & genuinely signed-in accounts only
+        const legacyV5 = localStorage.getItem(LEGACY_STORAGE_KEY_V5);
+        if (legacyV5) {
+          const parsed = JSON.parse(legacyV5);
           if (parsed.userLocation) setUserLocation(parsed.userLocation);
-          if (parsed.allPersonas && Array.isArray(parsed.allPersonas)) {
-            const legacyMap = new Map<string, PersonaAccount>();
-            for (const lp of parsed.allPersonas as PersonaAccount[]) {
-              if (lp?.id) legacyMap.set(lp.id, lp);
+          if (Array.isArray(parsed.allPersonas)) {
+            const realAccounts = (parsed.allPersonas as PersonaAccount[]).filter(
+              (p) =>
+                p &&
+                !LEGACY_FAKE_PERSONA_IDS.has(p.id) &&
+                p.role !== "guest" &&
+                (p.authProvider === "google" || p.id.startsWith("user-") || p.id.startsWith("google-"))
+            );
+            if (realAccounts.length > 0) {
+              setAllPersonas([GUEST_PERSONA, ...realAccounts]);
+              const activeReal = realAccounts.find((p) => p.id === parsed.personaId);
+              if (activeReal) {
+                setCurrentPersona(activeReal);
+              }
             }
-            const merged = PERSONA_ACCOUNTS.map((p) => {
-              const old = legacyMap.get(p.id);
-              return old
-                ? {
-                    ...p,
-                    avatarUrl: old.avatarUrl ?? p.avatarUrl,
-                    bioAr: old.bioAr ?? p.bioAr,
-                    socialLinks: old.socialLinks ?? p.socialLinks,
-                  }
-                : p;
-            });
-            setAllPersonas(merged);
-            const targetId = parsed.personaId || merged[0].id;
-            const found = merged.find((p) => p.id === targetId);
-            if (found) setCurrentPersona(found);
+          }
+          if (Array.isArray(parsed.coaches) && parsed.coaches.length > 0) {
+            setCoaches(parsed.coaches);
           }
         }
       }
@@ -765,12 +797,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const resetSmartFilters = () => setSmartFilters(DEFAULT_SMART_FILTERS);
 
   const toggleFavorite = (id: string) => {
+    if (!isAuthenticated) {
+      openAuthGateModal("حفظ المنشآت والكباتن في المفضلة");
+      return;
+    }
     setSavedFavoriteIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
-  const isFavorite = (id: string) => savedFavoriteIds.includes(id);
+  const isFavorite = (id: string) => (isAuthenticated ? savedFavoriteIds.includes(id) : false);
 
   const markNotificationAsRead = (id: string) => {
     setNotifications((prev) =>
@@ -819,6 +855,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     targetSport: "swimming" | "fitness" | "other";
     notes?: string;
   }) => {
+    if (!isAuthenticated) {
+      openAuthGateModal("إرسال طلب توافر منشآت في منطقتك");
+      return {
+        ok: false,
+        messageAr: "يرجى تسجيل الدخول أو إنشاء حساب في Captenly أولاً.",
+      };
+    }
     const submission: DemandRadarSubmission = {
       id: `sub-${Date.now()}`,
       ...entry,
@@ -977,8 +1020,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       };
       setAllPersonas((prev) => prev.map((p) => (p.id === existing.id ? updated : p)));
       setCurrentPersona(updated);
+      const fallbackCode = existing.memberCode || generateUniqueMemberCode("CAP-M");
       postSupabaseSync("/api/supabase/sync-profile", {
-        memberCode: updated.memberCode || "CAP-M-5190",
+        memberCode: fallbackCode,
         email: cleanEmail,
         fullNameAr: updated.fullNameAr,
         role: updated.role,
@@ -993,7 +1037,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         ok: true,
         isNewUser: false,
         persona: updated,
-        memberCode: updated.memberCode || "CAP-M-5190",
+        memberCode: fallbackCode,
       };
     }
 
@@ -1134,7 +1178,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
 
     postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: updatedPersona.memberCode || currentPersona.memberCode || "CAP-M-5190",
+      memberCode: updatedPersona.memberCode || nextCode,
       email: updatedPersona.email,
       fullNameAr: updatedPersona.fullNameAr,
       role: updatedPersona.role,
@@ -1242,6 +1286,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleCompareFacility = (facilityId: string) => {
+    if (!isAuthenticated) {
+      openAuthGateModal("مقارنة المنشآت والباقات");
+      return {
+        ok: false,
+        messageAr: "يرجى تسجيل الدخول أو إنشاء حساب في Captenly للمقارنة بين المنشآت.",
+      };
+    }
     if (compareFacilityIds.includes(facilityId)) {
       setCompareFacilityIds((prev) => prev.filter((id) => id !== facilityId));
       return { ok: true };
@@ -1310,6 +1361,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     requestedSpecialtyAr: string;
     preferredScheduleAr: string;
   }) => {
+    if (!isAuthenticated) {
+      openAuthGateModal("التواصل والحجز المباشر مع المنشأة أو الكابتن");
+      return { referralCode: "", whatsappUrl: "", isDuplicate30d: false };
+    }
     const cleanPhone = payload.inquirerPhone.trim();
     const isDuplicate30d = verifiedLeads.some(
       (l) => l.targetId === payload.targetId && l.inquirerPhone === cleanPhone && cleanPhone !== ""
@@ -1992,6 +2047,26 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, messageAr: `تم نشر عرض التدريب «${offer.titleAr}» بنجاح!` };
   };
 
+  const updateCoachSessionOffer = (
+    coachId: string,
+    offerId: string,
+    patch: Partial<Omit<CoachSessionOffer, "id">>
+  ) => {
+    setCoaches((prev) =>
+      prev.map((c) =>
+        c.id === coachId
+          ? {
+              ...c,
+              sessionOffers: (c.sessionOffers || []).map((o) =>
+                o.id === offerId ? { ...o, ...patch } : o
+              ),
+            }
+          : c
+      )
+    );
+    return { ok: true, messageAr: "تم تحديث بطاقة الحصة التدريبية بنجاح." };
+  };
+
   const removeCoachSessionOffer = (coachId: string, offerId: string) => {
     setCoaches((prev) =>
       prev.map((c) =>
@@ -2006,7 +2081,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     facilityId: string,
     program: Omit<FacilitySchoolProgram, "id">
   ) => {
-    const newProgram: FacilitySchoolProgram = { ...program, id: `prog-${Date.now()}` };
+    const newProgram: FacilitySchoolProgram = { ...program, id: `prog-${Date.now()}-${Math.floor(Math.random() * 1000)}` };
     setFacilities((prev) =>
       prev.map((f) =>
         f.id === facilityId
@@ -2019,7 +2094,29 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           : f
       )
     );
-    return { ok: true, messageAr: `تم نشر برنامج «${program.titleAr}» في ملف المنشأة!` };
+    return { ok: true, messageAr: `تم نشر بطاقة «${program.titleAr}» بنجاح!` };
+  };
+
+  const updateFacilitySchoolProgram = (
+    facilityId: string,
+    programId: string,
+    patch: Partial<Omit<FacilitySchoolProgram, "id">>
+  ) => {
+    setFacilities((prev) =>
+      prev.map((f) =>
+        f.id === facilityId
+          ? {
+              ...f,
+              schoolPrograms: (f.schoolPrograms || []).map((p) =>
+                p.id === programId ? { ...p, ...patch } : p
+              ),
+              priceLastVerifiedDaysAgo: 0,
+              priceLastVerifiedDate: "اليوم — محدث من الإدارة",
+            }
+          : f
+      )
+    );
+    return { ok: true, messageAr: "تم تحديث تفاصيل البطاقة بنجاح." };
   };
 
   const removeFacilitySchoolProgram = (facilityId: string, programId: string) => {
@@ -2336,7 +2433,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const resetDemoData = () => {
     localStorage.removeItem(STORAGE_KEY);
     setAllPersonas(PERSONA_ACCOUNTS);
-    setCurrentPersona(PERSONA_ACCOUNTS[0]);
+    setCurrentPersona(GUEST_PERSONA);
     setMemberRegistry(INITIAL_MEMBER_REGISTRY);
     setFacilities(INITIAL_FACILITIES);
     setCoaches(INITIAL_COACHES);
@@ -2346,6 +2443,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setVerifiedLeads(INITIAL_VERIFIED_LEADS);
     setDemandRadar(INITIAL_DEMAND_RADAR);
     setOfflineQueue([]);
+    setSavedFavoriteIds([]);
     setCompareFacilityIds([]);
     setNotifications(INITIAL_NOTIFICATIONS);
   };
@@ -2354,6 +2452,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     <CaptenlyContext.Provider
       value={{
         currentPersona,
+        isAuthenticated,
+        authGateModalOpen,
+        authGateFeatureNameAr,
+        openAuthGateModal,
+        closeAuthGateModal,
         switchPersona,
         updateCurrentPersonaAvatar,
         updateCurrentPersonaProfile,
@@ -2414,8 +2517,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         addMinorAthlete,
         registerAndVerifyCoach,
         addCoachSessionOffer,
+        updateCoachSessionOffer,
         removeCoachSessionOffer,
         addFacilitySchoolProgram,
+        updateFacilitySchoolProgram,
         removeFacilitySchoolProgram,
         mergeExternalPlacesFacilities,
         placesHydrating,

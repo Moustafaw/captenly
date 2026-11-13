@@ -20,7 +20,7 @@ export default function Desktop5() {
         </h1>
         <p className="font-body-default text-text-muted max-w-xl">
           حسابك جاهز الآن بالكامل. كود عضويتك الفريد هو{" "}
-          <span className="font-mono font-bold text-deep-olive">{currentPersona.memberCode || "CAP-M-5190"}</span>
+          <span className="font-mono font-bold text-deep-olive">{currentPersona.memberCode}</span>
           ، ويمكنك الآن استكشاف المنشآت أو فتح دفتر الحصص الرقمي.
         </p>
 

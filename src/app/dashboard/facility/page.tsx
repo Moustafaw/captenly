@@ -4,6 +4,8 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
 
 export default function FacilityDashboardPage() {
   const {
@@ -14,10 +16,9 @@ export default function FacilityDashboardPage() {
     enrollSwimmerByMemberCode,
     checkInSession,
     publishSchoolPackage,
-    addFacilitySchoolProgram,
-    removeFacilitySchoolProgram,
     confirmFacilityPrices60d,
     currentPersona,
+    isAuthenticated,
   } = useCaptenly();
 
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>(
@@ -29,27 +30,20 @@ export default function FacilityDashboardPage() {
   );
 
   // Member Code Enrollment Form
-  const [memberCodeInput, setMemberCodeInput] = useState("CAP-M-5190");
+  const [memberCodeInput, setMemberCodeInput] = useState("");
   const [athleteNameInput, setAthleteNameInput] = useState("");
   const [pkgTitleInput, setPkgTitleInput] = useState(
-    facility?.pricePackages[0]?.nameAr || "مدرسة السباحة — 8 حصص"
+    facility?.pricePackages[0]?.nameAr || ""
   );
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
   const [amountEgp, setAmountEgp] = useState<string>(
-    facility?.pricePackages[0]?.baseMonthlyEgp ? String(facility.pricePackages[0].baseMonthlyEgp) : "700"
+    facility?.pricePackages[0]?.baseMonthlyEgp ? String(facility.pricePackages[0].baseMonthlyEgp) : ""
   );
 
   // Publish Package Form
-  const [newPkgName, setNewPkgName] = useState("مدرسة أطفال شتوية — 8 حصص");
+  const [newPkgName, setNewPkgName] = useState("");
   const [newPkgSessions, setNewPkgSessions] = useState("8");
-  const [newPkgPrice, setNewPkgPrice] = useState("750");
-
-  // Publish Swimming School Track Form (البراعم / التجهيزي / الفريق)
-  const [trackType, setTrackType] = useState<"buds" | "prep" | "team" | "school" | "ladies">("buds");
-  const [trackTitleAr, setTrackTitleAr] = useState("أكاديمية البراعم (تأسيس وكسر الرهبة)");
-  const [trackAgeAr, setTrackAgeAr] = useState("4 – 7 سنوات");
-  const [trackPrice, setTrackPrice] = useState("750");
-  const [trackSchedule, setTrackSchedule] = useState("السبت والإثنين والأربعاء — 5 م");
+  const [newPkgPrice, setNewPkgPrice] = useState("");
 
   // Feedback message
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -71,6 +65,15 @@ export default function FacilityDashboardPage() {
     [memberRegistry, memberCodeInput]
   );
 
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="لوحة إدارة المنشأة تتطلب تسجيل الدخول"
+        descriptionAr="سجّل دخولك بحساب إدارة الأكاديمية أو المسبح لإدارة بطاقات المواعيد والأسعار وتفعيل دفاتر الحصص للمتدربين."
+      />
+    );
+  }
+
   if (!facility) return null;
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
@@ -81,9 +84,9 @@ export default function FacilityDashboardPage() {
       memberCode: memberCodeInput,
       athleteNameAr: athleteNameInput || matchedMember?.fullNameAr,
       facilityId: facility.id,
-      packageTitleAr: pkgTitleInput,
+      packageTitleAr: pkgTitleInput || "باقة سباحة",
       totalSessions: sessionsCount,
-      amountEgp: Number(amountEgp) || 700,
+      amountEgp: Number(amountEgp) || 0,
     });
     setFeedback({ ok: res.ok, msg: res.messageAr });
   };
@@ -96,7 +99,7 @@ export default function FacilityDashboardPage() {
       sessionsCount: Number(newPkgSessions) || 8,
       sessionsPerWeek: Number(newPkgSessions) >= 12 ? 3 : 2,
       durationMinutes: 60,
-      baseMonthlyEgp: Number(newPkgPrice) || 700,
+      baseMonthlyEgp: Number(newPkgPrice) || 0,
     });
     setFeedback({ ok: res.ok, msg: res.messageAr });
   };
@@ -219,7 +222,7 @@ export default function FacilityDashboardPage() {
                   تسجيل سباح بكود العضوية وتفعيل الـ QR فوراً
                 </h2>
                 <p className="font-body-compact text-text-muted mt-0.5">
-                  أدخل كود عضوية المتدرب (مثال: CAP-M-5190 أو CAP-M-7412) مع عدد الحصص والمبلغ لتفعيل دفتره أوفلاين.
+                  أدخل كود عضوية المتدرب (بصيغة CAP-M-XXXX) مع عدد الحصص والمبلغ لتفعيل دفتره أوفلاين.
                 </p>
               </div>
               <span className="text-deep-olive text-[11px] font-extrabold shrink-0">
@@ -234,7 +237,7 @@ export default function FacilityDashboardPage() {
                   required
                   value={memberCodeInput}
                   onChange={(e) => setMemberCodeInput(e.target.value)}
-                  placeholder="CAP-M-5190"
+                  placeholder="CAP-M-XXXX"
                   className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                 />
                 {matchedMember && (
@@ -359,124 +362,22 @@ export default function FacilityDashboardPage() {
           </div>
         </div>
 
-        {/* Swimming School Tracks Manager (البراعم / التجهيزي / الفريق) */}
+        {/* Dynamic Unlimited Schedule & School Cards Manager */}
         <section className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h2 className="font-section-title text-dark-slate">
-                إدارة برامج مدارس السباحة (البراعم • التجهيزي • الفريق)
-              </h2>
-              <p className="text-xs text-text-muted mt-0.5">
-                تظهر هذه المسارات مباشرة في الصفحة العامة للمنشأة بمواعيدها وأسعارها والفئة العمرية.
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold">
-              {(facility.schoolPrograms || []).length} مسارات منشورة
-            </span>
+          <div>
+            <h2 className="font-section-title text-dark-slate">
+              إدارة بطاقات المواعيد والمدارس (عدد لا نهائي)
+            </h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              أنشئ أي عدد من البطاقات لكل فئة وتوقيت وساعة حصة ومدتها وسعرها ومزيد من التفاصيل — وتظهر مباشرة في العمود الجانبي لصفحة المنشأة.
+            </p>
           </div>
-
-          {(facility.schoolPrograms || []).length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {facility.schoolPrograms!.map((prog) => (
-                <div
-                  key={prog.id}
-                  className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex flex-col justify-between gap-2"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-deep-olive">{prog.trackLabelAr}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeFacilitySchoolProgram(facility.id, prog.id)}
-                        className="text-[11px] font-bold text-status-danger hover:underline"
-                      >
-                        حذف
-                      </button>
-                    </div>
-                    <div className="font-card-title-sm text-dark-slate mt-1">{prog.titleAr}</div>
-                    <div className="text-xs text-text-muted mt-0.5">
-                      {prog.ageRangeAr ? `${prog.ageRangeAr} • ` : ""}
-                      {prog.scheduleAr}
-                    </div>
-                  </div>
-                  <div className="text-lg font-black text-deep-olive">{prog.priceEgp} ج.م</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const labelMap: Record<typeof trackType, string> = {
-                buds: "البراعم",
-                prep: "التجهيزي",
-                team: "الفريق",
-                school: "المدرسة التعليمية",
-                ladies: "ساعات السيدات",
-              };
-              const res = addFacilitySchoolProgram(facility.id, {
-                trackType,
-                trackLabelAr: labelMap[trackType],
-                titleAr: trackTitleAr.trim(),
-                ageRangeAr: trackAgeAr.trim() || undefined,
-                priceEgp: Number(trackPrice) || 750,
-                scheduleAr: trackSchedule.trim(),
-              });
-              setFeedback({ ok: res.ok, msg: res.messageAr });
-            }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-surface-container"
-          >
-            <select
-              value={trackType}
-              onChange={(e) =>
-                setTrackType(e.target.value as "buds" | "prep" | "team" | "school" | "ladies")
-              }
-              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold outline-none border border-surface-container"
-            >
-              <option value="buds">مسار البراعم</option>
-              <option value="prep">المسار التجهيزي</option>
-              <option value="team">مسار الفريق</option>
-              <option value="school">مدرسة السباحة العامة</option>
-              <option value="ladies">برامج السيدات</option>
-            </select>
-            <input
-              required
-              value={trackTitleAr}
-              onChange={(e) => setTrackTitleAr(e.target.value)}
-              placeholder="اسم البرنامج"
-              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
-            />
-            <input
-              value={trackAgeAr}
-              onChange={(e) => setTrackAgeAr(e.target.value)}
-              placeholder="الفئة العمرية (مثلاً 4-7 سنوات)"
-              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
-            />
-            <input
-              required
-              value={trackSchedule}
-              onChange={(e) => setTrackSchedule(e.target.value)}
-              placeholder="الأيام والمواعيد"
-              className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
-            />
-            <div className="flex gap-2">
-              <input
-                required
-                type="number"
-                value={trackPrice}
-                onChange={(e) => setTrackPrice(e.target.value)}
-                placeholder="السعر"
-                className="w-24 rounded-xl bg-surface-snow px-3 py-2.5 text-xs outline-none border border-surface-container"
-              />
-              <button
-                type="submit"
-                className="flex-1 rounded-full bg-dark-slate text-electric-volt text-xs font-bold px-4"
-              >
-                + نشر
-              </button>
-            </div>
-          </form>
+          <DynamicScheduleCardsBuilder
+            mode="facility"
+            targetId={facility.id}
+            facilityPrograms={facility.schoolPrograms || []}
+            onFeedback={setFeedback}
+          />
         </section>
 
         {/* Active Facility Ledgers */}

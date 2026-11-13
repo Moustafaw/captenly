@@ -9,6 +9,7 @@ import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 
 export default function Desktop22() {
   const params = useParams();
@@ -23,6 +24,8 @@ export default function Desktop22() {
     toggleCompareFacility,
     createStructuredWhatsappLead,
     currentPersona,
+    isAuthenticated,
+    openAuthGateModal,
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
@@ -94,6 +97,9 @@ export default function Desktop22() {
   const inCompare = compareFacilityIds.includes(facility.id);
   const selectedPkg =
     facility.pricePackages.find((p) => p.id === selectedPkgId) || facility.pricePackages[0];
+  const schoolPrograms = facility.schoolPrograms || [];
+  const hasRealScheduleOrPricing =
+    !isUnclaimed && (facility.pricePackages.length > 0 || schoolPrograms.length > 0);
   const affiliatedCoaches = coaches.filter(
     (c) =>
       c.isVerifiedCoach &&
@@ -106,7 +112,7 @@ export default function Desktop22() {
       selectedPkg.assessmentFeeEgp +
       selectedPkg.membershipCardFeeEgp +
       selectedPkg.mandatoryKitFeeEgp
-    : 700;
+    : null;
 
   const handleDirectWhatsapp = () => {
     const { whatsappUrl } = createStructuredWhatsappLead({
@@ -290,67 +296,101 @@ export default function Desktop22() {
           <div className="lg:col-span-8 flex flex-col gap-4">
             {activeTab === "packages" && (
               <div className="flex flex-col gap-3">
-                {facility.pricePackages.map((pkg) => {
-                  const selected = selectedPkg?.id === pkg.id;
-                  return (
-                    <div
-                      key={pkg.id}
-                      onClick={() => setSelectedPkgId(pkg.id)}
-                      className={`cursor-pointer rounded-2xl p-5 bg-surface-card border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                        selected ? "border-deep-olive shadow-md" : "border-transparent shadow-sm"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-card-title text-dark-slate">{pkg.nameAr}</h3>
-                        </div>
-                        <div className="text-xs text-text-muted mt-1 flex flex-wrap items-center gap-3">
-                          <span className="inline-flex items-center gap-1">
-                            <Icon name="calendar_month" className="text-[14px] text-deep-olive" />
-                            <span>{pkg.sessionsCount} حصة</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Icon name="schedule" className="text-[14px] text-deep-olive" />
-                            <span>{pkg.durationMinutes} دقيقة/حصة</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Icon name="sync" className="text-[14px] text-deep-olive" />
-                            <span>{pkg.sessionsPerWeek} حصص أسبوعياً</span>
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-left shrink-0">
-                        <div className="text-2xl font-black text-deep-olive">
-                          {pkg.baseMonthlyEgp} <span className="text-xs">ج.م</span>
-                        </div>
-                        <div className="text-[11px] text-text-muted">
-                          مرافق: {pkg.companionFeeEgp ? `${pkg.companionFeeEgp} ج.م` : "مشمول / غير مطلوب"}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {facility.schoolPrograms && facility.schoolPrograms.length > 0 && (
-                  <div className="rounded-2xl bg-surface-card p-5 border border-surface-container flex flex-col gap-3">
-                    <h3 className="font-card-title text-dark-slate flex items-center gap-2">
-                      <Icon name="school" className="text-[18px] text-deep-olive" />
-                      <span>مسارات مدارس السباحة ({facility.schoolPrograms.length})</span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {facility.schoolPrograms.map((prog) => (
-                        <div key={prog.id} className="rounded-xl bg-surface-snow p-4 flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-card-title-sm text-dark-slate">{prog.titleAr}</span>
-                            <span className="font-extrabold text-deep-olive text-sm">{prog.priceEgp} ج.م</span>
-                          </div>
-                          <div className="text-[11px] font-bold text-deep-olive">
-                            {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
-                          </div>
-                          <div className="text-xs text-text-muted">{prog.scheduleAr}</div>
-                        </div>
-                      ))}
-                    </div>
+                {!hasRealScheduleOrPricing ? (
+                  <div className="rounded-2xl bg-surface-card p-6 border border-surface-container text-center flex flex-col items-center gap-2 shadow-sm">
+                    <Icon name="info" className="text-[28px] text-text-muted" />
+                    <h3 className="font-card-title text-dark-slate">لا توجد بيانات متوفرة الآن</h3>
+                    <p className="text-xs text-text-muted max-w-md leading-relaxed">
+                      {isUnclaimed
+                        ? "هذه المنشأة غير مسجلة أو مفعّلة على منصة Captenly بعد — لذلك لا تتوفر باقات أو مواعيد حصص معلنة حتى الآن."
+                        : "لم تقم إدارة المنشأة بإضافة بطاقات المواعيد والأسعار بعد."}
+                    </p>
                   </div>
+                ) : (
+                  <>
+                    {schoolPrograms.length > 0 && (
+                      <div className="rounded-2xl bg-surface-card p-5 border border-surface-container flex flex-col gap-3">
+                        <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                          <Icon name="school" className="text-[18px] text-deep-olive" />
+                          <span>بطاقات المواعيد والمدارس ({schoolPrograms.length})</span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {schoolPrograms.map((prog) => (
+                            <div
+                              key={prog.id}
+                              className="rounded-xl bg-surface-snow p-4 border border-surface-container/70 flex flex-col justify-between gap-2"
+                            >
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-card-title-sm text-dark-slate">{prog.titleAr}</span>
+                                  <span className="font-black text-deep-olive text-base shrink-0">
+                                    {prog.priceEgp} ج.م
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-bold text-deep-olive">
+                                  {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+                                </div>
+                                <div className="text-xs text-dark-slate/85 flex items-center gap-1.5">
+                                  <Icon name="schedule" className="text-[14px] text-deep-olive" />
+                                  <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
+                                </div>
+                                <div className="text-[11px] text-text-muted">
+                                  مدة الحصة: {prog.durationMinutes || 60} دقيقة
+                                  {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
+                                </div>
+                                {prog.notesAr && (
+                                  <p className="text-[11px] text-text-muted bg-surface-card p-2.5 rounded-lg mt-1 leading-relaxed">
+                                    {prog.notesAr}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {facility.pricePackages.map((pkg) => {
+                      const selected = selectedPkg?.id === pkg.id;
+                      return (
+                        <div
+                          key={pkg.id}
+                          onClick={() => setSelectedPkgId(pkg.id)}
+                          className={`cursor-pointer rounded-2xl p-5 bg-surface-card border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                            selected ? "border-deep-olive shadow-md" : "border-transparent shadow-sm"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-card-title text-dark-slate">{pkg.nameAr}</h3>
+                            </div>
+                            <div className="text-xs text-text-muted mt-1 flex flex-wrap items-center gap-3">
+                              <span className="inline-flex items-center gap-1">
+                                <Icon name="calendar_month" className="text-[14px] text-deep-olive" />
+                                <span>{pkg.sessionsCount} حصة</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Icon name="schedule" className="text-[14px] text-deep-olive" />
+                                <span>{pkg.durationMinutes} دقيقة/حصة</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Icon name="sync" className="text-[14px] text-deep-olive" />
+                                <span>{pkg.sessionsPerWeek} حصص أسبوعياً</span>
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div className="text-2xl font-black text-deep-olive">
+                              {pkg.baseMonthlyEgp} <span className="text-xs">ج.م</span>
+                            </div>
+                            <div className="text-[11px] text-text-muted">
+                              مرافق: {pkg.companionFeeEgp ? `${pkg.companionFeeEgp} ج.م` : "مشمول / غير مطلوب"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             )}
@@ -437,31 +477,73 @@ export default function Desktop22() {
             )}
           </div>
 
-          {/* Sticky Summary Sidebar */}
+          {/* Left Sticky Column: Dynamic Schedule/Pricing Cards + Contact + Google Maps */}
           <aside className="lg:col-span-4 lg:sticky lg:top-[124px] bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-4">
-            <h3 className="font-card-title text-dark-slate">ملخص التكلفة والباقة المختارة</h3>
-            <div className="rounded-xl bg-surface-snow p-4 flex flex-col gap-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-text-muted">الباقة</span>
-                <span className="font-bold text-dark-slate">{selectedPkg?.nameAr || "شهرية"}</span>
+            <h3 className="font-card-title text-dark-slate">الباقات ومواعيد الحصص</h3>
+
+            {!hasRealScheduleOrPricing ? (
+              <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-1.5 border border-surface-container/70">
+                <Icon name="info" className="text-[22px] text-text-muted" />
+                <div className="font-bold text-xs text-dark-slate">لا توجد بيانات متوفرة الآن</div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  {isUnclaimed
+                    ? "هذه المنشأة غير مسجلة على المنصة بعد — لم تُضف أي مواعيد أو أسعار."
+                    : "لم تُنشر بطاقات مواعيد وأسعار لهذه المنشأة حتى الآن."}
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">الاشتراك الأساسي</span>
-                <span className="font-bold">{selectedPkg?.baseMonthlyEgp || 700} ج.م</span>
+            ) : (
+              <div className="flex flex-col gap-2.5 max-h-[380px] overflow-y-auto pr-0.5">
+                {schoolPrograms.map((prog) => (
+                  <div
+                    key={prog.id}
+                    className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex flex-col gap-1"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-dark-slate">{prog.titleAr}</span>
+                      <span className="font-black text-base text-deep-olive shrink-0">
+                        {prog.priceEgp} ج.م
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-dark-slate/85 flex items-center gap-1">
+                      <Icon name="schedule" className="text-[13px] text-deep-olive" />
+                      <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
+                    </div>
+                    <div className="text-[10px] text-text-muted">
+                      مدة الحصة: {prog.durationMinutes || 60} دقيقة
+                      {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
+                    </div>
+                    {prog.notesAr && (
+                      <p className="text-[11px] text-text-muted bg-surface-card rounded-lg p-2 mt-1 border border-surface-container/60 leading-relaxed">
+                        {prog.notesAr}
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+                {selectedPkg && totalFirstMonth !== null && (
+                  <div className="rounded-xl bg-surface-snow p-4 flex flex-col gap-2 text-sm border border-surface-container">
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">الباقة</span>
+                      <span className="font-bold text-dark-slate">{selectedPkg.nameAr}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">الاشتراك الأساسي</span>
+                      <span className="font-bold">{selectedPkg.baseMonthlyEgp} ج.م</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">رسوم إضافية معلنة</span>
+                      <span className="font-bold">
+                        {selectedPkg.assessmentFeeEgp + selectedPkg.membershipCardFeeEgp} ج.م
+                      </span>
+                    </div>
+                    <div className="border-t border-surface-container pt-2 mt-1 flex justify-between items-center">
+                      <span className="font-bold text-dark-slate">الإجمالي المعلن</span>
+                      <span className="text-xl font-black text-deep-olive">{totalFirstMonth} ج.م</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">رسوم إضافية معلنة</span>
-                <span className="font-bold">
-                  {(selectedPkg?.assessmentFeeEgp || 0) + (selectedPkg?.membershipCardFeeEgp || 0)} ج.م
-                </span>
-              </div>
-              <div className="border-t border-surface-container pt-2 mt-1 flex justify-between items-center">
-                <span className="font-bold text-dark-slate">
-                  {isUnclaimed ? "الاشتراك التقديري" : "الإجمالي التقديري"}
-                </span>
-                <span className="text-xl font-black text-deep-olive">{totalFirstMonth} ج.م</span>
-              </div>
-            </div>
+            )}
 
             {!isUnclaimed ? (
               <>
@@ -475,15 +557,23 @@ export default function Desktop22() {
                 />
                 <Link
                   href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
+                  onClick={(e) => {
+                    if (!isAuthenticated) {
+                      e.preventDefault();
+                      openAuthGateModal("تجهيز بيانات التسجيل والحجز");
+                    }
+                  }}
                   className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-center"
                 >
                   تجهيز بيانات التسجيل ←
                 </Link>
               </>
             ) : (
-              <p className="text-xs text-text-muted leading-relaxed bg-surface-snow rounded-xl p-3">
-                {facility.publicDescriptionAr || "صفحة تعريفية بالموقع والتقييم العام من دليل المنشآت المائية."}
-              </p>
+              facility.publicDescriptionAr && (
+                <p className="text-xs text-text-muted leading-relaxed bg-surface-snow rounded-xl p-3">
+                  {facility.publicDescriptionAr}
+                </p>
+              )
             )}
 
             <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
@@ -503,6 +593,7 @@ export default function Desktop22() {
           </aside>
         </div>
       </div>
+      <GuestFloatingAuthBar contextLabelAr={`سجّل أو أنشئ حسابك على Captenly لمقارنة ${facility.nameAr} أو حفظها والتواصل المباشر`} />
     </div>
   );
 }

@@ -11,7 +11,7 @@ function DotpInner() {
   const searchParams = useSearchParams();
   const { currentPersona } = useCaptenly();
 
-  const codeParam = searchParams?.get("code") || currentPersona.memberCode || "CAP-M-5190";
+  const codeParam = searchParams?.get("code") || currentPersona.memberCode || "";
   const roleParam = searchParams?.get("role") || currentPersona.role;
 
   const [digits, setDigits] = useState(["1", "2", "3", "4", "5", "6"]);

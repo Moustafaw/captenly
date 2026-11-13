@@ -54,6 +54,8 @@ export interface FacilitySchoolProgram {
   titleAr: string;
   ageRangeAr?: string;
   sessionsPerMonth?: number;
+  sessionTimeAr?: string; // الساعة / توقيت الحصة (مثلاً: 5:00 م)
+  durationMinutes?: number; // وقت / مدة الحصة بالدقائق
   priceEgp: number;
   scheduleAr: string;
   notesAr?: string;
@@ -64,6 +66,7 @@ export interface CoachSessionOffer {
   titleAr: string;
   sessionsCount: number;
   priceEgp: number;
+  sessionTimeAr?: string;
   durationMinutes?: number;
   notesAr?: string;
 }

@@ -9,6 +9,7 @@ import { LocationModal } from "@/components/LocationModal";
 import { FilterModal } from "@/components/FilterModal";
 import { AuthSessionWrapper } from "@/components/auth/AuthSessionWrapper";
 import { GoogleSessionBridge } from "@/components/auth/GoogleSessionBridge";
+import { AuthGateModal } from "@/components/auth/AuthGateModal";
 
 export const metadata: Metadata = {
   title: "كابتنلي CAPTENLY — المنظومة الرقمية للسباحة في مصر",
@@ -52,6 +53,7 @@ export default function RootLayout({
             <SiteDock />
             <LocationModal />
             <FilterModal />
+            <AuthGateModal />
           </CaptenlyProvider>
         </AuthSessionWrapper>
       </body>

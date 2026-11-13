@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
 
 export default function Phone12() {
   const {
@@ -15,29 +17,36 @@ export default function Phone12() {
     enrollSwimmerByMemberCode,
     checkInSession,
     publishSchoolPackage,
-    addCoachSessionOffer,
     currentPersona,
+    isAuthenticated,
   } = useCaptenly();
 
   const activeCoach =
     coaches.find((c) => c.id === currentPersona.linkedCoachId) || coaches[0] || null;
 
-  const [memberCode, setMemberCode] = useState("CAP-M-5190");
+  const [memberCode, setMemberCode] = useState("");
   const [facId, setFacId] = useState(facilities[0]?.id || "");
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
-  const [feeEgp, setFeeEgp] = useState("750");
+  const [feeEgp, setFeeEgp] = useState("");
   const [pkgTitle, setPkgTitle] = useState("باقة التأسيس والمتابعة — 8 حصص");
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const [schoolName, setSchoolName] = useState("مدرسة أطفال مسائية — 8 حصص");
-  const [schoolPrice, setSchoolPrice] = useState("700");
-  const [offerTitle, setOfferTitle] = useState("حصص خاصة لتحسين التوقيت (8 حصص)");
-  const [offerPrice, setOfferPrice] = useState("850");
+  const [schoolName, setSchoolName] = useState("");
+  const [schoolPrice, setSchoolPrice] = useState("");
 
   const matched = useMemo(
     () => memberRegistry.find((m) => m.memberCode.toUpperCase() === memberCode.trim().toUpperCase()),
     [memberRegistry, memberCode]
   );
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="لوحة الكابتن وتفعيل السباحين"
+        descriptionAr="سجّل دخولك أو أنشئ حساب كابتن على Captenly لإدارة عروض حصصك وتفعيل دفاتر المتدربين."
+      />
+    );
+  }
 
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin pt-4 pb-24 flex flex-col gap-4">
@@ -91,7 +100,7 @@ export default function Phone12() {
             coachId: activeCoach?.id,
             packageTitleAr: pkgTitle,
             totalSessions: sessionsCount,
-            amountEgp: Number(feeEgp) || 750,
+            amountEgp: Number(feeEgp) || 0,
           });
           setFeedback({ ok: res.ok, msg: res.messageAr });
         }}
@@ -102,7 +111,7 @@ export default function Phone12() {
           required
           value={memberCode}
           onChange={(e) => setMemberCode(e.target.value)}
-          placeholder="كود العضوية (مثال: CAP-M-5190)"
+          placeholder="كود العضوية (CAP-M-XXXX)"
           className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-xs outline-none border border-surface-container"
         />
         {matched && (
@@ -151,42 +160,15 @@ export default function Phone12() {
         </button>
       </form>
 
-      {/* Quick Publish Coach Session Offer */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!activeCoach) {
-            setFeedback({ ok: false, msg: "يرجى توثيق ملف الكابتن أولاً لنشر العروض." });
-            return;
-          }
-          const res = addCoachSessionOffer(activeCoach.id, {
-            titleAr: offerTitle,
-            sessionsCount: 8,
-            priceEgp: Number(offerPrice) || 850,
-            durationMinutes: 60,
-          });
-          setFeedback({ ok: res.ok, msg: res.messageAr });
-        }}
-        className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5"
-      >
-        <h3 className="font-card-title-sm text-sm text-dark-slate">نشر عرض حصص جديد على ملفك</h3>
-        <input
-          value={offerTitle}
-          onChange={(e) => setOfferTitle(e.target.value)}
-          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+      {/* Unified Dynamic Coach Schedule/Session Cards Builder */}
+      <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+        <DynamicScheduleCardsBuilder
+          mode="coach"
+          targetId={activeCoach?.id}
+          coachOffers={activeCoach?.sessionOffers || []}
+          onFeedback={setFeedback}
         />
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value={offerPrice}
-            onChange={(e) => setOfferPrice(e.target.value)}
-            className="w-24 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
-          />
-          <button type="submit" className="flex-1 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold">
-            + نشر العرض
-          </button>
-        </div>
-      </form>
+      </section>
 
       {/* Quick Publish Package */}
       <form
@@ -198,7 +180,7 @@ export default function Phone12() {
             sessionsCount: 8,
             sessionsPerWeek: 2,
             durationMinutes: 60,
-            baseMonthlyEgp: Number(schoolPrice) || 700,
+            baseMonthlyEgp: Number(schoolPrice) || 0,
           });
           setFeedback({ ok: res.ok, msg: res.messageAr });
         }}
