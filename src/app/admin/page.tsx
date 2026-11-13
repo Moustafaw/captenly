@@ -346,7 +346,7 @@ export default function FounderAdminPage() {
               أداة البذر الميداني السريع (تجهيز صفحة مسودة لمنشأة قبل زيارتها)
             </h2>
             <p className="text-xs text-slate-600">
-              جهّز صفحة الأكاديمية أو الجيم في دقيقتين قبل النزول الميداني في المحلة أو طنطا، ثم افتحها على موبايلك أمام المدير ليسلمك الأسعار ويستلم إدارتها فوراً.
+              جهّز صفحة الأكاديمية في دقيقتين قبل النزول الميداني في المحلة أو طنطا، ثم افتحها على موبايلك أمام المدير ليسلمك الأسعار ويستلم إدارتها فوراً.
             </p>
           </div>
 
@@ -356,7 +356,7 @@ export default function FounderAdminPage() {
           >
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                اسم الأكاديمية أو صالة الجيم:
+                اسم الأكاديمية أو المسبح:
               </label>
               <input
                 type="text"
@@ -406,8 +406,7 @@ export default function FounderAdminPage() {
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-bold"
               >
                 <option value="swimming">سباحة وأمان مائي</option>
-                <option value="fitness">لياقة بدنية وصالة جيم</option>
-                <option value="both">سباحة ولياقة معاً</option>
+                <option value="both">تأسيس وإنقاذ مائي متقدم</option>
               </select>
             </div>
 

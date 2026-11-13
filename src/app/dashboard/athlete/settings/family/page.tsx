@@ -221,7 +221,7 @@ export default function FamilySettingsPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-surface-snow border border-border-hairline text-dark-slate text-body-compact outline-none focus:border-deep-olive"
                 >
                   <option value="swimming">السباحة والألعاب المائية (المسار الأولمبي)</option>
-                  <option value="fitness">اللياقة والإعداد البدني للناشئين</option>
+                  <option value="fitness">الإعداد البدني وتقوية السباحين الناشئين</option>
                 </select>
               </div>
 

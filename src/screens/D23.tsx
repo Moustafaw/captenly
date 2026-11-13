@@ -8,7 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard, resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
-import { getFacilityDistanceKm } from "@/lib/maps";
+import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 import type { Facility } from "@/types/captenly";
 
@@ -22,6 +22,7 @@ function Desktop23Inner() {
     setFilterModalOpen,
     compareFacilityIds,
     userLocation,
+    placesHydrating,
     mergeExternalPlacesFacilities,
   } = useCaptenly();
 
@@ -29,18 +30,19 @@ function Desktop23Inner() {
   const [compareToast, setCompareToast] = useState<string | null>(null);
   const [googlePlacesResults, setGooglePlacesResults] = useState<Facility[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
-  const [rotationSeed] = useState<number>(() => new Date().getDate());
 
   // Sync URL query params cleanly once / on change
   useEffect(() => {
     const q = searchParams?.get("q");
     const sport = searchParams?.get("sport");
     const ladies = searchParams?.get("ladies");
+    const city = searchParams?.get("city");
     const filtersOpen = searchParams?.get("filters");
 
     const patch: Partial<typeof smartFilters> = {};
     if (q !== null) patch.searchQuery = q;
     if (sport === "swimming" || sport === "fitness" || sport === "all") patch.sportCategory = sport;
+    if (city) patch.city = city;
     if (ladies === "1") patch.ladiesOnly = true;
     if (Object.keys(patch).length > 0) updateSmartFilters(patch);
     if (filtersOpen === "1") setFilterModalOpen(true);
@@ -62,7 +64,23 @@ function Desktop23Inner() {
     const timer = setTimeout(() => {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
-      if (city && city !== "الكل") params.set("city", city);
+      if (city && city !== "الكل") {
+        params.set("city", city);
+        if (city === userLocation.city) {
+          params.set("lat", String(userLocation.lat));
+          params.set("lng", String(userLocation.lng));
+        } else {
+          const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
+          if (preset) {
+            params.set("lat", String(preset.lat));
+            params.set("lng", String(preset.lng));
+          }
+        }
+      } else {
+        params.set("lat", String(userLocation.lat));
+        params.set("lng", String(userLocation.lng));
+      }
+
       fetch(`/api/places/search?${params.toString()}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -79,14 +97,14 @@ function Desktop23Inner() {
         .finally(() => {
           if (!cancelled) setPlacesLoading(false);
         });
-    }, 380);
+    }, 350);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [smartFilters.searchQuery, smartFilters.city]);
+  }, [smartFilters.searchQuery, smartFilters.city, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
@@ -95,7 +113,15 @@ function Desktop23Inner() {
         const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
+      if (smartFilters.city !== "الكل") {
+        const cityNorm = smartFilters.city.trim();
+        const matchesCity =
+          f.city === cityNorm ||
+          (f.city && f.city.includes(cityNorm)) ||
+          (f.addressAr && f.addressAr.includes(cityNorm)) ||
+          (f.district && f.district.includes(cityNorm));
+        if (!matchesCity) return false;
+      }
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
@@ -134,9 +160,23 @@ function Desktop23Inner() {
   }, [facilities, googlePlacesResults, smartFilters, userLocation]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filtered, rotationSeed),
-    [filtered, rotationSeed]
+    () => partitionFacilities3Tier(filtered, 0, userLocation),
+    [filtered, userLocation]
   );
+
+  const quickCities = useMemo(() => {
+    const base = [
+      "الكل",
+      userLocation.city,
+      smartFilters.city !== "الكل" ? smartFilters.city : "",
+      "المحلة الكبرى",
+      "طنطا",
+      "القاهرة",
+      "الإسكندرية",
+      "المنصورة",
+    ];
+    return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
+  }, [userLocation.city, smartFilters.city]);
 
   const activeMapFacility =
     filtered.find((f) => f.id === selectedMapFacId) || filtered[0] || facilities[0];
@@ -217,9 +257,9 @@ function Desktop23Inner() {
                 }
                 className="rounded-full bg-surface-snow px-4 py-2 text-xs font-bold text-dark-slate outline-none border border-surface-container"
               >
+                <option value="nearest">الأقرب لموقعك</option>
                 <option value="rating">الأعلى تقييماً</option>
                 <option value="price_asc">الأقل سعراً</option>
-                <option value="nearest">حسب المدينة</option>
               </select>
             </div>
           </div>
@@ -227,7 +267,7 @@ function Desktop23Inner() {
           {/* Quick Pills */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="flex flex-wrap items-center gap-2">
-              {["الكل", "المحلة الكبرى", "طنطا", "زفتى"].map((c) => (
+              {quickCities.map((c) => (
                 <button
                   key={c}
                   type="button"
@@ -344,14 +384,23 @@ function Desktop23Inner() {
           </div>
         )}
 
-        {placesLoading && (
+        {(placesLoading || placesHydrating) && (
           <div className="px-4 py-2.5 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-text-muted flex items-center gap-2">
             <Icon name="travel_explore" className="text-[16px] text-deep-olive animate-pulse" />
-            <span>جاري البحث في مسابح خرائط Google القريبة من نطاقك...</span>
+            <span>جاري البحث في مسابح خرائط Google القريبة من نطاقك ({userLocation.city})...</span>
           </div>
         )}
 
-        {filtered.length === 0 && !placesLoading ? (
+        {filtered.length === 0 && (placesLoading || placesHydrating) ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-72 rounded-[20px] bg-surface-card border border-surface-container animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <DemandRadarFallback
             queryText={smartFilters.searchQuery}
             onResetFilters={resetSmartFilters}

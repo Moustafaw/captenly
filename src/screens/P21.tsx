@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
@@ -21,12 +21,21 @@ export default function Phone21() {
     isFavorite,
     toggleFavorite,
     setFilterModalOpen,
+    userLocation,
+    placesHydrating,
   } = useCaptenly();
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<MobileCat>("all");
   const [toast, setToast] = useState<string | null>(null);
-  const [rotationSeed] = useState<number>(() => new Date().getDate());
+  const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRotationSeed((prev) => prev + 1);
+    }, 45000);
+    return () => clearInterval(timer);
+  }, []);
   const articlesRailRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ down: boolean; startX: number; scrollLeft: number }>({
     down: false,
@@ -62,17 +71,36 @@ export default function Phone21() {
   }, [swimmingFacilities, cat]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filtered, rotationSeed),
-    [filtered, rotationSeed]
+    () =>
+      partitionFacilities3Tier(filtered, rotationSeed, {
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        city: userLocation.city,
+      }),
+    [filtered, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city]
   );
-  const displayedRegistered = useMemo(
-    () => partitioned.registered.slice(0, 5),
-    [partitioned.registered]
+
+  const homeSuggestions = useMemo(
+    () => partitioned.allSorted.slice(0, 3),
+    [partitioned.allSorted]
   );
-  const displayedDirectory = useMemo(
-    () => partitioned.unclaimedDirectory.slice(0, 2),
-    [partitioned.unclaimedDirectory]
+  const homeFeatured = useMemo(
+    () => homeSuggestions.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed"),
+    [homeSuggestions]
   );
+  const homeRegistered = useMemo(
+    () => homeSuggestions.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !f.isFeaturedTier),
+    [homeSuggestions]
+  );
+  const homeDirectory = useMemo(
+    () => homeSuggestions.filter((f) => f.supplyStatus === "seeded_unclaimed"),
+    [homeSuggestions]
+  );
+  const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
+  const exploreCityHref =
+    cleanCityLabel && cleanCityLabel !== "موقعك الحالي"
+      ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
+      : "/explore";
 
   const verifiedCoaches = useMemo(
     () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
@@ -175,18 +203,28 @@ export default function Phone21() {
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-              الأكاديميات والمسابح المسجلة ({filtered.length})
+              مقترحات قريبة في {cleanCityLabel}
             </h2>
-            <p className="text-[11px] text-text-muted">مقارنة سريعة للمسابح والكباتن المعتمدين</p>
+            <p className="text-[11px] text-text-muted">أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي (تدوير تلقائي)</p>
           </div>
-          {compareFacilityIds.length > 0 && (
-            <Link
-              href="/compare"
-              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setRotationSeed((s) => s + 1)}
+              className="px-2.5 py-1.5 rounded-full bg-surface-card border border-surface-container text-[11px] font-bold text-dark-slate flex items-center gap-1"
             >
-              قارن ({compareFacilityIds.length} من 4)
-            </Link>
-          )}
+              <Icon name="autorenew" className="text-[14px] text-deep-olive" />
+              <span>تبديل</span>
+            </button>
+            {compareFacilityIds.length > 0 && (
+              <Link
+                href="/compare"
+                className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+              >
+                قارن ({compareFacilityIds.length})
+              </Link>
+            )}
+          </div>
         </div>
 
         {toast && (
@@ -195,14 +233,22 @@ export default function Phone21() {
           </div>
         )}
 
-        {partitioned.featured.length > 0 && (
+        {placesHydrating && homeSuggestions.length === 0 && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((idx) => (
+              <div key={idx} className="h-48 rounded-2xl bg-surface-card border border-surface-container animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {homeFeatured.length > 0 && (
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-1.5 px-1">
               <Icon name="verified" className="text-[15px] text-deep-olive" />
               <span className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</span>
             </div>
             <div className="flex flex-col gap-3">
-              {partitioned.featured.map((fac) => (
+              {homeFeatured.map((fac) => (
                 <FacilityCard
                   key={fac.id}
                   facility={fac}
@@ -216,9 +262,9 @@ export default function Phone21() {
           </div>
         )}
 
-        {displayedRegistered.length > 0 && (
+        {homeRegistered.length > 0 && (
           <div className="flex flex-col gap-4">
-            {displayedRegistered.map((fac) => (
+            {homeRegistered.map((fac) => (
               <FacilityCard
                 key={fac.id}
                 facility={fac}
@@ -231,14 +277,16 @@ export default function Phone21() {
           </div>
         )}
 
-        {displayedDirectory.length > 0 && (
+        {homeDirectory.length > 0 && (
           <div className="flex flex-col gap-2.5 pt-1">
-            <div className="flex items-center gap-1.5 px-1">
-              <Icon name="explore" className="text-[15px] text-text-muted" />
-              <span className="text-xs font-bold text-text-muted">دليل المسابح والأندية حولك</span>
-            </div>
+            {homeRegistered.length > 0 && (
+              <div className="flex items-center gap-1.5 px-1">
+                <Icon name="explore" className="text-[15px] text-text-muted" />
+                <span className="text-xs font-bold text-text-muted">أقرب المسابح من خرائط Google</span>
+              </div>
+            )}
             <div className="flex flex-col gap-3">
-              {displayedDirectory.map((fac) => (
+              {homeDirectory.map((fac) => (
                 <FacilityCard
                   key={fac.id}
                   facility={fac}
@@ -253,10 +301,12 @@ export default function Phone21() {
         )}
 
         <Link
-          href="/explore"
+          href={exploreCityHref}
           className="w-full py-3 rounded-full bg-surface-card text-dark-slate text-xs font-bold text-center shadow-sm border border-surface-container"
         >
-          عرض كل المنشآت والخريطة ({filtered.length}) ←
+          {filtered.length > homeSuggestions.length
+            ? `تصفح باقي المسابح في ${cleanCityLabel} (${filtered.length - homeSuggestions.length} إضافية) ←`
+            : `عرض كل مسابح ${cleanCityLabel} والخريطة ←`}
         </Link>
       </section>
 

@@ -1,13 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import {
-  EGYPT_CITY_PRESETS,
-  getGoogleMapsApiKey,
-  loadGoogleMapsSdk,
-} from "@/lib/maps";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 export interface SelectedLocationPayload {
   city: string;
@@ -15,6 +11,13 @@ export interface SelectedLocationPayload {
   lat: number;
   lng: number;
   addressLabel: string;
+}
+
+interface PredictionItem {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+  fullText: string;
 }
 
 interface LocationAutocompleteInputProps {
@@ -25,69 +28,82 @@ interface LocationAutocompleteInputProps {
 
 export function LocationAutocompleteInput({
   initialValue = "",
-  placeholder = "ابحث بالمدينة أو الحي أو اسم المنشأة (مثلاً: المحلة، طنطا، مدينة نصر)...",
+  placeholder = "ابحث عن مدينتك، حيّك، أو أقرب معلم (مثال: المعادي، المحلة، سموحة)...",
   onSelectLocation,
 }: LocationAutocompleteInputProps) {
   const { facilities } = useCaptenly();
-  const apiKey = getGoogleMapsApiKey();
-
   const [query, setQuery] = useState(initialValue);
-  const [placesReady, setPlacesReady] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [predictions, setPredictions] = useState<PredictionItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [placesOnline, setPlacesOnline] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
-  // Attach Google Places Autocomplete when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is available
+  // Server-backed Google Places API (New) Autocomplete — works securely without browser referrer/legacy key issues
   useEffect(() => {
-    if (!apiKey || !inputRef.current) return;
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setPredictions([]);
+      setLoading(false);
+      setErrorMsg("");
+      return;
+    }
 
     let cancelled = false;
-    let listener: any = null;
+    setLoading(true);
+    setErrorMsg("");
 
-    loadGoogleMapsSdk(apiKey)
-      .then((maps) => {
-        if (cancelled || !inputRef.current || !maps?.places?.Autocomplete) return;
-        const ac = new maps.places.Autocomplete(inputRef.current, {
-          componentRestrictions: { country: "eg" },
-          fields: ["geometry", "address_components", "formatted_address", "name"],
+    const timer = setTimeout(() => {
+      fetch(`/api/places/autocomplete?input=${encodeURIComponent(trimmed)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled) return;
+          if (!data || data.ok === false) {
+            setPlacesOnline(false);
+            setPredictions([]);
+          } else {
+            setPlacesOnline(true);
+            setPredictions(Array.isArray(data.predictions) ? data.predictions : []);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setPlacesOnline(false);
+            setPredictions([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
         });
-        setPlacesReady(true);
-
-        listener = ac.addListener("place_changed", () => {
-          const place = ac.getPlace();
-          const lat = place?.geometry?.location?.lat?.();
-          const lng = place?.geometry?.location?.lng?.();
-          if (typeof lat !== "number" || typeof lng !== "number") return;
-
-          const components: any[] = place.address_components || [];
-          const locality =
-            components.find((c) => c.types?.includes("locality"))?.long_name ||
-            components.find((c) => c.types?.includes("administrative_area_level_2"))?.long_name ||
-            place.name ||
-            "موقع مختار";
-          const gov =
-            components.find((c) => c.types?.includes("administrative_area_level_1"))?.long_name ||
-            "مصر";
-          const label = place.formatted_address || locality;
-          setQuery(label);
-          onSelectLocation({
-            city: locality.replace(/^مركز\s+/, ""),
-            governorate: gov.replace(/^محافظة\s+/, ""),
-            lat,
-            lng,
-            addressLabel: label,
-          });
-        });
-      })
-      .catch(() => {
-        // Silently keep built-in Egyptian cities & district autocomplete
-      });
+    }, 280);
 
     return () => {
       cancelled = true;
-      if (listener && typeof listener.remove === "function") {
-        listener.remove();
-      }
+      clearTimeout(timer);
     };
-  }, [apiKey, onSelectLocation]);
+  }, [query]);
+
+  const handlePickPrediction = async (item: PredictionItem) => {
+    setResolvingId(item.placeId);
+    setErrorMsg("");
+    try {
+      const res = await fetch(
+        `/api/places/autocomplete?placeId=${encodeURIComponent(item.placeId)}`
+      );
+      const data = await res.json();
+      if (data?.ok && data.location) {
+        setQuery(data.location.addressLabel || item.mainText);
+        setPredictions([]);
+        onSelectLocation(data.location as SelectedLocationPayload);
+      } else {
+        setErrorMsg("تعذر جلب إحداثيات هذا الموقع من خرائط Google، جرب اختياراً آخر.");
+      }
+    } catch {
+      setErrorMsg("حدث خطأ أثناء الاتصال بخدمة المواقع.");
+    } finally {
+      setResolvingId(null);
+    }
+  };
 
   const localSuggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -103,7 +119,7 @@ export function LocationAutocompleteInput({
           governorate: preset.governorate,
           lat: preset.lat,
           lng: preset.lng,
-          addressLabel: `${preset.city}، محافظة ${preset.governorate}`,
+          addressLabel: `${preset.city}، ${preset.governorate}`,
         });
       }
     }
@@ -117,7 +133,7 @@ export function LocationAutocompleteInput({
           governorate: fac.governorate,
           lat: fac.coordinates.lat,
           lng: fac.coordinates.lng,
-          addressLabel: `${fac.district} — ${fac.city} (${fac.nameAr})`,
+          addressLabel: `${fac.district} — ${fac.city}`,
         });
       }
     }
@@ -130,15 +146,17 @@ export function LocationAutocompleteInput({
           item.governorate.toLowerCase().includes(q) ||
           item.addressLabel.toLowerCase().includes(q)
       )
-      .slice(0, 8);
+      .slice(0, 6);
   }, [query, facilities]);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 relative">
       <div className="flex items-center gap-2 bg-surface-snow border border-surface-container rounded-2xl px-3.5 py-2.5 focus-within:border-deep-olive">
-        <Icon name="search" className="text-[18px] text-deep-olive shrink-0" />
+        <Icon
+          name={loading || resolvingId ? "travel_explore" : "search"}
+          className={`text-[18px] text-deep-olive shrink-0 ${loading || resolvingId ? "animate-pulse" : ""}`}
+        />
         <input
-          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -148,7 +166,11 @@ export function LocationAutocompleteInput({
         {query && (
           <button
             type="button"
-            onClick={() => setQuery("")}
+            onClick={() => {
+              setQuery("");
+              setPredictions([]);
+              setErrorMsg("");
+            }}
             className="text-text-muted hover:text-dark-slate shrink-0"
             aria-label="مسح البحث"
           >
@@ -157,15 +179,47 @@ export function LocationAutocompleteInput({
         )}
       </div>
 
+      {/* Live Google Places (New) Predictions List */}
+      {predictions.length > 0 && (
+        <div className="rounded-2xl bg-surface-card border border-border-hairline shadow-lg overflow-hidden divide-y divide-border-hairline max-h-60 overflow-y-auto">
+          {predictions.map((item) => (
+            <button
+              key={item.placeId}
+              type="button"
+              disabled={resolvingId === item.placeId}
+              onClick={() => handlePickPrediction(item)}
+              className="w-full px-3.5 py-2.5 text-right hover:bg-lime-tint/60 transition-colors flex items-center justify-between gap-2 disabled:opacity-60"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Icon name="location_on" className="text-[17px] text-deep-olive shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-dark-slate truncate">{item.mainText}</div>
+                  <div className="text-[10px] text-text-muted truncate">{item.secondaryText}</div>
+                </div>
+              </div>
+              {resolvingId === item.placeId ? (
+                <span className="text-[10px] font-bold text-deep-olive shrink-0">جاري التحديد...</span>
+              ) : (
+                <Icon name="chevron_left" className="text-[16px] text-text-muted shrink-0" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="text-[11px] font-bold text-red-600 px-1">{errorMsg}</div>
+      )}
+
       <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
         <span>
-          {placesReady
-            ? "متصل بالبحث التلقائي لخرائط Google Places"
-            : "اقتراحات سريعة للمدن والأحياء المعتمدة:"}
+          {placesOnline
+            ? "بحث فوري متصل بخرائط Google Places (مصر)"
+            : "اقتراحات سريعة للمدن المصرية:"}
         </span>
       </div>
 
-      {localSuggestions.length > 0 && (
+      {predictions.length === 0 && localSuggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {localSuggestions.map((item) => (
             <button
@@ -173,6 +227,7 @@ export function LocationAutocompleteInput({
               type="button"
               onClick={() => {
                 setQuery(item.city);
+                setPredictions([]);
                 onSelectLocation(item);
               }}
               className="px-3 py-1.5 rounded-full bg-surface-snow hover:bg-lime-tint border border-surface-container text-xs font-semibold text-dark-slate flex items-center gap-1 transition-colors"

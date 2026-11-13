@@ -4,11 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { AvatarUploader } from "@/components/editorial/AvatarUploader";
-import {
-  AthleteProfileSocialEditor,
-  ProfileSocialPillsRow,
-} from "@/components/editorial/AthleteProfileSocialEditor";
+import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 
 export default function Phone2() {
   const {
@@ -21,7 +17,7 @@ export default function Phone2() {
     sessionLedgers,
   } = useCaptenly();
 
-  const [tab, setTab] = useState<"analytics" | "family" | "social">("analytics");
+  const [tab, setTab] = useState<"analytics" | "family">("analytics");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("8");
   const [eventTitle, setEventTitle] = useState("50م سباحة حرة");
@@ -49,8 +45,18 @@ export default function Phone2() {
       {/* Modern Profile Header Card */}
       <section className="rounded-3xl bg-dark-slate text-surface-card p-5 shadow-md flex flex-col gap-3.5">
         <div className="flex items-start gap-3.5">
-          <div className="bg-white/10 rounded-full p-1.5 shrink-0">
-            <AvatarUploader size="md" darkSurface labelAr="تعديل" />
+          <div className="bg-white/10 rounded-full p-1 shrink-0">
+            {currentPersona.avatarUrl ? (
+              <img
+                src={currentPersona.avatarUrl}
+                alt={currentPersona.fullNameAr}
+                className="w-14 h-14 rounded-full object-cover border-2 border-electric-volt"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-deep-carbon text-electric-volt flex items-center justify-center font-extrabold text-sm border border-white/15">
+                {currentPersona.fullNameAr?.slice(0, 2) || "سب"}
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -95,7 +101,7 @@ export default function Phone2() {
             href="/dashboard/athlete/settings"
             className="py-2 rounded-full bg-white/10 text-surface-card text-xs font-bold text-center"
           >
-            الإعدادات والأمان
+            تعديل الصورة والإعدادات
           </Link>
         </div>
       </section>
@@ -105,7 +111,6 @@ export default function Phone2() {
         {[
           { key: "analytics", label: "الأرقام والأداء" },
           { key: "family", label: `الأبناء (${minorAthletes.length})` },
-          { key: "social", label: "النبذة والسوشيال" },
         ].map((item) => (
           <button
             key={item.key}
@@ -246,8 +251,6 @@ export default function Phone2() {
           </form>
         </section>
       )}
-
-      {tab === "social" && <AthleteProfileSocialEditor compact />}
     </div>
   );
 }

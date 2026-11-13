@@ -26,7 +26,7 @@ export function SiteFooter() {
               </div>
             </div>
             <p className="font-body-compact text-body-compact text-surface-variant leading-relaxed">
-              منصة رياضية مصرية متكاملة للسباحة والجيم واللياقة، توفر شفافية كاملة في الأسعار والتحقق من الشهادات ودفتر الحصص الـ QR أوفلاين دون عمولة وساطة.
+              منصة رياضية مصرية متخصصة في السباحة والمسابح المعتمدة، توفر شفافية كاملة في الأسعار والتحقق من الشهادات ودفتر الحصص الـ QR أوفلاين دون عمولة وساطة.
             </p>
             <div className="flex items-center gap-space-xs pt-2">
               <span className="px-2.5 py-1 rounded bg-dark-slate text-electric-volt font-micro-caption text-micro-caption">
@@ -39,7 +39,7 @@ export function SiteFooter() {
           </div>
 
           <div className="md:col-span-3">
-            <h4 className="font-card-title text-card-title text-surface-card mb-space-sm">الرياضات والمجالات</h4>
+            <h4 className="font-card-title text-card-title text-surface-card mb-space-sm">السباحة والمجالات</h4>
             <ul className="flex flex-col gap-space-xs font-body-compact text-body-compact text-surface-container-high">
               <li>
                 <Link className="hover:text-electric-volt transition-colors" href="/pools">
@@ -47,8 +47,8 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link className="hover:text-electric-volt transition-colors" href="/explore?sport=fitness">
-                  صالات الجيم واللياقة البدنية
+                <Link className="hover:text-electric-volt transition-colors" href="/explore?sport=swimming">
+                  أكاديميات ومدارس السباحة التنافسية
                 </Link>
               </li>
               <li>

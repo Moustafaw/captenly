@@ -11,10 +11,10 @@ function Desktop9Inner() {
   const facSlug = searchParams?.get("facility") || "";
   const pkgParam = searchParams?.get("pkg") || "";
 
-  const { facilities, currentPersona, createStructuredWhatsappLead } = useCaptenly();
+  const { facilities, currentPersona, createStructuredWhatsappLead, placesHydrating } = useCaptenly();
 
   const initialFacility = useMemo(
-    () => facilities.find((f) => f.slug === facSlug || f.id === facSlug) || facilities[0],
+    () => (facSlug ? facilities.find((f) => f.slug === facSlug || f.id === facSlug) : facilities[0]),
     [facilities, facSlug]
   );
 
@@ -35,7 +35,27 @@ function Desktop9Inner() {
     whatsappUrl: string;
   } | null>(null);
 
-  if (!facility) return null;
+  if (!facility) {
+    return (
+      <div className="screen-root bg-canvas-alabaster font-body-default min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-[24px] bg-surface-card border border-surface-container p-8 text-center flex flex-col items-center gap-4 shadow-sm">
+          <Icon name="pool" className="text-[36px] text-deep-olive" />
+          <h1 className="font-section-title text-dark-slate">
+            {placesHydrating ? "جاري تحميل المنشآت..." : "لا توجد منشآت متاحة للحجز المباشر حالياً"}
+          </h1>
+          <p className="text-xs text-text-muted leading-relaxed">
+            استكشف المسابح القريبة منك أو انتظر تفعيل المنشآت الموثقة في منطقتك للبدء في طلبات التواصل المباشر.
+          </p>
+          <Link
+            href="/explore"
+            className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+          >
+            استكشاف المسابح القريبة ←
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const pkg =
     facility.pricePackages.find((p) => p.id === selectedPkgId) || facility.pricePackages[0];

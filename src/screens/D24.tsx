@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
@@ -19,11 +19,20 @@ export default function Desktop24() {
     isFavorite,
     toggleFavorite,
     compareFacilityIds,
+    placesHydrating,
   } = useCaptenly();
 
   const [selectedCat, setSelectedCat] = useState<HomeCategoryKey>("all");
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
-  const [rotationSeed] = useState<number>(() => new Date().getDate());
+  const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
+
+  // Automatic gentle rotation across nearby swimming pools in user's city/area
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRotationSeed((prev) => prev + 1);
+    }, 45000);
+    return () => clearInterval(timer);
+  }, []);
 
   const swimmingFacilities = useMemo(
     () => facilities.filter((f) => f.sportSector !== "fitness"),
@@ -45,17 +54,38 @@ export default function Desktop24() {
   }, [swimmingFacilities, selectedCat]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filteredFacilities, rotationSeed),
-    [filteredFacilities, rotationSeed]
+    () =>
+      partitionFacilities3Tier(filteredFacilities, rotationSeed, {
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        city: userLocation.city,
+      }),
+    [filteredFacilities, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city]
   );
-  const displayedRegistered = useMemo(
-    () => partitioned.registered.slice(0, 6),
-    [partitioned.registered]
+
+  // Home always showcases up to 3 nearest rotating suggestions (Registered first, Google Maps fill remaining slots)
+  const homeSuggestions = useMemo(
+    () => partitioned.allSorted.slice(0, 3),
+    [partitioned.allSorted]
   );
-  const displayedDirectory = useMemo(
-    () => partitioned.unclaimedDirectory.slice(0, 3),
-    [partitioned.unclaimedDirectory]
+  const homeFeatured = useMemo(
+    () => homeSuggestions.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed"),
+    [homeSuggestions]
   );
+  const homeRegistered = useMemo(
+    () => homeSuggestions.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !f.isFeaturedTier),
+    [homeSuggestions]
+  );
+  const homeDirectory = useMemo(
+    () => homeSuggestions.filter((f) => f.supplyStatus === "seeded_unclaimed"),
+    [homeSuggestions]
+  );
+
+  const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
+  const exploreCityHref =
+    cleanCityLabel && cleanCityLabel !== "موقعك الحالي"
+      ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
+      : "/explore";
 
   const verifiedCoaches = useMemo(
     () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
@@ -176,13 +206,21 @@ export default function Desktop24() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <h2 className="font-section-title text-section-title text-dark-slate">
-                    أندية وأكاديميات السباحة على كابتنلي ({filteredFacilities.length})
+                    مقترحات السباحة القريبة منك في {cleanCityLabel}
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                    تصفح الأندية والمسابح القريبة وقارن بين الباقات والمواصفات الفنية بكل شفافية
+                    يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي وتتبدل تلقائياً — اضغط للتصفح الكامل
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRotationSeed((s) => s + 1)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate border border-surface-container font-badge-label text-xs transition-colors"
+                  >
+                    <Icon name="autorenew" className="text-[15px] text-deep-olive" />
+                    <span>تدوير المقترحات</span>
+                  </button>
                   {compareFacilityIds.length > 0 && (
                     <Link
                       href="/compare"
@@ -194,9 +232,9 @@ export default function Desktop24() {
                   )}
                   <Link
                     className="inline-flex items-center gap-1 font-card-title-sm text-card-title-sm text-deep-olive hover:underline"
-                    href="/explore"
+                    href={exploreCityHref}
                   >
-                    <span>عرض كل المنشآت والخريطة</span>
+                    <span>عرض كل المسابح في {cleanCityLabel} ({filteredFacilities.length})</span>
                     <Icon name="chevron_left" className="text-[16px]" />
                   </Link>
                 </div>
@@ -208,14 +246,31 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {partitioned.featured.length > 0 && (
+              {placesHydrating && homeSuggestions.length === 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
+                  {[1, 2, 3].map((idx) => (
+                    <div
+                      key={idx}
+                      className="h-72 rounded-[20px] bg-surface-card border border-surface-container animate-pulse p-5 flex flex-col justify-between"
+                    >
+                      <div className="h-36 rounded-xl bg-surface-snow" />
+                      <div className="space-y-2">
+                        <div className="h-4 w-3/4 rounded bg-surface-snow" />
+                        <div className="h-3 w-1/2 rounded bg-surface-snow" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {homeFeatured.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <Icon name="verified" className="text-[17px] text-deep-olive" />
                     <h3 className="font-card-title-sm text-dark-slate">ترشيحات كابتنلي المختارة</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
-                    {partitioned.featured.map((facility) => (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
+                    {homeFeatured.map((facility) => (
                       <FacilityCard
                         key={facility.id}
                         facility={facility}
@@ -226,9 +281,9 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {displayedRegistered.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
-                  {displayedRegistered.map((facility) => (
+              {homeRegistered.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
+                  {homeRegistered.map((facility) => (
                     <FacilityCard
                       key={facility.id}
                       facility={facility}
@@ -238,16 +293,16 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {displayedDirectory.length > 0 && (
-                <div className="flex flex-col gap-3 pt-2">
-                  <div className="flex items-center justify-between gap-2">
+              {homeDirectory.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {homeRegistered.length > 0 && (
                     <div className="flex items-center gap-2">
                       <Icon name="explore" className="text-[17px] text-text-muted" />
-                      <h3 className="font-card-title-sm text-text-muted">دليل المسابح والأندية حولك</h3>
+                      <h3 className="font-card-title-sm text-text-muted">أقرب المسابح من خرائط Google في نطاقك</h3>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
-                    {displayedDirectory.map((facility) => (
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
+                    {homeDirectory.map((facility) => (
                       <FacilityCard
                         key={facility.id}
                         facility={facility}
@@ -258,16 +313,22 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {filteredFacilities.length > 6 && (
-                <div className="flex justify-center pt-2">
-                  <Link
-                    href="/explore"
-                    className="px-6 py-3 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate font-card-title-sm shadow-sm transition-colors"
-                  >
-                    تصفح باقي المنشآت ({filteredFacilities.length - 6} منشأة إضافية) ←
-                  </Link>
+              {!placesHydrating && homeSuggestions.length === 0 && (
+                <div className="p-6 rounded-2xl bg-surface-card border border-surface-container text-center text-sm text-text-muted">
+                  لم نجد نتائج مطابقة لهذا التصنيف حالياً في {cleanCityLabel} — جرّب تصنيف الكل أو افتح صفحة الاستكشاف.
                 </div>
               )}
+
+              <div className="flex justify-center pt-2">
+                <Link
+                  href={exploreCityHref}
+                  className="px-6 py-3 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate font-card-title-sm shadow-sm transition-colors border border-surface-container"
+                >
+                  {filteredFacilities.length > homeSuggestions.length
+                    ? `تصفح باقي المسابح والأكاديميات في ${cleanCityLabel} (${filteredFacilities.length - homeSuggestions.length} إضافية) ←`
+                    : `استكشف جميع مسابح وأكاديميات ${cleanCityLabel} على الخريطة ←`}
+                </Link>
+              </div>
             </section>
 
             {/* Verified Coaches Section — Zero Fake Coaches Rule */}
@@ -306,7 +367,7 @@ export default function Desktop24() {
                         مساحة الكباتن الموثقين مفتوحة للانضمام المباشر
                       </h3>
                       <p className="font-body-compact text-text-muted max-w-2xl">
-                        سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو لياقة، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً.
+                        سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو إنقاذ مائي، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً.
                       </p>
                     </div>
                   </div>

@@ -101,7 +101,7 @@ export function Navbar() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث عن كابتن، أكاديمية، مسبح أو صالة..."
+                placeholder="ابحث عن كابتن سباحة، أكاديمية، أو مسبح..."
                 className="w-full bg-transparent border-0 outline-none text-body-compact text-dark-slate placeholder:text-text-muted text-xs"
               />
               <button

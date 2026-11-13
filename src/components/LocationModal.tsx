@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { LocationAutocompleteInput } from "@/components/maps/LocationAutocompleteInput";
+import { InteractiveLocationMapPicker } from "@/components/maps/InteractiveLocationMapPicker";
+import { calculateDistanceKm, EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 export function LocationModal() {
   const {
@@ -13,52 +15,58 @@ export function LocationModal() {
     requestAutoGeolocation,
     locationModalOpen,
     setLocationModalOpen,
-    subscribeDemandRadar,
+    updateSmartFilters,
   } = useCaptenly();
 
-  const [selectedRadius, setSelectedRadius] = useState<number>(5);
-  const [waitlistSuccessMsg, setWaitlistSuccessMsg] = useState<string>("");
-  const [waitlistPhone, setWaitlistPhone] = useState<string>("");
+  const [selectedRadius, setSelectedRadius] = useState<number>(10);
   const [isLocating, setIsLocating] = useState<boolean>(false);
 
   if (!locationModalOpen) return null;
 
   const CITIES_LIST = [
-    { name: "المحلة الكبرى", gov: "الغربية", covered: true, distanceKm: 0.8 },
-    { name: "طنطا", gov: "الغربية", covered: true, distanceKm: 24.5 },
-    { name: "سمنود", gov: "الغربية", covered: true, distanceKm: 6.2 },
-    { name: "زفتى", gov: "الغربية", covered: true, distanceKm: 32.0 },
-    { name: "كفر الزيات", gov: "الغربية", covered: true, distanceKm: 36.0 },
-    { name: "المنصورة", gov: "الدقهلية", covered: true, distanceKm: 28.0 },
-    { name: "القاهرة", gov: "القاهرة", covered: false, distanceKm: 115.0 },
-    { name: "الجيزة", gov: "الجيزة", covered: false, distanceKm: 120.0 },
-    { name: "الإسكندرية", gov: "الإسكندرية", covered: false, distanceKm: 135.0 },
+    { name: "المحلة الكبرى", gov: "الغربية" },
+    { name: "طنطا", gov: "الغربية" },
+    { name: "المنصورة", gov: "الدقهلية" },
+    { name: "القاهرة", gov: "القاهرة" },
+    { name: "الجيزة", gov: "الجيزة" },
+    { name: "الإسكندرية", gov: "الإسكندرية" },
+    { name: "الزقازيق", gov: "الشرقية" },
+    { name: "شبين الكوم", gov: "المنوفية" },
+    { name: "دمياط", gov: "دمياط" },
   ];
 
   const handleCitySelect = (city: string, gov: string) => {
     setUserCity(city, gov);
-    setWaitlistSuccessMsg("");
+    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
+  };
+
+  const handlePickMapPoint = (lat: number, lng: number) => {
+    let nearestPreset = EGYPT_CITY_PRESETS[0];
+    let minPresetDist = Number.MAX_SAFE_INTEGER;
+    for (const p of EGYPT_CITY_PRESETS) {
+      const d = calculateDistanceKm(lat, lng, p.lat, p.lng);
+      if (d < minPresetDist) {
+        minPresetDist = d;
+        nearestPreset = p;
+      }
+    }
+    const nearPreset = minPresetDist <= 28;
+    setUserCoordinates({
+      lat,
+      lng,
+      city: nearPreset ? nearestPreset.city : "موقع محدد على الخريطة",
+      governorate: nearPreset ? nearestPreset.governorate : "مصر",
+    });
+    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
   };
 
   const handleAutoLocate = async () => {
     setIsLocating(true);
     await requestAutoGeolocation();
+    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
     setTimeout(() => {
       setIsLocating(false);
     }, 600);
-  };
-
-  const handleWaitlistSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!waitlistPhone) return;
-    const res = subscribeDemandRadar({
-      fullNameAr: "زائر مهتم",
-      phone: waitlistPhone,
-      city: userLocation.city,
-      governorate: userLocation.governorate,
-      targetSport: "swimming",
-    });
-    setWaitlistSuccessMsg(res.messageAr);
   };
 
   return (
@@ -102,7 +110,7 @@ export function LocationModal() {
                 lat: loc.lat,
                 lng: loc.lng,
               });
-              setWaitlistSuccessMsg("");
+              updateSmartFilters({ city: "الكل", sortBy: "nearest" });
             }}
           />
 
@@ -119,84 +127,42 @@ export function LocationModal() {
                   {isLocating ? "جاري تحديد موقعك بدقة..." : "تحديد موقعي التلقائي (GPS)"}
                 </span>
                 <span className="block text-micro-caption text-deep-olive/80">
-                  حساب المسافة والترشيح التلقائي لأقرب المنشآت
+                  حساب المسافة والترشيح التلقائي لأقرب المسابح والأكاديميات
                 </span>
               </div>
             </div>
             <Icon name="chevron_left" className="text-[18px]" />
           </button>
 
+          {/* Interactive Google Map Pin Picker */}
+          <InteractiveLocationMapPicker
+            lat={userLocation.lat}
+            lng={userLocation.lng}
+            cityLabel={userLocation.city}
+            onPickCoordinates={handlePickMapPoint}
+            heightClass="h-44"
+          />
+
           {/* Current Selection Status Banner */}
-          <div
-            className={`p-4 rounded-2xl border ${
-              userLocation.isOutsideCoverage
-                ? "bg-amber-50 border-amber-200 text-amber-900"
-                : "bg-surface-snow border-border-hairline text-dark-slate"
-            }`}
-          >
+          <div className="p-4 rounded-2xl border bg-surface-snow border-border-hairline text-dark-slate">
             <div className="flex items-start gap-3">
-              <Icon
-                name={userLocation.isOutsideCoverage ? "info" : "verified"}
-                className={`text-[20px] shrink-0 mt-0.5 ${
-                  userLocation.isOutsideCoverage ? "text-amber-600" : "text-deep-olive"
-                }`}
-              />
+              <Icon name="verified" className="text-[20px] shrink-0 mt-0.5 text-deep-olive" />
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-card-title-sm">
                     {userLocation.city} ({userLocation.governorate})
                   </span>
-                  {!userLocation.isOutsideCoverage && (
-                    <span className="text-deep-olive text-micro-caption font-extrabold">
-                      • نطاق مغطى بالكامل ✓
-                    </span>
-                  )}
+                  <span className="text-deep-olive text-micro-caption font-extrabold">
+                    • بحث جغرافي نشط ✓
+                  </span>
                 </div>
                 <p className="text-micro-caption leading-relaxed text-text-muted">
-                  {userLocation.isOutsideCoverage
-                    ? "المنصة تغطي حالياً محافظة الغربية (المحلة الكبرى وطنطا ومحيطهما). سنعرض لك أقرب المنشآت المعتمدة المتاحة لدينا في الغربية، ويمكنك الانضمام لقائمة الانتظار لمدينتك."
-                    : `المسافة التقديرية لأقرب مسبح معتمد: ${userLocation.distanceKm} كم`}
+                  يتم ترتيب المسابح والأكاديميات المسجلة ونتائج خرائط Google تلقائياً حسب الأقرب لإحداثياتك الحالية
+                  {userLocation.distanceKm > 0 ? ` (أقرب منشأة: ${userLocation.distanceKm} كم)` : ""}.
                 </p>
               </div>
             </div>
           </div>
-
-          {/* If Outside Coverage: Demand Radar Waitlist Form */}
-          {userLocation.isOutsideCoverage && (
-            <div className="p-4 rounded-2xl bg-dark-slate text-surface-card space-y-3">
-              <div className="flex items-center gap-2">
-                <Icon name="radar" className="text-electric-volt text-[18px]" />
-                <span className="font-bold text-card-title-sm text-electric-volt">
-                  رادار الطلب المحلي في {userLocation.city}
-                </span>
-              </div>
-              <p className="text-micro-caption text-surface-snow leading-relaxed">
-                سجل رقم هاتفك لتكون أول من يعلم فور افتتاح منشأة أو أكاديمية موثقة في حيك عندما نصل لـ 30 اشتراكاً!
-              </p>
-              {waitlistSuccessMsg ? (
-                <div className="p-3 rounded-xl bg-status-success/20 text-electric-volt text-body-compact border border-status-success/40">
-                  {waitlistSuccessMsg}
-                </div>
-              ) : (
-                <form onSubmit={handleWaitlistSubmit} className="flex gap-2">
-                  <input
-                    type="tel"
-                    placeholder="رقم واتساب (01xxxxxxxxx)"
-                    value={waitlistPhone}
-                    onChange={(e) => setWaitlistPhone(e.target.value)}
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-surface-card text-dark-slate placeholder:text-text-muted text-body-compact outline-none focus:ring-2 focus:ring-electric-volt"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-xl bg-electric-volt text-dark-slate font-bold text-body-compact hover:brightness-105 transition-all shrink-0"
-                  >
-                    انضم للرادار
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
 
           {/* Quick Cities Grid */}
           <div>
@@ -205,7 +171,7 @@ export function LocationModal() {
             </label>
             <div className="grid grid-cols-3 gap-2">
               {CITIES_LIST.map((c) => {
-                const isSelected = userLocation.city === c.name;
+                const isSelected = userLocation.city.includes(c.name);
                 return (
                   <button
                     key={c.name}
@@ -218,44 +184,40 @@ export function LocationModal() {
                     }`}
                   >
                     <span className="block truncate">{c.name}</span>
-                    <span className="block text-[10px] text-text-muted truncate mt-0.5">
-                      {c.covered ? "✓ متاح الآن" : "قريباً"}
-                    </span>
+                    <span className="block text-[10px] opacity-75 truncate mt-0.5">{c.gov}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Distance Radius Slider (Only if inside covered area) */}
-          {!userLocation.isOutsideCoverage && (
-            <div className="p-4 rounded-2xl bg-surface-snow border border-border-hairline space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-body-compact font-bold text-dark-slate">
-                  نطاق البحث الجغرافي الأقصى:
-                </span>
-                <span className="text-body-compact font-extrabold text-deep-olive">
-                  {selectedRadius} كم
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-2 pt-1">
-                {[2, 5, 10, 25].map((rad) => (
-                  <button
-                    key={rad}
-                    type="button"
-                    onClick={() => setSelectedRadius(rad)}
-                    className={`py-1.5 rounded-lg text-micro-caption font-bold border transition-all ${
-                      selectedRadius === rad
-                        ? "bg-deep-olive text-white border-deep-olive"
-                        : "bg-surface-card text-dark-slate border-border-hairline hover:bg-surface-container-low"
-                    }`}
-                  >
-                    {rad} كم
-                  </button>
-                ))}
-              </div>
+          {/* Distance Radius Selector */}
+          <div className="p-4 rounded-2xl bg-surface-snow border border-border-hairline space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-body-compact font-bold text-dark-slate">
+                نطاق البحث الجغرافي الأقصى:
+              </span>
+              <span className="text-body-compact font-extrabold text-deep-olive">
+                {selectedRadius} كم
+              </span>
             </div>
-          )}
+            <div className="grid grid-cols-4 gap-2 pt-1">
+              {[2, 5, 10, 25].map((rad) => (
+                <button
+                  key={rad}
+                  type="button"
+                  onClick={() => setSelectedRadius(rad)}
+                  className={`py-1.5 rounded-lg text-micro-caption font-bold border transition-all ${
+                    selectedRadius === rad
+                      ? "bg-deep-olive text-white border-deep-olive"
+                      : "bg-surface-card text-dark-slate border-border-hairline hover:bg-surface-container-low"
+                  }`}
+                >
+                  {rad} كم
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Modal Footer */}

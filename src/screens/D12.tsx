@@ -84,17 +84,15 @@ export default function Desktop12() {
       ),
     },
     {
-      label: "التدفئة الشتوية / التكييف",
+      label: "التدفئة الشتوية",
       icon: "thermostat",
       render: (f: (typeof facilities)[number]) => {
-        const good = Boolean(f.poolSpecs?.isHeatedWinter || f.gymSpecs?.isAirConditioned);
+        const good = Boolean(f.poolSpecs?.isHeatedWinter);
         const text = f.poolSpecs
           ? f.poolSpecs.isHeatedWinter
             ? "مسبح مدفأ شتاءً"
             : "غير مدفأ"
-          : f.gymSpecs?.isAirConditioned
-          ? "صالة مكيفة"
-          : "متاح";
+          : "يُحدث عند التوثيق";
         return (
           <span className={`text-xs font-bold ${good ? "text-deep-olive" : "text-text-muted"}`}>
             {text}

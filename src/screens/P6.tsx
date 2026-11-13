@@ -8,7 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard, resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
-import { getFacilityDistanceKm } from "@/lib/maps";
+import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 import type { Facility } from "@/types/captenly";
 
@@ -23,6 +23,7 @@ function Phone6Inner() {
     setFilterModalOpen,
     compareFacilityIds,
     userLocation,
+    placesHydrating,
     mergeExternalPlacesFacilities,
   } = useCaptenly();
 
@@ -32,16 +33,17 @@ function Phone6Inner() {
   const [toast, setToast] = useState<string | null>(null);
   const [googlePlacesResults, setGooglePlacesResults] = useState<Facility[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
-  const [rotationSeed] = useState<number>(() => new Date().getDate());
 
   useEffect(() => {
     const q = searchParams?.get("q");
     const sport = searchParams?.get("sport");
     const ladies = searchParams?.get("ladies");
+    const city = searchParams?.get("city");
     const patch: Partial<typeof smartFilters> = {};
     if (q !== null) patch.searchQuery = q;
     if (sport === "swimming" || sport === "fitness" || sport === "all") patch.sportCategory = sport;
     if (isPoolsRoute && !sport) patch.sportCategory = "swimming";
+    if (city) patch.city = city;
     if (ladies === "1") patch.ladiesOnly = true;
     if (Object.keys(patch).length > 0) updateSmartFilters(patch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,7 +64,23 @@ function Phone6Inner() {
     const timer = setTimeout(() => {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
-      if (city && city !== "الكل") params.set("city", city);
+      if (city && city !== "الكل") {
+        params.set("city", city);
+        if (city === userLocation.city) {
+          params.set("lat", String(userLocation.lat));
+          params.set("lng", String(userLocation.lng));
+        } else {
+          const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
+          if (preset) {
+            params.set("lat", String(preset.lat));
+            params.set("lng", String(preset.lng));
+          }
+        }
+      } else {
+        params.set("lat", String(userLocation.lat));
+        params.set("lng", String(userLocation.lng));
+      }
+
       fetch(`/api/places/search?${params.toString()}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -79,14 +97,14 @@ function Phone6Inner() {
         .finally(() => {
           if (!cancelled) setPlacesLoading(false);
         });
-    }, 380);
+    }, 350);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [smartFilters.searchQuery, smartFilters.city]);
+  }, [smartFilters.searchQuery, smartFilters.city, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
@@ -95,7 +113,15 @@ function Phone6Inner() {
         const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
+      if (smartFilters.city !== "الكل") {
+        const cityNorm = smartFilters.city.trim();
+        const matchesCity =
+          f.city === cityNorm ||
+          (f.city && f.city.includes(cityNorm)) ||
+          (f.addressAr && f.addressAr.includes(cityNorm)) ||
+          (f.district && f.district.includes(cityNorm));
+        if (!matchesCity) return false;
+      }
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
@@ -132,9 +158,23 @@ function Phone6Inner() {
   }, [facilities, googlePlacesResults, smartFilters, userLocation]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filtered, rotationSeed),
-    [filtered, rotationSeed]
+    () => partitionFacilities3Tier(filtered, 0, userLocation),
+    [filtered, userLocation]
   );
+
+  const quickCities = useMemo(() => {
+    const base = [
+      "الكل",
+      userLocation.city,
+      smartFilters.city !== "الكل" ? smartFilters.city : "",
+      "المحلة الكبرى",
+      "طنطا",
+      "القاهرة",
+      "الإسكندرية",
+      "المنصورة",
+    ];
+    return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
+  }, [userLocation.city, smartFilters.city]);
 
   const activeMapFac = filtered.find((f) => f.id === selectedMapId) || filtered[0];
 
@@ -193,7 +233,7 @@ function Phone6Inner() {
 
       {/* Horizontal Filter Chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-margin px-margin scrollbar-none">
-        {["الكل", "المحلة الكبرى", "طنطا", "زفتى"].map((c) => (
+        {quickCities.map((c) => (
           <button
             key={c}
             type="button"
@@ -244,14 +284,23 @@ function Phone6Inner() {
         </div>
       )}
 
-      {placesLoading && (
+      {(placesLoading || placesHydrating) && (
         <div className="p-2.5 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-text-muted flex items-center gap-2">
           <Icon name="travel_explore" className="text-[16px] text-deep-olive animate-pulse" />
-          <span>جاري البحث في مسابح خرائط Google القريبة...</span>
+          <span>جاري البحث في مسابح خرائط Google القريبة من {userLocation.city}...</span>
         </div>
       )}
 
-      {filtered.length === 0 && !placesLoading ? (
+      {filtered.length === 0 && (placesLoading || placesHydrating) ? (
+        <div className="flex flex-col gap-3">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="h-60 rounded-2xl bg-surface-card border border-surface-container animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <DemandRadarFallback queryText={smartFilters.searchQuery} onResetFilters={resetSmartFilters} />
       ) : viewMode === "map" ? (
         <div className="flex flex-col gap-4">

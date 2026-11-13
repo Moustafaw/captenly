@@ -533,6 +533,28 @@ export default function Desktop13() {
             ))}
           </div>
         </section>
+
+        {/* Swimming Academy / School CTA — Coach & Facility Only */}
+        <section className="p-6 rounded-[22px] bg-dark-slate text-surface-card border border-white/10 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1.5 max-w-xl">
+            <div className="inline-flex items-center gap-1.5 text-electric-volt text-xs font-bold">
+              <Icon name="pool" className="text-[16px]" />
+              <span>للمدربين وأصحاب أكاديميات السباحة</span>
+            </div>
+            <h3 className="font-cairo font-bold text-card-title text-surface-card">
+              هل تدير أكاديمية سباحة أو مدرسة لتعليم المبتدئين؟
+            </h3>
+            <p className="text-xs text-surface-snow leading-relaxed">
+              فعّل صفحة منشأتك لنشر باقات المدارس التعليمية، استلام حجوزات أولياء الأمور عبر واتساب، وتوثيق مدربين تحت اسمك التجاري.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/facility"
+            className="px-5 py-2.5 rounded-full bg-electric-volt text-dark-slate font-bold text-xs hover:brightness-105 transition-all shrink-0 shadow-md"
+          >
+            لوحة إدارة الأكاديمية ←
+          </Link>
+        </section>
       </div>
     </div>
   );

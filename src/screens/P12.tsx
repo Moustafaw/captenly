@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 
@@ -253,6 +254,26 @@ export default function Phone12() {
             </button>
           </div>
         ))}
+      </section>
+
+      {/* Swimming Academy / School CTA — Coach Only */}
+      <section className="rounded-2xl bg-dark-slate text-surface-card p-5 shadow-md flex flex-col gap-3">
+        <div className="inline-flex items-center gap-1.5 text-electric-volt text-[11px] font-bold">
+          <Icon name="pool" className="text-[15px]" />
+          <span>لأصحاب أكاديميات السباحة والمدربين</span>
+        </div>
+        <h3 className="font-card-title-sm text-sm text-surface-card">
+          هل تدير أكاديمية سباحة أو مدرسة مائية؟
+        </h3>
+        <p className="text-[11px] text-surface-container-high leading-relaxed">
+          أنشئ صفحة منشأتك لنشر باقات السباحة واستلام اشتراكات أولياء الأمور مباشرة عبر واتساب.
+        </p>
+        <Link
+          href="/dashboard/facility"
+          className="px-4 py-2 rounded-full bg-electric-volt text-dark-slate font-bold text-xs text-center w-fit"
+        >
+          لوحة إدارة الأكاديمية ←
+        </Link>
       </section>
     </div>
   );

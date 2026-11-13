@@ -4,11 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { AvatarUploader } from "@/components/editorial/AvatarUploader";
-import {
-  AthleteProfileSocialEditor,
-  ProfileSocialPillsRow,
-} from "@/components/editorial/AthleteProfileSocialEditor";
+import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 
 function calcImprovementPct(previousValue: number, currentValue: number): number | null {
   if (!previousValue || previousValue <= 0) return null;
@@ -20,7 +16,6 @@ function calcImprovementPct(previousValue: number, currentValue: number): number
 export default function Desktop15() {
   const {
     currentPersona,
-    updateCurrentPersonaProfile,
     minorAthletes,
     addMinorAthlete,
     pbRecords,
@@ -29,9 +24,7 @@ export default function Desktop15() {
     sessionLedgers,
   } = useCaptenly();
 
-  const [activeTab, setActiveTab] = useState<"analytics" | "ledgers" | "family" | "social">("analytics");
-  const [editingBioInline, setEditingBioInline] = useState(false);
-  const [bioDraft, setBioDraft] = useState(currentPersona.bioAr || "");
+  const [activeTab, setActiveTab] = useState<"analytics" | "ledgers" | "family">("analytics");
 
   // Child form
   const [childFormOpen, setChildFormOpen] = useState(false);
@@ -59,12 +52,6 @@ export default function Desktop15() {
     const total = skillEvaluation.metrics.reduce((sum, m) => sum + m.score, 0);
     return (total / skillEvaluation.metrics.length).toFixed(1);
   }, [skillEvaluation]);
-
-  const handleSaveInlineBio = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateCurrentPersonaProfile({ bioAr: bioDraft.trim() });
-    setEditingBioInline(false);
-  };
 
   const handleAddChild = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,8 +90,18 @@ export default function Desktop15() {
         <section className="rounded-[24px] bg-dark-slate text-surface-card p-6 md:p-8 shadow-lg flex flex-col gap-6">
           <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start gap-5 flex-1 min-w-0">
-              <div className="bg-white/10 rounded-full p-2 shrink-0">
-                <AvatarUploader size="lg" darkSurface labelAr="تعديل الصورة" />
+              <div className="bg-white/10 rounded-full p-1.5 shrink-0">
+                {currentPersona.avatarUrl ? (
+                  <img
+                    src={currentPersona.avatarUrl}
+                    alt={currentPersona.fullNameAr}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-electric-volt"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-deep-carbon text-electric-volt flex items-center justify-center font-extrabold text-xl border border-white/15">
+                    {currentPersona.fullNameAr?.slice(0, 2) || "سب"}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 min-w-0 flex-1">
@@ -120,51 +117,10 @@ export default function Desktop15() {
                   </span>
                 </div>
 
-                {/* Inline Bio */}
-                {editingBioInline ? (
-                  <form onSubmit={handleSaveInlineBio} className="flex flex-col sm:flex-row gap-2 max-w-xl">
-                    <input
-                      value={bioDraft}
-                      onChange={(e) => setBioDraft(e.target.value)}
-                      maxLength={200}
-                      placeholder="اكتب نبذة قصيرة عن مستواك وهدفك في السباحة..."
-                      className="flex-1 rounded-xl bg-deep-carbon text-white px-3.5 py-2 text-xs outline-none border border-white/20"
-                    />
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="submit"
-                        className="px-3.5 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-bold"
-                      >
-                        حفظ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingBioInline(false)}
-                        className="px-3 py-2 rounded-xl bg-white/10 text-xs"
-                      >
-                        إلغاء
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="flex items-start gap-2">
-                    <p className="text-xs md:text-sm text-surface-container-high leading-relaxed max-w-2xl">
-                      {currentPersona.bioAr ||
-                        "سبّاح نشط على كابتنلي • قارن المسابح، سجّل أرقامك القياسية، وتابع حضورك بـ QR."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBioDraft(currentPersona.bioAr || "");
-                        setEditingBioInline(true);
-                      }}
-                      title="تعديل النبذة التعريفية"
-                      className="text-electric-volt hover:underline text-[11px] font-bold shrink-0 mt-0.5"
-                    >
-                      تعديل
-                    </button>
-                  </div>
-                )}
+                <p className="text-xs md:text-sm text-surface-container-high leading-relaxed max-w-2xl">
+                  {currentPersona.bioAr ||
+                    "سبّاح نشط على كابتنلي • قارن المسابح، سجّل أرقامك القياسية، وتابع حضورك بـ QR."}
+                </p>
 
                 <ProfileSocialPillsRow />
               </div>
@@ -197,9 +153,10 @@ export default function Desktop15() {
                 </Link>
                 <Link
                   href="/dashboard/athlete/settings"
-                  className="px-4 py-2 rounded-full bg-white/10 text-surface-card font-badge-label text-xs"
+                  className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-surface-card font-badge-label text-xs flex items-center gap-1.5 transition-colors"
                 >
-                  إعدادات الحساب
+                  <Icon name="settings" className="text-[15px]" />
+                  <span>تعديل الصورة والملف الشخصي</span>
                 </Link>
               </div>
             </div>
@@ -212,7 +169,6 @@ export default function Desktop15() {
             { key: "analytics", label: "أرقامي وتحليل الأداء", icon: "monitoring" },
             { key: "ledgers", label: `حصصي QR (${myLedgers.length})`, icon: "qr_code_2" },
             { key: "family", label: `الأبناء (${minorAthletes.length})`, icon: "family_restroom" },
-            { key: "social", label: "النبذة وروابط السوشيال", icon: "share" },
           ].map((t) => (
             <button
               key={t.key}
@@ -453,9 +409,6 @@ export default function Desktop15() {
             )}
           </section>
         )}
-
-        {/* Tab 4: Bio & Social Links */}
-        {activeTab === "social" && <AthleteProfileSocialEditor />}
       </div>
     </div>
   );

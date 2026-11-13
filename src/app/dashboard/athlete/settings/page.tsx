@@ -143,29 +143,7 @@ export default function SettingsHubPage() {
         ))}
       </div>
 
-      {/* 4. Standout Academy Upgrade Banner (For Coaches & Academy Owners) */}
-      <div className="p-6 rounded-[22px] bg-dark-slate text-surface-card border border-white/10 shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1.5 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 text-electric-volt text-micro-caption font-bold">
-            <Icon name="sports_score" className="text-[16px]" />
-            <span>لأصحاب الأكاديميات والفرق الرياضية</span>
-          </div>
-          <h3 className="font-cairo font-bold text-card-title text-surface-card">
-            هل تدير أكاديميتك الخاصة بمسبح أو صالة؟
-          </h3>
-          <p className="text-micro-caption text-surface-snow leading-relaxed">
-            فعّل وضع الأكاديمية لنشر كروت المدارس التعليمية، إدارة اشتراكات أولياء الأمور عبر واتساب، وتعيين مدربين تحت اسمك التجاري.
-          </p>
-        </div>
-        <Link
-          href="/dashboard/coach"
-          className="px-5 py-2.5 rounded-full bg-electric-volt text-dark-slate font-bold text-body-compact hover:brightness-105 transition-all shrink-0 shadow-md"
-        >
-          لوحة إدارة النشر
-        </Link>
-      </div>
-
-      {/* 5. Bio & Social Links Editor */}
+      {/* 4. Bio & Social Links Editor */}
       <AthleteProfileSocialEditor />
     </div>
   );

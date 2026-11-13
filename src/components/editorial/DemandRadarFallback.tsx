@@ -133,8 +133,7 @@ export function DemandRadarFallback({
                 className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm outline-none border border-surface-container"
               >
                 <option value="swimming">مسابح ومدارس سباحة</option>
-                <option value="fitness">صالات جيم ولياقة</option>
-                <option value="other">أكاديمية متعددة الرياضات</option>
+                <option value="other">مسابح أولمبية وتأهيل مائي</option>
               </select>
               <input
                 value={notes}

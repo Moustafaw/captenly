@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { LocationAutocompleteInput } from "@/components/maps/LocationAutocompleteInput";
+import { InteractiveLocationMapPicker } from "@/components/maps/InteractiveLocationMapPicker";
+import { calculateDistanceKm, EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 export default function Desktop20() {
   const router = useRouter();
@@ -13,16 +15,38 @@ export default function Desktop20() {
   const [customCity, setCustomCity] = useState("");
 
   const coveredCities = [
-    { city: "المحلة الكبرى", gov: "الغربية", facilitiesCount: 7, status: "تغطية كاملة" },
-    { city: "طنطا", gov: "الغربية", facilitiesCount: 4, status: "تغطية نشطة" },
-    { city: "زفتى", gov: "الغربية", facilitiesCount: 1, status: "تغطية مبدئية" },
-    { city: "سمنود", gov: "الغربية", facilitiesCount: 0, status: "قريب من المحلة (8 كم)" },
+    { city: "المحلة الكبرى", gov: "الغربية", badge: "بحث جغرافي نشط ✓" },
+    { city: "طنطا", gov: "الغربية", badge: "بحث جغرافي نشط ✓" },
+    { city: "القاهرة", gov: "القاهرة", badge: "بحث جغرافي نشط ✓" },
+    { city: "الإسكندرية", gov: "الإسكندرية", badge: "بحث جغرافي نشط ✓" },
+    { city: "المنصورة", gov: "الدقهلية", badge: "بحث جغرافي نشط ✓" },
+    { city: "الجيزة", gov: "الجيزة", badge: "بحث جغرافي نشط ✓" },
   ];
 
-  const handleChooseCity = (city: string, gov = "الغربية") => {
+  const handleChooseCity = (city: string, gov = "مصر") => {
     setUserCity(city, gov);
-    updateSmartFilters({ city: city === "سمنود" ? "المحلة الكبرى" : city });
-    router.push("/explore");
+    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
+    router.push(`/explore?city=${encodeURIComponent(city)}`);
+  };
+
+  const handlePickMapPoint = (lat: number, lng: number) => {
+    let nearestPreset = EGYPT_CITY_PRESETS[0];
+    let minPresetDist = Number.MAX_SAFE_INTEGER;
+    for (const p of EGYPT_CITY_PRESETS) {
+      const d = calculateDistanceKm(lat, lng, p.lat, p.lng);
+      if (d < minPresetDist) {
+        minPresetDist = d;
+        nearestPreset = p;
+      }
+    }
+    const nearPreset = minPresetDist <= 28;
+    setUserCoordinates({
+      lat,
+      lng,
+      city: nearPreset ? nearestPreset.city : "موقع محدد على الخريطة",
+      governorate: nearPreset ? nearestPreset.governorate : "مصر",
+    });
+    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
   };
 
   return (
@@ -67,19 +91,17 @@ export default function Desktop20() {
             >
               <div>
                 <div className="font-card-title text-dark-slate">{item.city}</div>
-                <div className="text-xs text-text-muted mt-1">
-                  {item.gov} • {item.status}
-                </div>
+                <div className="text-xs text-text-muted mt-1">{item.gov}</div>
               </div>
               <div className="px-3 py-1 rounded-full bg-surface-snow text-deep-olive text-xs font-bold">
-                {item.facilitiesCount > 0 ? `${item.facilitiesCount} منشأة` : "تغطية مجاورة"}
+                {item.badge}
               </div>
             </button>
           ))}
         </section>
 
-        <section className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-3">
-          <h2 className="font-card-title text-dark-slate">ابحث عن منطقتك أو حيّك بدقة</h2>
+        <section className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+          <h2 className="font-card-title text-dark-slate">ابحث عن منطقتك أو حدّد موقعك على الخريطة</h2>
           <LocationAutocompleteInput
             onSelectLocation={(loc) => {
               setUserCoordinates({
@@ -92,6 +114,22 @@ export default function Desktop20() {
               router.push("/explore");
             }}
           />
+          <InteractiveLocationMapPicker
+            lat={userLocation.lat}
+            lng={userLocation.lng}
+            cityLabel={userLocation.city}
+            onPickCoordinates={handlePickMapPoint}
+            heightClass="h-60"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => router.push("/explore")}
+              className="px-5 py-2.5 rounded-full bg-deep-olive text-white text-xs font-bold"
+            >
+              اعتماد النطاق واستكشاف المسابح ←
+            </button>
+          </div>
         </section>
 
         <form

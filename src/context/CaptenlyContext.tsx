@@ -53,7 +53,7 @@ const DEFAULT_SMART_FILTERS: SmartFiltersState = {
   warmChangingOnly: false,
   aedOnly: false,
   laneDensity: "all",
-  sortBy: "rating",
+  sortBy: "nearest",
 };
 
 interface CaptenlyContextType {
@@ -271,6 +271,7 @@ interface CaptenlyContextType {
   addFacilitySchoolProgram: (facilityId: string, program: Omit<FacilitySchoolProgram, "id">) => { ok: boolean; messageAr: string };
   removeFacilitySchoolProgram: (facilityId: string, programId: string) => void;
   mergeExternalPlacesFacilities: (externalPlaces: Facility[]) => void;
+  placesHydrating: boolean;
 
   validateAndSaveCoachBio: (
     coachId: string,
@@ -329,8 +330,8 @@ interface CaptenlyContextType {
 
 const CaptenlyContext = createContext<CaptenlyContextType | undefined>(undefined);
 
-const STORAGE_KEY = "captenly_platform_state_v4";
-const LEGACY_STORAGE_KEY_V3 = "captenly_platform_state_v3";
+const STORAGE_KEY = "captenly_platform_state_v5";
+const LEGACY_STORAGE_KEY_V4 = "captenly_platform_state_v4";
 
 export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [allPersonas, setAllPersonas] = useState<PersonaAccount[]>(PERSONA_ACCOUNTS);
@@ -340,6 +341,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [isBrowserOffline, setIsBrowserOffline] = useState<boolean>(false);
 
   const [facilities, setFacilities] = useState<Facility[]>(INITIAL_FACILITIES);
+  const [placesHydrating, setPlacesHydrating] = useState<boolean>(true);
   const [coaches, setCoaches] = useState<Coach[]>(INITIAL_COACHES);
   const [minorAthletes, setMinorAthletes] = useState<MinorAthleteProfile[]>(INITIAL_MINOR_ATHLETES);
   const [pbRecords, setPbRecords] = useState<PersonalBestRecord[]>(INITIAL_PB_RECORDS);
@@ -349,10 +351,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [demandRadar, setDemandRadar] = useState<DemandRadarEntry[]>(INITIAL_DEMAND_RADAR);
   const [demandSubmissions, setDemandSubmissions] = useState<DemandRadarSubmission[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineCheckinQueueItem[]>([]);
-  const [compareFacilityIds, setCompareFacilityIds] = useState<string[]>([
-    "fac-ghazl-mahalla",
-    "fac-said-mahalla",
-  ]);
+  const [compareFacilityIds, setCompareFacilityIds] = useState<string[]>([]);
   const [newsletterEmails, setNewsletterEmails] = useState<string[]>([]);
 
   // Location & Modals
@@ -370,7 +369,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [smartFilters, setSmartFilters] = useState<SmartFiltersState>(DEFAULT_SMART_FILTERS);
 
   const [savedFavoriteIds, setSavedFavoriteIds] = useState<string[]>([
-    "fac-said-mahalla",
     "art-winter-safety",
   ]);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
@@ -385,7 +383,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveOffline = isOfflineSimulated || isBrowserOffline;
 
-  // Hydrate persisted Offline-First state from localStorage
+  // Hydrate persisted Offline-First state from localStorage (purging old seeded mock facilities)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -393,7 +391,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(saved);
         if (parsed.allPersonas) setAllPersonas(parsed.allPersonas);
         if (parsed.memberRegistry) setMemberRegistry(parsed.memberRegistry);
-        if (parsed.facilities) setFacilities(parsed.facilities);
+        if (Array.isArray(parsed.facilities)) {
+          setFacilities(
+            (parsed.facilities as Facility[]).filter(
+              (f) => f && f.sportSector !== "fitness" && !f.id.startsWith("fac-")
+            )
+          );
+        }
         if (parsed.coaches) setCoaches(parsed.coaches);
         if (parsed.minorAthletes) setMinorAthletes(parsed.minorAthletes);
         if (parsed.pbRecords) setPbRecords(parsed.pbRecords);
@@ -414,27 +418,31 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           if (found) setCurrentPersona(found);
         }
       } else {
-        // Preserve custom avatar/location/favorites from v3 while updating seed data (5 ledgers, clean labels)
-        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY_V3);
+        // Migrate avatar, bio, social links, and location cleanly from v4 without carrying old mock facilities
+        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY_V4);
         if (legacy) {
           const parsed = JSON.parse(legacy);
           if (parsed.userLocation) setUserLocation(parsed.userLocation);
-          if (parsed.savedFavoriteIds) setSavedFavoriteIds(parsed.savedFavoriteIds);
-          if (parsed.compareFacilityIds) setCompareFacilityIds(parsed.compareFacilityIds);
           if (parsed.allPersonas && Array.isArray(parsed.allPersonas)) {
-            const avatarMap = new Map<string, string>();
+            const legacyMap = new Map<string, PersonaAccount>();
             for (const lp of parsed.allPersonas as PersonaAccount[]) {
-              if (lp?.id && lp?.avatarUrl) avatarMap.set(lp.id, lp.avatarUrl);
+              if (lp?.id) legacyMap.set(lp.id, lp);
             }
-            if (avatarMap.size > 0) {
-              const merged = PERSONA_ACCOUNTS.map((p) =>
-                avatarMap.has(p.id) ? { ...p, avatarUrl: avatarMap.get(p.id) } : p
-              );
-              setAllPersonas(merged);
-              const targetId = parsed.personaId || merged[0].id;
-              const found = merged.find((p) => p.id === targetId);
-              if (found) setCurrentPersona(found);
-            }
+            const merged = PERSONA_ACCOUNTS.map((p) => {
+              const old = legacyMap.get(p.id);
+              return old
+                ? {
+                    ...p,
+                    avatarUrl: old.avatarUrl ?? p.avatarUrl,
+                    bioAr: old.bioAr ?? p.bioAr,
+                    socialLinks: old.socialLinks ?? p.socialLinks,
+                  }
+                : p;
+            });
+            setAllPersonas(merged);
+            const targetId = parsed.personaId || merged[0].id;
+            const found = merged.find((p) => p.id === targetId);
+            if (found) setCurrentPersona(found);
           }
         }
       }
@@ -442,6 +450,59 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       // Ignore storage errors
     }
   }, []);
+
+  // Hydrate real registered Captenly academies/coaches from Supabase on mount
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/supabase/public-supply")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.ok) return;
+        if (Array.isArray(data.facilities) && data.facilities.length > 0) {
+          mergeExternalPlacesFacilities(data.facilities as Facility[]);
+        }
+        if (Array.isArray(data.coaches) && data.coaches.length > 0) {
+          setCoaches((prev) => {
+            const existing = new Set(prev.map((c) => c.id));
+            const fresh = (data.coaches as Coach[]).filter((c) => !existing.has(c.id));
+            return fresh.length > 0 ? [...fresh, ...prev] : prev;
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-fetch live nearby swimming pools from Google Places whenever userLocation changes
+  useEffect(() => {
+    let cancelled = false;
+    setPlacesHydrating(true);
+    const params = new URLSearchParams();
+    if (userLocation.city) params.set("city", userLocation.city);
+    params.set("lat", String(userLocation.lat));
+    params.set("lng", String(userLocation.lng));
+
+    fetch(`/api/places/search?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.places) && data.places.length > 0) {
+          mergeExternalPlacesFacilities(data.places as Facility[]);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setPlacesHydrating(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation.city, userLocation.lat, userLocation.lng]);
 
   // Persist changes back to localStorage
   useEffect(() => {
@@ -626,15 +687,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     lat,
     lng,
     city,
-    governorate = "الغربية",
+    governorate = "مصر",
   }: {
     lat: number;
     lng: number;
     city: string;
     governorate?: string;
   }) => {
-    const distanceKm = getNearestFacilityDistance(lat, lng);
-    const isCovered = distanceKm <= 45;
+    const distanceKm = facilities.length > 0 ? getNearestFacilityDistance(lat, lng) : 0;
     setUserLocation({
       city,
       governorate,
@@ -642,16 +702,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       lng,
       isAutoDetected: false,
       distanceKm,
-      isOutsideCoverage: !isCovered,
+      isOutsideCoverage: false,
     });
   };
 
-  const setUserCity = (city: string, gov = "الغربية") => {
+  const setUserCity = (city: string, gov = "مصر") => {
     const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
     const lat = preset?.lat ?? (city === "طنطا" ? 30.7865 : city === "زفتى" ? 30.7124 : 30.9706);
     const lng = preset?.lng ?? (city === "طنطا" ? 31.0004 : city === "زفتى" ? 31.2423 : 31.1669);
-    const isCovered = ["المحلة الكبرى", "طنطا", "سمنود", "زفتى", "كفر الزيات"].includes(city);
-    const dist = preset ? getNearestFacilityDistance(lat, lng) : isCovered ? 1.2 : 95.0;
+    const dist = facilities.length > 0 ? getNearestFacilityDistance(lat, lng) : 0;
 
     setUserLocation({
       city,
@@ -660,7 +719,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       lng,
       isAutoDetected: false,
       distanceKm: dist,
-      isOutsideCoverage: !isCovered,
+      isOutsideCoverage: false,
     });
   };
 
@@ -670,17 +729,26 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         (pos) => {
           const lat1 = pos.coords.latitude;
           const lon1 = pos.coords.longitude;
-          const distanceKm = getNearestFacilityDistance(lat1, lon1);
-          const isOutside = distanceKm > 45;
+          let nearestPreset = EGYPT_CITY_PRESETS[0];
+          let minPresetDist = Number.MAX_SAFE_INTEGER;
+          for (const p of EGYPT_CITY_PRESETS) {
+            const d = calculateDistanceKm(lat1, lon1, p.lat, p.lng);
+            if (d < minPresetDist) {
+              minPresetDist = d;
+              nearestPreset = p;
+            }
+          }
+          const nearPreset = minPresetDist <= 28;
+          const distanceKm = facilities.length > 0 ? getNearestFacilityDistance(lat1, lon1) : 0;
 
           setUserLocation({
-            city: isOutside ? "موقعك الحالي" : "المحلة الكبرى (GPS)",
-            governorate: isOutside ? "خارج نطاق الغربية حالياً" : "الغربية",
+            city: nearPreset ? `${nearestPreset.city} (GPS)` : "موقعك الحالي (GPS)",
+            governorate: nearPreset ? nearestPreset.governorate : "مصر",
             lat: lat1,
             lng: lon1,
             isAutoDetected: true,
             distanceKm,
-            isOutsideCoverage: isOutside,
+            isOutsideCoverage: false,
           });
         },
         () => {
@@ -772,10 +840,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           totalSearchesMonth: 1,
           topUnmetFilters: [
             {
-              filterTitleAr:
-                entry.targetSport === "swimming"
-                  ? "أكاديميات سباحة معتمدة"
-                  : "مراكز لياقة وتدريب معتمدة",
+              filterTitleAr: "أكاديميات ومسابح سباحة معتمدة",
               searchCount: 1,
               percentage: 100,
               opportunityNoteAr: `طلب جديد مسجل لمدينة ${entry.city}`,
@@ -1351,11 +1416,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       athleteNameAr,
       isMinor: Boolean(payload.isMinor ?? regMatch?.isMinor),
       parentNameAr: payload.parentNameAr || regMatch?.parentNameAr,
-      coachId: targetCoach?.id || targetFacility.id,
-      coachNameAr: targetCoach?.fullNameAr || `إدارة ${targetFacility.nameAr}`,
-      facilityId: targetFacility.id,
-      facilityNameAr: targetFacility.nameAr,
-      sportSector: targetFacility.sportSector === "fitness" ? "fitness" : "swimming",
+      coachId: targetCoach?.id || targetFacility?.id || currentPersona.id,
+      coachNameAr:
+        targetCoach?.fullNameAr ||
+        (targetFacility ? `إدارة ${targetFacility.nameAr}` : currentPersona.fullNameAr),
+      facilityId: targetFacility?.id || `fac-custom-${currentPersona.id}`,
+      facilityNameAr: targetFacility?.nameAr || `أكاديمية سباحة — ${currentPersona.city}`,
+      sportSector: "swimming",
       packageTitleAr: payload.packageTitleAr,
       totalSessions: payload.totalSessions,
       completedSessions: 0,
@@ -2279,7 +2346,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setVerifiedLeads(INITIAL_VERIFIED_LEADS);
     setDemandRadar(INITIAL_DEMAND_RADAR);
     setOfflineQueue([]);
-    setCompareFacilityIds(["fac-ghazl-mahalla", "fac-said-mahalla"]);
+    setCompareFacilityIds([]);
     setNotifications(INITIAL_NOTIFICATIONS);
   };
 
@@ -2351,6 +2418,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         addFacilitySchoolProgram,
         removeFacilitySchoolProgram,
         mergeExternalPlacesFacilities,
+        placesHydrating,
         validateAndSaveCoachBio,
         gracefulDisaffiliateCoach,
         requestMutualAffiliation,

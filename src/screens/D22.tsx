@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
@@ -24,17 +24,70 @@ export default function Desktop22() {
     createStructuredWhatsappLead,
     currentPersona,
     userLocation,
+    placesHydrating,
+    mergeExternalPlacesFacilities,
   } = useCaptenly();
 
   const facility = useMemo(
-    () => facilities.find((f) => f.slug === slug || f.id === slug) || facilities[0],
+    () => (slug ? facilities.find((f) => f.slug === slug || f.id === slug) : facilities[0]),
     [facilities, slug]
   );
+
+  const [gplaceLoading, setGplaceLoading] = useState(false);
+
+  useEffect(() => {
+    if (facility || !slug || !slug.startsWith("gplace-")) return;
+    let cancelled = false;
+    setGplaceLoading(true);
+    fetch(`/api/places/search?placeId=${encodeURIComponent(slug)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const places = Array.isArray(data?.places) ? data.places : [];
+        if (places.length > 0) {
+          mergeExternalPlacesFacilities(places);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setGplaceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [facility, slug, mergeExternalPlacesFacilities]);
 
   const [activeTab, setActiveTab] = useState<"packages" | "specs" | "coaches" | "safety">("packages");
   const [selectedPkgId, setSelectedPkgId] = useState<string>(facility?.pricePackages[0]?.id || "");
 
-  if (!facility) return null;
+  if (!facility) {
+    return (
+      <div className="screen-root bg-canvas-alabaster font-body-default min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-[24px] bg-surface-card border border-surface-container p-8 text-center flex flex-col items-center gap-4 shadow-sm">
+          <Icon
+            name={gplaceLoading || placesHydrating ? "travel_explore" : "pool"}
+            className={`text-[36px] text-deep-olive ${gplaceLoading || placesHydrating ? "animate-pulse" : ""}`}
+          />
+          <h1 className="font-section-title text-dark-slate">
+            {gplaceLoading || placesHydrating ? "جاري تحميل بيانات المنشأة..." : "لم نجد هذه المنشأة"}
+          </h1>
+          <p className="text-xs text-text-muted leading-relaxed">
+            {gplaceLoading || placesHydrating
+              ? "يتم جلب تفاصيل المسبح من خرائط Google وقاعدة كابتنلي الآن."
+              : "قد يكون الرابط قديماً أو لم يتم تفعيل المنشأة في نطاق البحث الحالي بعد."}
+          </p>
+          {!gplaceLoading && !placesHydrating && (
+            <Link
+              href="/explore"
+              className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+            >
+              تصفح المسابح القريبة منك ←
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const fav = isFavorite(facility.id);
