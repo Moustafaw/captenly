@@ -4,60 +4,101 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const CREATE_LEDGER_TABLE_SQL = `
-create table if not exists public.captenly_session_ledgers (
-  id text primary key,
-  ledger_code text not null unique,
-  member_code text,
-  athlete_id text not null,
-  athlete_name_ar text not null,
-  coach_id text not null,
-  facility_id text not null,
-  pin_code text not null,
-  total_sessions integer not null,
-  completed_sessions integer not null default 0,
-  status text not null default 'active',
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index if not exists idx_captenly_session_ledgers_member_code on public.captenly_session_ledgers (member_code);
-create index if not exists idx_captenly_session_ledgers_athlete_id on public.captenly_session_ledgers (athlete_id);
-create index if not exists idx_captenly_session_ledgers_coach_id on public.captenly_session_ledgers (coach_id);
-create index if not exists idx_captenly_session_ledgers_facility_id on public.captenly_session_ledgers (facility_id);
-alter table public.captenly_session_ledgers enable row level security;
-notify pgrst, 'reload schema';
-`;
+const CREATE_LEDGER_STATEMENTS = [
+  `create table if not exists public.captenly_session_ledgers (
+    id text primary key,
+    ledger_code text not null unique,
+    member_code text,
+    athlete_id text not null,
+    athlete_name_ar text not null,
+    coach_id text not null,
+    facility_id text not null,
+    pin_code text not null,
+    total_sessions integer not null,
+    completed_sessions integer not null default 0,
+    status text not null default 'active',
+    payload jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+  )`,
+  `create index if not exists idx_captenly_session_ledgers_member_code on public.captenly_session_ledgers (member_code)`,
+  `create index if not exists idx_captenly_session_ledgers_athlete_id on public.captenly_session_ledgers (athlete_id)`,
+  `create index if not exists idx_captenly_session_ledgers_coach_id on public.captenly_session_ledgers (coach_id)`,
+  `create index if not exists idx_captenly_session_ledgers_facility_id on public.captenly_session_ledgers (facility_id)`,
+  `alter table public.captenly_session_ledgers enable row level security`,
+  `notify pgrst, 'reload schema'`,
+];
 
-function getPostgresConnectionString(): string {
-  return (
-    process.env.POSTGRES_URL_NON_POOLING ||
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL ||
-    ""
-  ).trim();
+function sanitizePgConnectionString(raw: string): string {
+  try {
+    const parsed = new URL(raw);
+    parsed.searchParams.delete("sslmode");
+    parsed.searchParams.delete("uselibpqcompat");
+    return parsed.toString();
+  } catch {
+    return raw.replace(/([?&])(sslmode|uselibpqcompat)=[^&]*/gi, "$1").replace(/[?&]$/, "");
+  }
+}
+
+function getPostgresCandidates(): string[] {
+  const raw = [
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.DATABASE_URL,
+  ]
+    .map((v) => (v || "").trim())
+    .filter(Boolean)
+    .map(sanitizePgConnectionString);
+  return Array.from(new Set(raw));
 }
 
 let tableBootstrapped = false;
 
-async function ensureLedgerTableExists(): Promise<boolean> {
-  if (tableBootstrapped) return true;
-  const connStr = getPostgresConnectionString();
-  if (!connStr) return false;
-  try {
-    const { Client } = await import("pg");
+async function withPgClient<T>(
+  fn: (client: import("pg").Client) => Promise<T>
+): Promise<{ ok: true; value: T } | { ok: false; errorCode: string }> {
+  const candidates = getPostgresCandidates();
+  if (candidates.length === 0) {
+    return { ok: false, errorCode: "missing_postgres_url" };
+  }
+  const { Client } = await import("pg");
+  let lastErrorCode = "pg_connect_failed";
+
+  for (const connStr of candidates) {
     const client = new Client({
       connectionString: connStr,
       ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 6000,
     });
-    await client.connect();
-    await client.query(CREATE_LEDGER_TABLE_SQL);
-    await client.end();
-    tableBootstrapped = true;
-    return true;
-  } catch {
-    return false;
+    try {
+      await client.connect();
+      const value = await fn(client);
+      await client.end().catch(() => {});
+      return { ok: true, value };
+    } catch (err) {
+      await client.end().catch(() => {});
+      const e = err as { code?: string; message?: string };
+      lastErrorCode = e?.code || (e?.message ? e.message.slice(0, 48) : "pg_error");
+    }
   }
+  return { ok: false, errorCode: lastErrorCode };
+}
+
+async function runBootstrapDdl(client: import("pg").Client): Promise<void> {
+  if (tableBootstrapped) return;
+  for (const stmt of CREATE_LEDGER_STATEMENTS) {
+    await client.query(stmt);
+  }
+  tableBootstrapped = true;
+}
+
+async function ensureLedgerTableExists(): Promise<{ ok: boolean; errorCode?: string }> {
+  if (tableBootstrapped) return { ok: true };
+  const res = await withPgClient(async (client) => {
+    await runBootstrapDdl(client);
+    return true;
+  });
+  return res.ok ? { ok: true } : { ok: false, errorCode: res.errorCode };
 }
 
 function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null {
@@ -98,18 +139,9 @@ async function queryLedgersWithPgFallback(filters: {
   coachId?: string;
   facilityId?: string;
   ledgerCode?: string;
-}): Promise<SessionLedger[]> {
-  const connStr = getPostgresConnectionString();
-  if (!connStr) return [];
-  try {
-    const { Client } = await import("pg");
-    const client = new Client({
-      connectionString: connStr,
-      ssl: { rejectUnauthorized: false },
-    });
-    await client.connect();
-    await client.query(CREATE_LEDGER_TABLE_SQL);
-    tableBootstrapped = true;
+}): Promise<{ ok: boolean; ledgers: SessionLedger[]; errorCode?: string }> {
+  const res = await withPgClient(async (client) => {
+    await runBootstrapDdl(client);
 
     const conditions: string[] = [];
     const values: string[] = [];
@@ -134,20 +166,17 @@ async function queryLedgersWithPgFallback(filters: {
       conditions.push(`facility_id = $${values.length}`);
     }
 
-    if (conditions.length === 0) {
-      await client.end();
-      return [];
-    }
+    if (conditions.length === 0) return [] as SessionLedger[];
 
     const sql = `SELECT * FROM public.captenly_session_ledgers WHERE ${conditions.join(" OR ")} ORDER BY updated_at DESC LIMIT 80`;
-    const res = await client.query(sql, values);
-    await client.end();
-    return (res.rows || [])
+    const q = await client.query(sql, values);
+    return (q.rows || [])
       .map((r) => rowToSessionLedger(r as Record<string, unknown>))
       .filter((x): x is SessionLedger => Boolean(x));
-  } catch {
-    return [];
-  }
+  });
+  return res.ok
+    ? { ok: true, ledgers: res.value }
+    : { ok: false, ledgers: [], errorCode: res.errorCode };
 }
 
 export async function GET(request: Request) {
@@ -220,31 +249,38 @@ export async function GET(request: Request) {
       .limit(80);
 
     if (error && (error.code === "42P01" || error.code === "PGRST205")) {
-      const bootOk = await ensureLedgerTableExists();
-      if (bootOk) {
-        const retry = await admin
-          .from("captenly_session_ledgers")
-          .select("*")
-          .or(orClauses.join(","))
-          .order("updated_at", { ascending: false })
-          .limit(80);
-        if (!retry.error) {
-          data = retry.data;
-          error = null;
-        } else {
-          const directLedgers = await queryLedgersWithPgFallback({
-            memberCode,
-            athleteId,
-            coachId,
-            facilityId,
-            ledgerCode,
-          });
-          return NextResponse.json({
-            persisted: true,
-            ledgers: directLedgers,
-            profile: matchedProfile,
-          });
-        }
+      const boot = await ensureLedgerTableExists();
+      if (!boot.ok) {
+        return NextResponse.json({
+          persisted: false,
+          ledgers: [],
+          profile: matchedProfile,
+          reason: boot.errorCode || error.code || "bootstrap_failed",
+        });
+      }
+      const retry = await admin
+        .from("captenly_session_ledgers")
+        .select("*")
+        .or(orClauses.join(","))
+        .order("updated_at", { ascending: false })
+        .limit(80);
+      if (!retry.error) {
+        data = retry.data;
+        error = null;
+      } else {
+        const pgFallback = await queryLedgersWithPgFallback({
+          memberCode,
+          athleteId,
+          coachId,
+          facilityId,
+          ledgerCode,
+        });
+        return NextResponse.json({
+          persisted: pgFallback.ok,
+          ledgers: pgFallback.ledgers,
+          profile: matchedProfile,
+          ...(pgFallback.ok ? {} : { reason: pgFallback.errorCode || retry.error.code }),
+        });
       }
     }
 
@@ -310,52 +346,53 @@ export async function POST(request: Request) {
       .upsert(record, { onConflict: "id" });
 
     if (error && (error.code === "42P01" || error.code === "PGRST205")) {
-      const bootOk = await ensureLedgerTableExists();
-      if (bootOk) {
-        const retry = await admin
-          .from("captenly_session_ledgers")
-          .upsert(record, { onConflict: "id" });
-        error = retry.error;
+      const boot = await ensureLedgerTableExists();
+      if (!boot.ok) {
+        return NextResponse.json({
+          persisted: false,
+          reason: boot.errorCode || error.code || "bootstrap_failed",
+        });
+      }
+      const retry = await admin
+        .from("captenly_session_ledgers")
+        .upsert(record, { onConflict: "id" });
+      error = retry.error;
 
-        if (error) {
-          // Direct pg upsert fallback while PostgREST schema cache catches up
-          const connStr = getPostgresConnectionString();
-          if (connStr) {
-            const { Client } = await import("pg");
-            const client = new Client({
-              connectionString: connStr,
-              ssl: { rejectUnauthorized: false },
-            });
-            await client.connect();
-            await client.query(
-              `insert into public.captenly_session_ledgers
-                (id, ledger_code, member_code, athlete_id, athlete_name_ar, coach_id, facility_id, pin_code, total_sessions, completed_sessions, status, payload, updated_at)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,now())
-               on conflict (id) do update set
-                 member_code = excluded.member_code,
-                 completed_sessions = excluded.completed_sessions,
-                 status = excluded.status,
-                 payload = excluded.payload,
-                 updated_at = now()`,
-              [
-                record.id,
-                record.ledger_code,
-                record.member_code,
-                record.athlete_id,
-                record.athlete_name_ar,
-                record.coach_id,
-                record.facility_id,
-                record.pin_code,
-                record.total_sessions,
-                record.completed_sessions,
-                record.status,
-                JSON.stringify(record.payload),
-              ]
-            );
-            await client.end();
-            return NextResponse.json({ persisted: true, ledger });
-          }
+      if (error) {
+        // Direct pg upsert fallback while PostgREST schema cache catches up
+        const pgRes = await withPgClient(async (client) => {
+          await runBootstrapDdl(client);
+          await client.query(
+            `insert into public.captenly_session_ledgers
+              (id, ledger_code, member_code, athlete_id, athlete_name_ar, coach_id, facility_id, pin_code, total_sessions, completed_sessions, status, payload, updated_at)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,now())
+             on conflict (id) do update set
+               member_code = excluded.member_code,
+               completed_sessions = excluded.completed_sessions,
+               status = excluded.status,
+               payload = excluded.payload,
+               updated_at = now()`,
+            [
+              record.id,
+              record.ledger_code,
+              record.member_code,
+              record.athlete_id,
+              record.athlete_name_ar,
+              record.coach_id,
+              record.facility_id,
+              record.pin_code,
+              record.total_sessions,
+              record.completed_sessions,
+              record.status,
+              JSON.stringify(record.payload),
+            ]
+          );
+          return true;
+        });
+        if (pgRes.ok) {
+          return NextResponse.json({ persisted: true, ledger });
         }
+        return NextResponse.json({ persisted: false, reason: pgRes.errorCode });
       }
     }
 
