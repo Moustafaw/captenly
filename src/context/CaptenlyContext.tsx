@@ -650,6 +650,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  /** Fire-and-forget background sync to Supabase API routes (offline/optimistic UX preserved). */
+  const postSupabaseSync = (path: string, body: Record<string, unknown>) => {
+    if (typeof window === "undefined") return;
+    fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  };
+
   const subscribeDemandRadar = (entry: {
     fullNameAr: string;
     phone: string;
@@ -697,6 +707,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       titleAr: `طلب توسع في ${entry.city}`,
       messageAr: `تم حفظ تسجيلك بنجاح في رادار الطلب التفاعلي لمدينة ${entry.city}.`,
       type: "system",
+    });
+
+    postSupabaseSync("/api/supabase/demand-radar", {
+      fullNameAr: entry.fullNameAr,
+      phone: entry.phone,
+      city: entry.city,
+      governorate: entry.governorate,
+      targetSport: entry.targetSport === "other" ? "both" : entry.targetSport,
     });
 
     return {
@@ -764,6 +782,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       actionHref: "/dashboard/ledger",
     });
 
+    postSupabaseSync("/api/supabase/sync-profile", {
+      memberCode,
+      fullNameAr: payload.fullNameAr,
+      role: payload.role,
+      phone: payload.phone,
+      city: payload.city,
+      governorate: payload.governorate,
+      authProvider: "captenly",
+      hasParentSupervision: newPersona.hasParentSupervision,
+      needsOnboarding: false,
+    });
+
     return { ok: true, persona: newPersona, memberCode };
   };
 
@@ -799,6 +829,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       };
       setAllPersonas((prev) => prev.map((p) => (p.id === existing.id ? updated : p)));
       setCurrentPersona(updated);
+      postSupabaseSync("/api/supabase/sync-profile", {
+        memberCode: updated.memberCode || "CAP-M-5190",
+        email: cleanEmail,
+        fullNameAr: updated.fullNameAr,
+        role: updated.role,
+        phone: updated.phone,
+        city: updated.city,
+        avatarUrl: updated.avatarUrl,
+        authProvider: "google",
+        hasParentSupervision: updated.hasParentSupervision,
+        needsOnboarding: Boolean(updated.needsOnboarding),
+      });
       return {
         ok: true,
         isNewUser: false,
@@ -851,6 +893,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       type: "school_card",
       actionLabelAr: "إكمال الإعداد",
       actionHref: "/auth/onboarding",
+    });
+
+    postSupabaseSync("/api/supabase/sync-profile", {
+      memberCode,
+      email: cleanEmail,
+      fullNameAr: cleanName,
+      role: "adult_athlete",
+      city: userLocation.city,
+      avatarUrl: payload.image || undefined,
+      authProvider: "google",
+      hasParentSupervision: false,
+      needsOnboarding: true,
     });
 
     return { ok: true, isNewUser: true, persona: newPersona, memberCode };
@@ -930,6 +984,19 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         ];
       });
     }
+
+    postSupabaseSync("/api/supabase/sync-profile", {
+      memberCode: updatedPersona.memberCode || currentPersona.memberCode || "CAP-M-5190",
+      email: updatedPersona.email,
+      fullNameAr: updatedPersona.fullNameAr,
+      role: updatedPersona.role,
+      phone: updatedPersona.phone,
+      city: updatedPersona.city,
+      avatarUrl: updatedPersona.avatarUrl,
+      authProvider: updatedPersona.authProvider || "google",
+      hasParentSupervision: updatedPersona.hasParentSupervision,
+      needsOnboarding: false,
+    });
 
     return { ok: true, persona: updatedPersona };
   };
@@ -1075,6 +1142,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           )
         );
       }
+
+      postSupabaseSync("/api/supabase/leads", {
+        facilityId: payload.targetId,
+        facilityNameAr: payload.targetNameAr,
+        memberCode: currentPersona.memberCode || undefined,
+        memberNameAr: newLead.inquirerNameAr,
+        phone: cleanPhone || undefined,
+        packageNameAr: payload.requestedSpecialtyAr,
+        notes: `السن: ${payload.athleteAge} | الموعد: ${payload.preferredScheduleAr} | كود الإحالة: ${referralCode}`,
+      });
     }
 
     const messageText = `السلام عليكم، شفت صفحة (${payload.targetNameAr}) على منصة كابتنلي (captenly.com) وقارنت الباقات والمواعيد.\nحابب أستفسر عن الاشتراك في: [${payload.requestedSpecialtyAr}]\nللعمر: [${payload.athleteAge} سنة]\nالموعد المفضل: [${payload.preferredScheduleAr}]\nكود عضويتي: [${currentPersona.memberCode || "زائر"}]\n(كود إحالة كابتنلي: ${referralCode})`;
