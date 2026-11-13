@@ -76,8 +76,9 @@ export default function Phone21() {
         lat: userLocation.lat,
         lng: userLocation.lng,
         city: userLocation.city,
+        isSpecified: userLocation.isSpecified,
       }),
-    [filtered, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city]
+    [filtered, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified]
   );
 
   const homeSuggestions = useMemo(
@@ -98,7 +99,7 @@ export default function Phone21() {
   );
   const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
   const exploreCityHref =
-    cleanCityLabel && cleanCityLabel !== "موقعك الحالي"
+    userLocation.isSpecified && cleanCityLabel && cleanCityLabel !== "موقعك الحالي" && cleanCityLabel !== "كل مصر"
       ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
       : "/explore";
 
@@ -203,9 +204,15 @@ export default function Phone21() {
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-              مقترحات قريبة في {cleanCityLabel}
+              {userLocation.isSpecified
+                ? `مقترحات قريبة في ${cleanCityLabel}`
+                : "أندية ومسابح مقترحة في مصر"}
             </h2>
-            <p className="text-[11px] text-text-muted">أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي (تدوير تلقائي)</p>
+            <p className="text-[11px] text-text-muted">
+              {userLocation.isSpecified
+                ? "أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي (تدوير تلقائي)"
+                : "تظهر 3 منشآت متنوعة من مختلف المحافظات لعدم تحديد نطاق بعد"}
+            </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button

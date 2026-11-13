@@ -206,6 +206,7 @@ export interface InstaPayReceipt {
 export interface SessionLedger {
   id: string;
   ledgerCode: string;
+  memberCode?: string;
   athleteId: string;
   athleteNameAr: string;
   isMinor: boolean;
@@ -324,6 +325,7 @@ export interface UserLocation {
   lat: number;
   lng: number;
   isAutoDetected: boolean;
+  isSpecified?: boolean;
   distanceKm: number;
   isOutsideCoverage: boolean;
 }

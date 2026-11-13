@@ -76,9 +76,11 @@ function Phone6Inner() {
             params.set("lng", String(preset.lng));
           }
         }
-      } else {
+      } else if (userLocation.isSpecified) {
         params.set("lat", String(userLocation.lat));
         params.set("lng", String(userLocation.lng));
+      } else {
+        params.set("scope", "egypt");
       }
 
       fetch(`/api/places/search?${params.toString()}`)
@@ -104,7 +106,7 @@ function Phone6Inner() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [smartFilters.searchQuery, smartFilters.city, userLocation.city, userLocation.lat, userLocation.lng]);
+  }, [smartFilters.searchQuery, smartFilters.city, userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
@@ -148,7 +150,7 @@ function Phone6Inner() {
           (b.pricePackages[0]?.baseMonthlyEgp || 9999)
       );
     }
-    if (smartFilters.sortBy === "nearest") {
+    if (smartFilters.sortBy === "nearest" && userLocation.isSpecified) {
       return [...mergedList].sort(
         (a, b) =>
           getFacilityDistanceKm(a, userLocation) - getFacilityDistanceKm(b, userLocation)
@@ -165,16 +167,16 @@ function Phone6Inner() {
   const quickCities = useMemo(() => {
     const base = [
       "الكل",
-      userLocation.city,
+      userLocation.isSpecified ? userLocation.city : "",
       smartFilters.city !== "الكل" ? smartFilters.city : "",
-      "المحلة الكبرى",
-      "طنطا",
       "القاهرة",
       "الإسكندرية",
+      "المحلة الكبرى",
+      "طنطا",
       "المنصورة",
     ];
     return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
-  }, [userLocation.city, smartFilters.city]);
+  }, [userLocation.isSpecified, userLocation.city, smartFilters.city]);
 
   const activeMapFac = filtered.find((f) => f.id === selectedMapId) || filtered[0];
 
@@ -287,7 +289,11 @@ function Phone6Inner() {
       {(placesLoading || placesHydrating) && (
         <div className="p-2.5 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-text-muted flex items-center gap-2">
           <Icon name="travel_explore" className="text-[16px] text-deep-olive animate-pulse" />
-          <span>جاري البحث في مسابح خرائط Google القريبة من {userLocation.city}...</span>
+          <span>
+            {userLocation.isSpecified
+              ? `جاري البحث في مسابح خرائط Google القريبة من ${userLocation.city}...`
+              : "جاري استكشاف مسابح وأكاديميات مصر على خرائط Google..."}
+          </span>
         </div>
       )}
 

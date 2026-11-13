@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 
 export default function Desktop8() {
   const {
@@ -22,6 +23,7 @@ export default function Desktop8() {
     toggleOfflineSimulation,
     offlineQueue,
     syncOfflineQueue,
+    syncLedgersFromServer,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
@@ -33,6 +35,8 @@ export default function Desktop8() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnrollForm, setShowEnrollForm] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   // Quick enroll form inside ledger for coaches / facilities
   const [newMemberCode, setNewMemberCode] = useState("");
@@ -253,6 +257,19 @@ export default function Desktop8() {
                 >
                   ملفي الرياضي وتحليل الأداء
                 </Link>
+                <button
+                  type="button"
+                  disabled={syncingCloud}
+                  onClick={async () => {
+                    setSyncingCloud(true);
+                    await syncLedgersFromServer();
+                    setSyncingCloud(false);
+                  }}
+                  className="px-5 py-2.5 rounded-full bg-lime-tint text-deep-olive border border-deep-olive/25 font-badge-label text-xs hover:brightness-95 inline-flex items-center gap-1.5"
+                >
+                  <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+                  <span>{syncingCloud ? "جاري فحص التفعيل..." : "تحديث الدفاتر من السحابة"}</span>
+                </button>
               </div>
             </div>
 
@@ -316,6 +333,29 @@ export default function Desktop8() {
                         </button>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => setScannerOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-sm"
+                    >
+                      <Icon name="qr_code_scanner" className="text-[16px]" />
+                      <span>مسح QR بالكاميرا</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={syncingCloud}
+                      onClick={async () => {
+                        setSyncingCloud(true);
+                        await syncLedgersFromServer();
+                        setSyncingCloud(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-snow text-dark-slate border border-surface-container text-xs font-bold hover:bg-lime-tint/50 disabled:opacity-60"
+                    >
+                      <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+                      <span>{syncingCloud ? "جاري المزامنة..." : "مزامنة السحابة"}</span>
+                    </button>
 
                     <button
                       type="button"
@@ -830,6 +870,24 @@ export default function Desktop8() {
           </div>
         )}
       </div>
+
+      <QrCameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onLedgerCheckedIn={(ledgerId, messageAr) => {
+          setSelectedLedgerId(ledgerId);
+          setCheckinMsg({ ok: true, msg: messageAr });
+        }}
+        onMemberDetectedForEnroll={({ memberCode: detectedCode, athleteNameAr }) => {
+          setShowEnrollForm(true);
+          setNewMemberCode(detectedCode);
+          if (athleteNameAr) setNewAthleteName(athleteNameAr);
+          setEnrollMsg({
+            ok: true,
+            msg: `تم التقاط كود العضوية ${detectedCode}${athleteNameAr ? ` (${athleteNameAr})` : ""} — اختر الباقة واضغط تفعيل لتشغيل الـ QR على جهاز السباح مباشرة.`,
+          });
+        }}
+      />
     </div>
   );
 }

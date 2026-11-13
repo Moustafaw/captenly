@@ -12,6 +12,7 @@ export function LocationModal() {
     userLocation,
     setUserCity,
     setUserCoordinates,
+    resetLocationToAllEgypt,
     requestAutoGeolocation,
     locationModalOpen,
     setLocationModalOpen,
@@ -146,19 +147,27 @@ export function LocationModal() {
           {/* Current Selection Status Banner */}
           <div className="p-4 rounded-2xl border bg-surface-snow border-border-hairline text-dark-slate">
             <div className="flex items-start gap-3">
-              <Icon name="verified" className="text-[20px] shrink-0 mt-0.5 text-deep-olive" />
+              <Icon
+                name={userLocation.isSpecified ? "verified" : "public"}
+                className="text-[20px] shrink-0 mt-0.5 text-deep-olive"
+              />
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-card-title-sm">
-                    {userLocation.city} ({userLocation.governorate})
+                    {userLocation.isSpecified
+                      ? `${userLocation.city} (${userLocation.governorate})`
+                      : "نطاق البحث: كل مصر (غير محدد)"}
                   </span>
                   <span className="text-deep-olive text-micro-caption font-extrabold">
-                    • بحث جغرافي نشط ✓
+                    {userLocation.isSpecified ? "• بحث جغرافي نشط ✓" : "• عرض متنوع من المحافظات"}
                   </span>
                 </div>
                 <p className="text-micro-caption leading-relaxed text-text-muted">
-                  يتم ترتيب المسابح والأكاديميات المسجلة ونتائج خرائط Google تلقائياً حسب الأقرب لإحداثياتك الحالية
-                  {userLocation.distanceKm > 0 ? ` (أقرب منشأة: ${userLocation.distanceKm} كم)` : ""}.
+                  {userLocation.isSpecified
+                    ? `يتم ترتيب المسابح والأكاديميات المسجلة ونتائج خرائط Google تلقائياً حسب الأقرب لإحداثياتك الحالية${
+                        userLocation.distanceKm > 0 ? ` (أقرب منشأة: ${userLocation.distanceKm} كم)` : ""
+                      }.`
+                    : "لم تحدد مدينة أو نطاقاً بعد، لذلك تعرض المنصة منشآت عشوائية ومتنوعة من مختلف محافظات مصر. يمكنك تفعيل GPS أو البحث عن منطقتك أو اختيار نقطة على الخريطة."}
                 </p>
               </div>
             </div>
@@ -221,13 +230,16 @@ export function LocationModal() {
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-border-hairline bg-surface-snow flex items-center justify-between">
+        <div className="p-4 border-t border-border-hairline bg-surface-snow flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => handleCitySelect("المحلة الكبرى", "الغربية")}
+            onClick={() => {
+              resetLocationToAllEgypt();
+              setLocationModalOpen(false);
+            }}
             className="text-micro-caption text-text-muted hover:text-dark-slate underline"
           >
-            إعادة الضبط لمدينة المحلة الكبرى
+            عرض كل مصر (إلغاء النطاق)
           </button>
           <button
             type="button"

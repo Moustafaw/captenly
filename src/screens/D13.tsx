@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
+import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 
 export default function Desktop13() {
   const {
@@ -22,6 +23,7 @@ export default function Desktop13() {
     verifiedLeads,
     currentPersona,
     isAuthenticated,
+    syncLedgersFromServer,
   } = useCaptenly();
 
   const activeCoach =
@@ -34,6 +36,8 @@ export default function Desktop13() {
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
   const [feeEgp, setFeeEgp] = useState("");
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   // Publish School Card
   const [schoolPkgName, setSchoolPkgName] = useState("");
@@ -151,18 +155,38 @@ export default function Desktop13() {
             onSubmit={handleEnroll}
             className="lg:col-span-7 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <h2 className="font-section-title text-dark-slate">
                   إضافة وتفعيل باقة سباح بكود العضوية (CAP-M-XXXX)
                 </h2>
                 <p className="font-body-compact text-text-muted mt-0.5">
-                  أدخل كود العضوية الذي استلمته من السباح مع عدد الحصص والمبلغ، وسيتم تفعيل الـ QR ودفتر الحصص أوفلاين عنده فوراً.
+                  امسح QR السباح بكاميرا الهاتف/الكمبيوتر أو أدخل كود عضويته، وسيُفعّل دفتر الحصص ويزامن سحابياً فوراً.
                 </p>
               </div>
-              <span className="text-deep-olive text-[11px] font-extrabold shrink-0">
-                QR فوري
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-xs"
+                >
+                  <Icon name="qr_code_scanner" className="text-[16px]" />
+                  <span>مسح QR بالكاميرا</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={syncingCloud}
+                  onClick={async () => {
+                    setSyncingCloud(true);
+                    await syncLedgersFromServer();
+                    setSyncingCloud(false);
+                  }}
+                  title="مزامنة الدفاتر من السحابة"
+                  className="w-8 h-8 rounded-full bg-surface-snow border border-surface-container flex items-center justify-center text-dark-slate hover:bg-lime-tint/50 disabled:opacity-50"
+                >
+                  <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -481,6 +505,21 @@ export default function Desktop13() {
           </Link>
         </section>
       </div>
+
+      <QrCameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onLedgerCheckedIn={(_ledgerId, messageAr) => {
+          setStatusMsg({ ok: true, msg: messageAr });
+        }}
+        onMemberDetectedForEnroll={({ memberCode: detectedCode, athleteNameAr }) => {
+          setMemberCode(detectedCode);
+          setStatusMsg({
+            ok: true,
+            msg: `تم مسح كود العضوية ${detectedCode}${athleteNameAr ? ` (${athleteNameAr})` : ""} — راجع الحصص واضغط تفعيل ليظهر الدفتر والـ QR على موبايل السباح فوراً.`,
+          });
+        }}
+      />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { calculateDistanceKm, EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 export default function Desktop20() {
   const router = useRouter();
-  const { userLocation, setUserCity, setUserCoordinates, requestAutoGeolocation, updateSmartFilters } =
+  const { userLocation, setUserCity, setUserCoordinates, resetLocationToAllEgypt, requestAutoGeolocation, updateSmartFilters } =
     useCaptenly();
   const [customCity, setCustomCity] = useState("");
 
@@ -61,20 +61,37 @@ export default function Desktop20() {
               أين تبحث عن نادٍ أو كابتن قريب منك؟
             </h1>
             <p className="font-body-compact text-surface-container-high">
-              موقعك الحالي المختار: {userLocation.city}، {userLocation.governorate}
+              {userLocation.isSpecified
+                ? `موقعك الحالي المختار: ${userLocation.city}، ${userLocation.governorate}`
+                : "لم يتم تحديد موقع بعد — المنصة تعرض حالياً أكاديميات ونوادي متنوعة من أنحاء مصر"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              await requestAutoGeolocation();
-              router.push("/explore");
-            }}
-            className="px-5 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm flex items-center gap-2 shrink-0 hover:brightness-105"
-          >
-            <Icon name="near_me" className="text-[18px]" />
-            <span>تحديد موقعي بالـ GPS تلقائياً</span>
-          </button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                await requestAutoGeolocation();
+                router.push("/explore");
+              }}
+              className="px-5 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm flex items-center gap-2 hover:brightness-105"
+            >
+              <Icon name="near_me" className="text-[18px]" />
+              <span>تحديد موقعي بالـ GPS تلقائياً</span>
+            </button>
+            {userLocation.isSpecified && (
+              <button
+                type="button"
+                onClick={() => {
+                  resetLocationToAllEgypt();
+                  updateSmartFilters({ city: "الكل", sortBy: "rating" });
+                  router.push("/explore");
+                }}
+                className="px-4 py-3 rounded-full bg-white/15 text-white text-xs font-bold hover:bg-white/25"
+              >
+                عرض كل مصر
+              </button>
+            )}
+          </div>
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -84,7 +101,7 @@ export default function Desktop20() {
               type="button"
               onClick={() => handleChooseCity(item.city, item.gov)}
               className={`text-right rounded-2xl p-6 shadow-sm border transition-all flex items-center justify-between ${
-                userLocation.city.includes(item.city)
+                userLocation.isSpecified && userLocation.city.includes(item.city)
                   ? "bg-lime-tint/60 border-deep-olive"
                   : "bg-surface-card border-surface-container hover:border-deep-olive"
               }`}

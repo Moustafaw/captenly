@@ -12,6 +12,7 @@ export interface UserGeoContext {
   lat: number;
   lng: number;
   city?: string;
+  isSpecified?: boolean;
 }
 
 function rotateArray<T>(items: T[], seed: number): T[] {
@@ -22,9 +23,27 @@ function rotateArray<T>(items: T[], seed: number): T[] {
 }
 
 /**
+ * Deterministic Egypt-wide shuffle when user has NOT specified a city/location,
+ * so academies & clubs rotate organically across all governorates.
+ */
+function seededDiversify<T>(items: T[], seed: number): T[] {
+  if (items.length <= 1) return items;
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const hash = Math.abs((seed + 1) * 2654435761 + i * 31) % (i + 1);
+    const tmp = copy[i];
+    copy[i] = copy[hash];
+    copy[hash] = tmp;
+  }
+  return copy;
+}
+
+/**
  * Deduplicates external Google Places against Captenly registered accounts,
- * excludes gym-only venues, sorts closest to user's location first (prioritizing
- * matching city / nearby radius), and rotates pools cleanly across nearby venues.
+ * excludes gym-only venues.
+ * - When `userGeo.isSpecified === true`: sorts closest to user's location first
+ *   (prioritizing matching city / <= 25km radius) and rotates nearby venues.
+ * - When location is NOT specified ("كل مصر"): diversifies across Egypt organically.
  */
 export function partitionFacilities3Tier(
   facilities: Facility[],
@@ -49,10 +68,15 @@ export function partitionFacilities3Tier(
   const cleanUserCity = (userGeo?.city || "")
     .replace(/\s*\(GPS\)/g, "")
     .replace(/موقعك الحالي/g, "")
+    .replace(/كل مصر/g, "")
     .trim();
 
+  const hasSpecificLocation = Boolean(userGeo?.isSpecified && cleanUserCity.length > 0);
+
   const sortByProximity = (list: Facility[]): Facility[] => {
-    if (!userGeo) return list;
+    if (!userGeo || !hasSpecificLocation) {
+      return seededDiversify(list, rotationSeed);
+    }
     return [...list].sort((a, b) => {
       const aCityMatch =
         cleanUserCity && (a.city === cleanUserCity || (a.addressAr || "").includes(cleanUserCity))
@@ -80,15 +104,20 @@ export function partitionFacilities3Tier(
   const registeredSorted = sortByProximity(
     deduped.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !featuredIds.has(f.id))
   );
-  const registered = rotateArray(registeredSorted, rotationSeed);
+  const registered = hasSpecificLocation
+    ? rotateArray(registeredSorted, rotationSeed)
+    : registeredSorted;
 
   const unclaimedSorted = sortByProximity(
     deduped.filter((f) => f.supplyStatus === "seeded_unclaimed")
   );
-  // Rotate within top nearby pool pool-window so nearby suggestions refresh automatically while staying close
-  const nearbyPoolWindow = unclaimedSorted.slice(0, 8);
-  const restDirectory = unclaimedSorted.slice(8);
-  const unclaimedDirectory = [...rotateArray(nearbyPoolWindow, rotationSeed), ...restDirectory];
+
+  const unclaimedDirectory = hasSpecificLocation
+    ? [
+        ...rotateArray(unclaimedSorted.slice(0, 8), rotationSeed),
+        ...unclaimedSorted.slice(8),
+      ]
+    : unclaimedSorted;
 
   return {
     featured,

@@ -45,7 +45,9 @@ export function MobileHeader() {
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-surface-container-low text-dark-slate text-[11px] font-bold max-w-[135px] truncate"
           >
             <Icon name="location_on" className="text-deep-olive text-[14px] shrink-0" />
-            <span className="truncate">{userLocation.city}</span>
+            <span className="truncate">
+              {userLocation.isSpecified ? userLocation.city : "كل مصر"}
+            </span>
             <Icon name="arrow_drop_down" className="text-text-muted text-[14px] shrink-0" />
           </button>
 

@@ -14,13 +14,15 @@ export function DemandRadarFallback({
   queryText,
   onResetFilters,
 }: DemandRadarFallbackProps) {
-  const { userLocation, setUserCity, subscribeDemandRadar, facilities, resetSmartFilters } =
+  const { userLocation, resetLocationToAllEgypt, subscribeDemandRadar, facilities, resetSmartFilters } =
     useCaptenly();
 
   const [fullNameAr, setFullNameAr] = useState("");
   const [phone, setPhone] = useState("");
-  const [city, setCity] = useState(userLocation.city || "المنصورة");
-  const [governorate, setGovernorate] = useState(userLocation.governorate || "الدقهلية");
+  const [city, setCity] = useState(userLocation.isSpecified ? userLocation.city : "");
+  const [governorate, setGovernorate] = useState(
+    userLocation.isSpecified ? userLocation.governorate : ""
+  );
   const [targetSport, setTargetSport] = useState<"swimming" | "fitness" | "other">("swimming");
   const [notes, setNotes] = useState("");
   const [submittedMsg, setSubmittedMsg] = useState<string | null>(null);
@@ -71,12 +73,12 @@ export function DemandRadarFallback({
             <Link
               href="/explore"
               onClick={() => {
-                setUserCity("المحلة الكبرى", "الغربية");
+                resetLocationToAllEgypt();
                 resetSmartFilters();
               }}
               className="px-5 py-2.5 rounded-full bg-white/10 text-surface-card font-badge-label hover:bg-white/20"
             >
-              تصفح منشآت المحلة الكبرى والغربية
+              تصفح منشآت كل مصر
             </Link>
           </div>
         </div>

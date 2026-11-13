@@ -115,6 +115,7 @@ interface CaptenlyContextType {
     city: string;
     governorate?: string;
   }) => void;
+  resetLocationToAllEgypt: () => void;
   requestAutoGeolocation: () => Promise<void>;
   locationModalOpen: boolean;
   setLocationModalOpen: (open: boolean) => void;
@@ -228,6 +229,24 @@ interface CaptenlyContextType {
       packageTitleAr: string;
     }
   ) => void;
+
+  lookupRemoteLedgersOrProfile: (query: {
+    memberCode?: string;
+    ledgerCode?: string;
+    coachId?: string;
+    facilityId?: string;
+  }) => Promise<{
+    ledgers: SessionLedger[];
+    profile: {
+      memberCode: string;
+      fullNameAr: string;
+      phone: string;
+      city: string;
+      role: string;
+      avatarUrl?: string;
+    } | null;
+  }>;
+  syncLedgersFromServer: () => Promise<void>;
 
   addNewPBRecord: (record: Omit<PersonalBestRecord, "id" | "recordedDateAr">) => void;
   recordCoachSkillAndPB: (payload: {
@@ -370,16 +389,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [compareFacilityIds, setCompareFacilityIds] = useState<string[]>([]);
   const [newsletterEmails, setNewsletterEmails] = useState<string[]>([]);
 
-  // Location & Modals
-  const [userLocation, setUserLocation] = useState<UserLocation>({
-    city: "المحلة الكبرى",
-    governorate: "الغربية",
-    lat: 30.9706,
-    lng: 31.1656,
+  // Location & Modals (Egypt-wide default when user hasn't picked a specific location yet)
+  const DEFAULT_EGYPT_LOCATION: UserLocation = {
+    city: "كل مصر",
+    governorate: "نطاق مفتوح",
+    lat: 30.0444,
+    lng: 31.2357,
     isAutoDetected: false,
-    distanceKm: 1.2,
+    isSpecified: false,
+    distanceKm: 0,
     isOutsideCoverage: false,
-  });
+  };
+  const [userLocation, setUserLocation] = useState<UserLocation>(DEFAULT_EGYPT_LOCATION);
   const [locationModalOpen, setLocationModalOpen] = useState<boolean>(false);
   const [filterModalOpen, setFilterModalOpen] = useState<boolean>(false);
   const [smartFilters, setSmartFilters] = useState<SmartFiltersState>(DEFAULT_SMART_FILTERS);
@@ -443,7 +464,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
         if (parsed.userSettings) setUserSettings(parsed.userSettings);
         if (parsed.newsletterEmails) setNewsletterEmails(parsed.newsletterEmails);
-        if (parsed.userLocation) setUserLocation(parsed.userLocation);
+        if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
         if (parsed.personaId && !LEGACY_FAKE_PERSONA_IDS.has(parsed.personaId)) {
           const pool = Array.isArray(parsed.allPersonas) ? parsed.allPersonas : PERSONA_ACCOUNTS;
           const found = pool.find((p: PersonaAccount) => p.id === parsed.personaId);
@@ -456,7 +477,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         const legacyV5 = localStorage.getItem(LEGACY_STORAGE_KEY_V5);
         if (legacyV5) {
           const parsed = JSON.parse(legacyV5);
-          if (parsed.userLocation) setUserLocation(parsed.userLocation);
+          if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
           if (Array.isArray(parsed.allPersonas)) {
             const realAccounts = (parsed.allPersonas as PersonaAccount[]).filter(
               (p) =>
@@ -508,14 +529,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-fetch live nearby swimming pools from Google Places whenever userLocation changes
+  // Auto-fetch live swimming pools from Google Places (Egypt-wide when unspecified, or localized when selected)
   useEffect(() => {
     let cancelled = false;
     setPlacesHydrating(true);
     const params = new URLSearchParams();
-    if (userLocation.city) params.set("city", userLocation.city);
-    params.set("lat", String(userLocation.lat));
-    params.set("lng", String(userLocation.lng));
+    if (userLocation.isSpecified) {
+      if (userLocation.city) params.set("city", userLocation.city);
+      params.set("lat", String(userLocation.lat));
+      params.set("lng", String(userLocation.lng));
+    } else {
+      params.set("scope", "egypt");
+    }
 
     fetch(`/api/places/search?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -534,7 +559,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLocation.city, userLocation.lat, userLocation.lng]);
+  }, [userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
   // Persist changes back to localStorage
   useEffect(() => {
@@ -672,21 +697,118 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const mergeRemoteLedgers = (incoming: SessionLedger[]) => {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    setSessionLedgers((prev) => {
+      const byId = new Map(prev.map((l) => [l.id, l]));
+      for (const remote of incoming) {
+        const local = byId.get(remote.id);
+        if (!local) {
+          byId.set(remote.id, remote);
+        } else {
+          // Keep the version with more progress/checkins, or remote if equal
+          const localProgress = local.completedSessions + local.receipts.length;
+          const remoteProgress = remote.completedSessions + remote.receipts.length;
+          byId.set(remote.id, localProgress > remoteProgress ? local : remote);
+        }
+      }
+      return Array.from(byId.values());
+    });
+  };
+
+  const lookupRemoteLedgersOrProfile: CaptenlyContextType["lookupRemoteLedgersOrProfile"] = async (
+    query
+  ) => {
+    const params = new URLSearchParams();
+    if (query.memberCode) params.set("memberCode", query.memberCode.trim().toUpperCase());
+    if (query.ledgerCode) params.set("ledgerCode", query.ledgerCode.trim().toUpperCase());
+    if (query.coachId) params.set("coachId", query.coachId.trim());
+    if (query.facilityId) params.set("facilityId", query.facilityId.trim());
+    if (!params.toString()) return { ledgers: [], profile: null };
+
+    try {
+      const res = await fetch(`/api/supabase/session-ledgers?${params.toString()}`);
+      if (!res.ok) return { ledgers: [], profile: null };
+      const data = await res.json();
+      const ledgers = Array.isArray(data?.ledgers) ? (data.ledgers as SessionLedger[]) : [];
+      if (ledgers.length > 0) mergeRemoteLedgers(ledgers);
+
+      const profile = data?.profile || null;
+      if (profile?.memberCode && profile?.fullNameAr) {
+        setMemberRegistry((prev) => {
+          if (prev.some((m) => m.memberCode.toUpperCase() === profile.memberCode.toUpperCase())) {
+            return prev;
+          }
+          return [
+            {
+              memberCode: profile.memberCode,
+              athleteId: `member-${profile.memberCode}`,
+              fullNameAr: profile.fullNameAr,
+              phone: profile.phone || "",
+              city: profile.city || "مصر",
+              role: profile.role === "parent" ? "parent" : "adult_athlete",
+            },
+            ...prev,
+          ];
+        });
+      }
+      return { ledgers, profile };
+    } catch {
+      return { ledgers: [], profile: null };
+    }
+  };
+
+  const syncLedgersFromServer = async () => {
+    if (!isAuthenticated || effectiveOffline) return;
+    await lookupRemoteLedgersOrProfile({
+      memberCode: currentPersona.memberCode || undefined,
+      coachId: currentPersona.role === "coach" ? currentPersona.id : undefined,
+      facilityId: currentPersona.linkedFacilityId || undefined,
+    });
+  };
+
+  // Hydrate persisted Session Ledgers across devices when authenticated or window regains focus
+  useEffect(() => {
+    if (!isAuthenticated || effectiveOffline) return;
+    syncLedgersFromServer();
+    const onFocus = () => {
+      syncLedgersFromServer();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentPersona.id, currentPersona.memberCode, currentPersona.linkedFacilityId, effectiveOffline]);
+
   const syncOfflineQueue = () => {
-    const pendingCount = offlineQueue.filter((q) => !q.synced).length;
+    const pendingItems = offlineQueue.filter((q) => !q.synced);
+    const pendingCount = pendingItems.length;
     if (pendingCount === 0) return 0;
 
+    const syncedIds = new Set(pendingItems.map((q) => q.ledgerId));
     setOfflineQueue((prev) => prev.map((q) => ({ ...q, synced: true })));
-    setSessionLedgers((prev) =>
-      prev.map((l) => ({
-        ...l,
-        checkins: l.checkins.map((c) =>
-          c.wasOffline && c.dateAr.includes("محفوظ أوفلاين")
-            ? { ...c, dateAr: `${c.dateAr.replace("محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً", "تمت المزامنة سحابياً بنجاح ✓")}` }
-            : c
-        ),
-      }))
-    );
+    setSessionLedgers((prev) => {
+      const next = prev.map((l) => {
+        const updatedLedger: SessionLedger = {
+          ...l,
+          checkins: l.checkins.map((c) =>
+            c.wasOffline && c.dateAr.includes("محفوظ أوفلاين")
+              ? {
+                  ...c,
+                  dateAr: c.dateAr.replace(
+                    "محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً",
+                    "تمت المزامنة سحابياً بنجاح ✓"
+                  ),
+                }
+              : c
+          ),
+        };
+        if (syncedIds.has(l.id)) {
+          postSupabaseSync("/api/supabase/session-ledgers", { ledger: updatedLedger });
+        }
+        return updatedLedger;
+      });
+      return next;
+    });
 
     pushNotification({
       titleAr: `مزامنة ${pendingCount} حصة أوفلاين بنجاح`,
@@ -733,15 +855,20 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       lat,
       lng,
       isAutoDetected: false,
+      isSpecified: true,
       distanceKm,
       isOutsideCoverage: false,
     });
   };
 
   const setUserCity = (city: string, gov = "مصر") => {
+    if (!city || city === "كل مصر" || city === "الكل") {
+      setUserLocation(DEFAULT_EGYPT_LOCATION);
+      return;
+    }
     const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
-    const lat = preset?.lat ?? (city === "طنطا" ? 30.7865 : city === "زفتى" ? 30.7124 : 30.9706);
-    const lng = preset?.lng ?? (city === "طنطا" ? 31.0004 : city === "زفتى" ? 31.2423 : 31.1669);
+    const lat = preset?.lat ?? (city === "طنطا" ? 30.7865 : city === "زفتى" ? 30.7124 : 30.0444);
+    const lng = preset?.lng ?? (city === "طنطا" ? 31.0004 : city === "زفتى" ? 31.2423 : 31.2357);
     const dist = facilities.length > 0 ? getNearestFacilityDistance(lat, lng) : 0;
 
     setUserLocation({
@@ -750,9 +877,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       lat,
       lng,
       isAutoDetected: false,
+      isSpecified: true,
       distanceKm: dist,
       isOutsideCoverage: false,
     });
+  };
+
+  const resetLocationToAllEgypt = () => {
+    setUserLocation(DEFAULT_EGYPT_LOCATION);
   };
 
   const requestAutoGeolocation = async () => {
@@ -779,12 +911,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             lat: lat1,
             lng: lon1,
             isAutoDetected: true,
+            isSpecified: true,
             distanceKm,
             isOutsideCoverage: false,
           });
         },
         () => {
-          setUserCity("المحلة الكبرى", "الغربية");
+          // If user denies GPS or it fails, keep open Egypt-wide discovery instead of forcing any city
+          setUserLocation((prev) => (prev.isSpecified ? prev : DEFAULT_EGYPT_LOCATION));
         }
       );
     }
@@ -1046,6 +1180,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const newId = `google-${safeSlug}`;
     const firstName = cleanName.split(" ")[0];
 
+    const defaultUserCity = userLocation.isSpecified ? userLocation.city : "مصر";
+
     const newPersona: PersonaAccount = {
       id: newId,
       role: "adult_athlete",
@@ -1058,7 +1194,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       shortLabelAr: `${firstName} (${memberCode})`,
       fullNameAr: cleanName,
       personaTitleAr: `رياضي مسجّل عبر Google — كود ${memberCode}`,
-      city: userLocation.city,
+      city: defaultUserCity,
       phone: "",
       descriptionAr: payload.isSimulatedPreview
         ? `حساب معاينة مسجّل بالبريد (${cleanEmail}) بكود عضوية فوري جاهز لتجربة الرحلة الكاملة.`
@@ -1073,7 +1209,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       athleteId: newId,
       fullNameAr: cleanName,
       phone: "",
-      city: userLocation.city,
+      city: defaultUserCity,
       role: "adult_athlete",
       isMinor: false,
     };
@@ -1092,7 +1228,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       email: cleanEmail,
       fullNameAr: cleanName,
       role: "adult_athlete",
-      city: userLocation.city,
+      city: defaultUserCity,
       avatarUrl: payload.image || undefined,
       authProvider: "google",
       hasParentSupervision: false,
@@ -1109,7 +1245,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     hasParentSupervision?: boolean;
   }) => {
     const cleanPhone = (payload.phone ?? currentPersona.phone ?? "").trim();
-    const cleanCity = (payload.city ?? currentPersona.city ?? userLocation.city).trim();
+    const fallbackOnboardingCity = userLocation.isSpecified ? userLocation.city : "مصر";
+    const cleanCity = (payload.city ?? currentPersona.city ?? fallbackOnboardingCity).trim();
     const firstName = currentPersona.fullNameAr.split(" ")[0];
 
     const existingSuffix = (currentPersona.memberCode || "").split("-").pop();
@@ -1467,6 +1604,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const newLedger: SessionLedger = {
       id: `ledger-${Date.now()}`,
       ledgerCode: `LED-2026-${Math.floor(200 + Math.random() * 799)}`,
+      memberCode: normalizedCode,
       athleteId,
       athleteNameAr,
       isMinor: Boolean(payload.isMinor ?? regMatch?.isMinor),
@@ -1500,19 +1638,25 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
     setSessionLedgers((prev) => [newLedger, ...prev]);
 
-    setFacilities((prev) =>
-      prev.map((f) =>
-        f.id === targetFacility.id
-          ? {
-              ...f,
-              monthlyMetrics: {
-                ...f.monthlyMetrics,
-                activeSessionLedgers: f.monthlyMetrics.activeSessionLedgers + 1,
-              },
-            }
-          : f
-      )
-    );
+    if (!effectiveOffline) {
+      postSupabaseSync("/api/supabase/session-ledgers", { ledger: newLedger });
+    }
+
+    if (targetFacility) {
+      setFacilities((prev) =>
+        prev.map((f) =>
+          f.id === targetFacility.id
+            ? {
+                ...f,
+                monthlyMetrics: {
+                  ...f.monthlyMetrics,
+                  activeSessionLedgers: f.monthlyMetrics.activeSessionLedgers + 1,
+                },
+              }
+            : f
+        )
+      );
+    }
 
     if (!regMatch) {
       setMemberRegistry((prev) => [
@@ -1521,7 +1665,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           athleteId,
           fullNameAr: athleteNameAr,
           phone: personaMatch?.phone || "",
-          city: targetFacility.city,
+          city: targetFacility?.city || currentPersona.city || "مصر",
           role: payload.isMinor ? "parent" : "adult_athlete",
           isMinor: payload.isMinor,
           parentNameAr: payload.parentNameAr,
@@ -1532,9 +1676,19 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
     pushNotification({
       titleAr: `تم تفعيل باقة ${payload.totalSessions} حصص لـ ${athleteNameAr}`,
-      messageAr: `الـ QR ودفتـر الحصص مفعّلان الآن لكود العضوية ${normalizedCode} في ${targetFacility.nameAr} (PIN الحضور: ${pinCode}).`,
+      messageAr: `الـ QR ودفتر الحصص مفعّلان الآن لكود العضوية ${normalizedCode} في ${targetFacility?.nameAr || "الأكاديمية"} (PIN الحضور: ${pinCode}).`,
       type: "session_reminder",
       actionLabelAr: "فتح دفتر الحصص والـ QR",
+      actionHref: "/dashboard/ledger",
+    });
+
+    // Also push cloud notification targeting the swimmer's own memberCode so it reaches their phone
+    postSupabaseSync("/api/supabase/notifications", {
+      memberCode: normalizedCode,
+      titleAr: `تم تفعيل باقة ${payload.totalSessions} حصص لك!`,
+      messageAr: `أهلاً ${athleteNameAr} — تم ربط باقتك في ${targetFacility?.nameAr || currentPersona.fullNameAr}. كود الحضور PIN: ${pinCode}.`,
+      type: "session_reminder",
+      actionLabelAr: "عرض بطاقة الـ QR",
       actionHref: "/dashboard/ledger",
     });
 
@@ -1573,34 +1727,45 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const remaining = targetLedger.totalSessions - nextNum;
     const isOff = effectiveOffline || method === "offline_sync";
 
-    setSessionLedgers((prev) =>
-      prev.map((l) => {
-        if (l.id !== ledgerId) return l;
-        return {
-          ...l,
-          completedSessions: nextNum,
-          status:
-            nextNum >= l.totalSessions
-              ? "completed"
-              : remaining <= 2
-              ? "renewal_due"
-              : "active",
-          checkins: [
-            ...l.checkins,
-            {
-              sessionNumber: nextNum,
-              dateAr: isOff
-                ? "الآن (محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً)"
-                : "الآن — ختم موثق أونلاين",
-              method: isOff ? "offline_sync" : method,
-              verifiedByAr: currentPersona.shortLabelAr,
-              coachNoteAr: coachNoteAr || "حضور مؤكد وتمرين ممتاز",
-              wasOffline: isOff,
-            },
-          ],
-        };
-      })
-    );
+    const updatedLedger: SessionLedger = {
+      ...targetLedger,
+      completedSessions: nextNum,
+      status:
+        nextNum >= targetLedger.totalSessions
+          ? "completed"
+          : remaining <= 2
+          ? "renewal_due"
+          : "active",
+      checkins: [
+        ...targetLedger.checkins,
+        {
+          sessionNumber: nextNum,
+          dateAr: isOff
+            ? "الآن (محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً)"
+            : "الآن — ختم موثق أونلاين",
+          method: isOff ? "offline_sync" : method,
+          verifiedByAr: currentPersona.shortLabelAr,
+          coachNoteAr: coachNoteAr || "حضور مؤكد وتمرين ممتاز",
+          wasOffline: isOff,
+        },
+      ],
+    };
+
+    setSessionLedgers((prev) => prev.map((l) => (l.id === ledgerId ? updatedLedger : l)));
+
+    if (!isOff) {
+      postSupabaseSync("/api/supabase/session-ledgers", { ledger: updatedLedger });
+      if (targetLedger.memberCode) {
+        postSupabaseSync("/api/supabase/notifications", {
+          memberCode: targetLedger.memberCode,
+          titleAr: `تم تسجيل حضور الحصة رقم (${nextNum} من ${targetLedger.totalSessions}) ✓`,
+          messageAr: `سجّل ${currentPersona.fullNameAr} حضورك في ${targetLedger.facilityNameAr}. المتبقي: ${remaining} حصة.`,
+          type: "session_reminder",
+          actionLabelAr: "عرض سجل حصصي",
+          actionHref: "/dashboard/ledger",
+        });
+      }
+    }
 
     if (isOff) {
       setOfflineQueue((prev) => [
@@ -1626,7 +1791,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return {
       ok: true,
       messageAr: `تم خصم وتوثيق الحصة رقم (${nextNum} من ${targetLedger.totalSessions}) بنجاح ${
-        isOff ? "في ذاكرة الأوفلاين (سيتم المزامنة تلقائياً عند توفر الشبكة)" : "مع ختم زمني فوري"
+        isOff ? "في ذاكرة الأوفلاين (سيتم المزامنة تلقائياً عند توفر الشبكة)" : "مع ختم زمني فوري ومزامنة سحابية"
       }!${renewalMsg}`,
     };
   };
@@ -1643,7 +1808,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setSessionLedgers((prev) =>
       prev.map((l) => {
         if (l.id !== ledgerId) return l;
-        return {
+        const updated: SessionLedger = {
           ...l,
           receipts: [
             {
@@ -1658,6 +1823,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             ...l.receipts,
           ],
         };
+        if (!effectiveOffline) {
+          postSupabaseSync("/api/supabase/session-ledgers", { ledger: updated });
+        }
+        return updated;
       })
     );
   };
@@ -2442,6 +2611,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setSessionLedgers(INITIAL_SESSION_LEDGERS);
     setVerifiedLeads(INITIAL_VERIFIED_LEADS);
     setDemandRadar(INITIAL_DEMAND_RADAR);
+    setUserLocation(DEFAULT_EGYPT_LOCATION);
     setOfflineQueue([]);
     setSavedFavoriteIds([]);
     setCompareFacilityIds([]);
@@ -2473,6 +2643,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         userLocation,
         setUserCity,
         setUserCoordinates,
+        resetLocationToAllEgypt,
         requestAutoGeolocation,
         locationModalOpen,
         setLocationModalOpen,
@@ -2512,6 +2683,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         enrollSwimmerByMemberCode,
         checkInSession,
         uploadInstaPayReceipt,
+        lookupRemoteLedgersOrProfile,
+        syncLedgersFromServer,
         addNewPBRecord,
         recordCoachSkillAndPB,
         addMinorAthlete,

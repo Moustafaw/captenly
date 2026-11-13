@@ -162,7 +162,9 @@ export function SiteHeader() {
           >
             <Icon name="location_on" className="text-athletic-olive text-[16px]" />
             <span className="font-micro-caption text-[12px] font-bold whitespace-nowrap">
-              {userLocation.city}، {userLocation.governorate}
+              {userLocation.isSpecified
+                ? `${userLocation.city}، ${userLocation.governorate}`
+                : "نطاق البحث: كل مصر"}
             </span>
             <Icon name="arrow_drop_down" className="text-text-muted" />
           </button>

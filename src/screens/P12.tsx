@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
+import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 
 export default function Phone12() {
   const {
@@ -19,6 +20,7 @@ export default function Phone12() {
     publishSchoolPackage,
     currentPersona,
     isAuthenticated,
+    syncLedgersFromServer,
   } = useCaptenly();
 
   const activeCoach =
@@ -30,6 +32,8 @@ export default function Phone12() {
   const [feeEgp, setFeeEgp] = useState("");
   const [pkgTitle, setPkgTitle] = useState("باقة التأسيس والمتابعة — 8 حصص");
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   const [schoolName, setSchoolName] = useState("");
   const [schoolPrice, setSchoolPrice] = useState("");
@@ -106,7 +110,32 @@ export default function Phone12() {
         }}
         className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3"
       >
-        <h2 className="font-card-title-sm text-dark-slate">تفعيل باقة سباح بكود العضوية</h2>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h2 className="font-card-title-sm text-dark-slate">تفعيل باقة سباح بكود العضوية</h2>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-deep-olive text-white text-[11px] font-bold"
+            >
+              <Icon name="qr_code_scanner" className="text-[14px]" />
+              <span>مسح QR</span>
+            </button>
+            <button
+              type="button"
+              disabled={syncingCloud}
+              onClick={async () => {
+                setSyncingCloud(true);
+                await syncLedgersFromServer();
+                setSyncingCloud(false);
+              }}
+              title="مزامنة الدفاتر مع السحابة"
+              className="w-8 h-8 rounded-full bg-surface-snow border border-surface-container flex items-center justify-center text-dark-slate disabled:opacity-50"
+            >
+              <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
         <input
           required
           value={memberCode}
@@ -257,6 +286,21 @@ export default function Phone12() {
           لوحة إدارة الأكاديمية ←
         </Link>
       </section>
+
+      <QrCameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onLedgerCheckedIn={(_ledgerId, messageAr) => {
+          setFeedback({ ok: true, msg: messageAr });
+        }}
+        onMemberDetectedForEnroll={({ memberCode: detectedCode, athleteNameAr }) => {
+          setMemberCode(detectedCode);
+          setFeedback({
+            ok: true,
+            msg: `تم التقاط كود العضوية ${detectedCode}${athleteNameAr ? ` (${athleteNameAr})` : ""} — اضغط تفعيل لتشغيل الـ QR على جهاز السباح.`,
+          });
+        }}
+      />
     </div>
   );
 }

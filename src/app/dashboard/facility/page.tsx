@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
+import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 
 export default function FacilityDashboardPage() {
   const {
@@ -19,7 +20,11 @@ export default function FacilityDashboardPage() {
     confirmFacilityPrices60d,
     currentPersona,
     isAuthenticated,
+    syncLedgersFromServer,
   } = useCaptenly();
+
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>(
     currentPersona.linkedFacilityId || facilities[0]?.id || ""
@@ -216,18 +221,38 @@ export default function FacilityDashboardPage() {
             onSubmit={handleEnrollSubmit}
             className="lg:col-span-7 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <h2 className="font-section-title text-dark-slate">
                   تسجيل سباح بكود العضوية وتفعيل الـ QR فوراً
                 </h2>
                 <p className="font-body-compact text-text-muted mt-0.5">
-                  أدخل كود عضوية المتدرب (بصيغة CAP-M-XXXX) مع عدد الحصص والمبلغ لتفعيل دفتره أوفلاين.
+                  امسح باركود السباح بالكاميرا أو أدخل كود عضويته (CAP-M-XXXX) لتفعيل دفتر الحصص والمزامنة سحابياً فوراً.
                 </p>
               </div>
-              <span className="text-deep-olive text-[11px] font-extrabold shrink-0">
-                تفعيل فوري
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-xs"
+                >
+                  <Icon name="qr_code_scanner" className="text-[16px]" />
+                  <span>مسح QR بالكاميرا</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={syncingCloud}
+                  onClick={async () => {
+                    setSyncingCloud(true);
+                    await syncLedgersFromServer();
+                    setSyncingCloud(false);
+                  }}
+                  title="مزامنة الدفاتر من السحابة"
+                  className="w-8 h-8 rounded-full bg-surface-snow border border-surface-container flex items-center justify-center text-dark-slate hover:bg-lime-tint/50 disabled:opacity-50"
+                >
+                  <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -466,6 +491,22 @@ export default function FacilityDashboardPage() {
           </section>
         )}
       </div>
+
+      <QrCameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onLedgerCheckedIn={(_ledgerId, messageAr) => {
+          setFeedback({ ok: true, msg: messageAr });
+        }}
+        onMemberDetectedForEnroll={({ memberCode: detectedCode, athleteNameAr }) => {
+          setMemberCodeInput(detectedCode);
+          if (athleteNameAr) setAthleteNameInput(athleteNameAr);
+          setFeedback({
+            ok: true,
+            msg: `تم مسح كود العضوية ${detectedCode}${athleteNameAr ? ` (${athleteNameAr})` : ""} — اختر الباقة واضغط تفعيل لتشغيل الـ QR عند المتدرب فوراً.`,
+          });
+        }}
+      />
     </div>
   );
 }

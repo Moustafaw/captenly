@@ -59,11 +59,12 @@ export default function Desktop24() {
         lat: userLocation.lat,
         lng: userLocation.lng,
         city: userLocation.city,
+        isSpecified: userLocation.isSpecified,
       }),
-    [filteredFacilities, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city]
+    [filteredFacilities, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified]
   );
 
-  // Home always showcases up to 3 nearest rotating suggestions (Registered first, Google Maps fill remaining slots)
+  // Home always showcases up to 3 rotating suggestions (diversified across Egypt if no location selected, or nearest when selected)
   const homeSuggestions = useMemo(
     () => partitioned.allSorted.slice(0, 3),
     [partitioned.allSorted]
@@ -83,7 +84,7 @@ export default function Desktop24() {
 
   const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
   const exploreCityHref =
-    cleanCityLabel && cleanCityLabel !== "موقعك الحالي"
+    userLocation.isSpecified && cleanCityLabel && cleanCityLabel !== "موقعك الحالي" && cleanCityLabel !== "كل مصر"
       ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
       : "/explore";
 
@@ -176,7 +177,9 @@ export default function Desktop24() {
                   التصنيفات الرياضية المتاحة
                 </h2>
                 <span className="font-body-compact text-body-compact text-text-muted">
-                  النطاق الحالي: {userLocation.city}، {userLocation.governorate}
+                  {userLocation.isSpecified
+                    ? `النطاق الحالي: ${userLocation.city}، ${userLocation.governorate}`
+                    : "النطاق الحالي: كل مصر (نتائج متنوعة — اضغط لتحديد منطقتك)"}
                 </span>
               </div>
               <div className="flex items-center gap-space-xs overflow-x-auto pb-2 scrollbar-none" id="categoryFilters">
@@ -206,10 +209,14 @@ export default function Desktop24() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <h2 className="font-section-title text-section-title text-dark-slate">
-                    مقترحات السباحة القريبة منك في {cleanCityLabel}
+                    {userLocation.isSpecified
+                      ? `مقترحات السباحة القريبة منك في ${cleanCityLabel}`
+                      : "أندية وأكاديميات السباحة المقترحة في مصر"}
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                    يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي وتتبدل تلقائياً — اضغط للتصفح الكامل
+                    {userLocation.isSpecified
+                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي وتتبدل تلقائياً — اضغط للتصفح الكامل"
+                      : "تظهر 3 منشآت متنوعة من مختلف محافظات مصر لعدم تحديد نطاق جغرافي — حدّد موقعك لترتيب الأقرب لك"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -234,7 +241,11 @@ export default function Desktop24() {
                     className="inline-flex items-center gap-1 font-card-title-sm text-card-title-sm text-deep-olive hover:underline"
                     href={exploreCityHref}
                   >
-                    <span>عرض كل المسابح في {cleanCityLabel} ({filteredFacilities.length})</span>
+                    <span>
+                      {userLocation.isSpecified
+                        ? `عرض كل المسابح في ${cleanCityLabel} (${filteredFacilities.length})`
+                        : `تصفح كل المسابح في مصر (${filteredFacilities.length})`}
+                    </span>
                     <Icon name="chevron_left" className="text-[16px]" />
                   </Link>
                 </div>

@@ -91,7 +91,11 @@ export default function SettingsHubPage() {
             </p>
             <div className="flex items-center gap-2 text-micro-caption text-text-muted pt-0.5">
               <Icon name="location_on" className="text-[15px] text-deep-olive" />
-              <span>النطاق: {userLocation.city} ({userLocation.governorate})</span>
+              <span>
+                {userLocation.isSpecified
+                  ? `النطاق: ${userLocation.city} (${userLocation.governorate})`
+                  : "النطاق: كل مصر (نطاق مفتوح)"}
+              </span>
               <button
                 type="button"
                 onClick={() => setLocationModalOpen(true)}

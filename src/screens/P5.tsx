@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 
 export default function Phone5() {
   const {
@@ -22,6 +23,7 @@ export default function Phone5() {
     toggleOfflineSimulation,
     offlineQueue,
     syncOfflineQueue,
+    syncLedgersFromServer,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
@@ -33,6 +35,8 @@ export default function Phone5() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnrollForm, setShowEnrollForm] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   const [newMemberCode, setNewMemberCode] = useState("");
   const [newAthleteName, setNewAthleteName] = useState("");
@@ -207,6 +211,19 @@ export default function Phone5() {
             >
               ملفي الرياضي وتحليل الأداء
             </Link>
+            <button
+              type="button"
+              disabled={syncingCloud}
+              onClick={async () => {
+                setSyncingCloud(true);
+                await syncLedgersFromServer();
+                setSyncingCloud(false);
+              }}
+              className="w-full py-2.5 rounded-full bg-lime-tint text-deep-olive border border-deep-olive/25 text-xs font-bold inline-flex items-center justify-center gap-1.5"
+            >
+              <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+              <span>{syncingCloud ? "جاري التحديث..." : "تحديث الدفاتر من السحابة"}</span>
+            </button>
           </div>
         </section>
       ) : (
@@ -225,13 +242,36 @@ export default function Phone5() {
                 </p>
               </div>
               {isProvider && (
-                <button
-                  type="button"
-                  onClick={() => setShowEnrollForm((v) => !v)}
-                  className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
-                >
-                  {showEnrollForm ? "إغلاق" : "+ مشترك جديد"}
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-deep-olive text-white text-[11px] font-bold"
+                  >
+                    <Icon name="qr_code_scanner" className="text-[14px]" />
+                    <span>مسح QR</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncingCloud}
+                    onClick={async () => {
+                      setSyncingCloud(true);
+                      await syncLedgersFromServer();
+                      setSyncingCloud(false);
+                    }}
+                    title="مزامنة الدفاتر مع السحابة"
+                    className="w-8 h-8 rounded-full bg-surface-snow border border-surface-container flex items-center justify-center text-dark-slate disabled:opacity-50"
+                  >
+                    <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEnrollForm((v) => !v)}
+                    className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+                  >
+                    {showEnrollForm ? "إغلاق" : "+ مشترك"}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -583,6 +623,24 @@ export default function Phone5() {
           )}
         </div>
       )}
+
+      <QrCameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onLedgerCheckedIn={(ledgerId, messageAr) => {
+          setSelectedId(ledgerId);
+          setMsg({ ok: true, text: messageAr });
+        }}
+        onMemberDetectedForEnroll={({ memberCode: detectedCode, athleteNameAr }) => {
+          setShowEnrollForm(true);
+          setNewMemberCode(detectedCode);
+          if (athleteNameAr) setNewAthleteName(athleteNameAr);
+          setMsg({
+            ok: true,
+            text: `تم التقاط كود العضوية ${detectedCode}${athleteNameAr ? ` (${athleteNameAr})` : ""} — أكمل تفعيل الباقة ليظهر الـ QR على جهاز السباح.`,
+          });
+        }}
+      />
     </div>
   );
 }
