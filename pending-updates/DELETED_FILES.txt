@@ -1,0 +1,13 @@
+src/components/BottomNav.tsx
+src/components/BrandIcons.tsx
+src/components/CaptenlyLogo.tsx
+src/components/FounderPersonaBar.tsx
+src/components/LegalFooter.tsx
+src/components/Navbar.tsx
+src/screens/P10.tsx
+src/screens/P15.tsx
+src/screens/P16.tsx
+src/screens/P3.tsx
+src/screens/P7.tsx
+src/screens/chrome/DesktopFooterRaw.tsx
+src/screens/chrome/DesktopHeaderRaw.tsx
