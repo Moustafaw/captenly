@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SocialChannelGlyph } from "@/components/editorial/ContactChannelsBar";
 import { normalizeSocialUrl } from "@/lib/contactChannels";
@@ -48,6 +48,14 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
   const [threads, setThreads] = useState(currentPersona.socialLinks?.threads || "");
   const [savedNotice, setSavedNotice] = useState(false);
 
+  useEffect(() => {
+    setBio(currentPersona.bioAr || "");
+    setFacebook(currentPersona.socialLinks?.facebook || "");
+    setInstagram(currentPersona.socialLinks?.instagram || "");
+    setXHandle(currentPersona.socialLinks?.x || "");
+    setThreads(currentPersona.socialLinks?.threads || "");
+  }, [currentPersona.id, currentPersona.bioAr, currentPersona.socialLinks]);
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateCurrentPersonaProfile({
@@ -94,7 +102,7 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
           maxLength={220}
           value={bio}
           onChange={(e) => setBio(e.target.value)}
-          placeholder="سبّاح حرة وفراشة 50م • المحلة الكبرى • أسعى لتحسين رقمي إلى تحت 31 ثانية"
+          placeholder="سبّاح حرة وفراشة 50م • أسعى لتحسين رقمي إلى تحت 31 ثانية"
           className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
         />
       </div>

@@ -1,5 +1,8 @@
 "use client";
 
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { getFacilityBookablePackages, toLedgerSessionBucket } from "@/lib/facilityPricing";
+
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
@@ -38,6 +41,8 @@ export default function FacilityDashboardPage() {
     enrollSwimmerByMemberCode,
     checkInSession,
     checkInBySubscriptionCode,
+    lookupStaffCandidatesRemote,
+    recordCoachSkillAndPB,
     renewSwimmerSubscription,
     currentPersona,
     isAuthenticated,
@@ -178,6 +183,29 @@ export default function FacilityDashboardPage() {
 
   const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
 
+  const [newFacCityInput, setNewFacCityInput] = useState("");
+  const [staffCandidates, setStaffCandidates] = useState<
+    Array<{
+      memberCode: string;
+      fullNameAr: string;
+      phone: string;
+      email?: string;
+      city: string;
+      role: string;
+    }>
+  >([]);
+  const [staffSearchBusy, setStaffSearchBusy] = useState(false);
+  const [pbAthleteId, setPbAthleteId] = useState("");
+  const [pbSwimmerName, setPbSwimmerName] = useState("");
+  const [pbEventTitle, setPbEventTitle] = useState("50م حرة (سباق سرعة)");
+  const [pbCurrentValue, setPbCurrentValue] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
+  const [skillFloating, setSkillFloating] = useState(4);
+  const [skillBreathing, setSkillBreathing] = useState(4);
+  const [skillFreestyle, setSkillFreestyle] = useState(4);
+  const [skillBackstroke, setSkillBackstroke] = useState(4);
+  const [skillDiving, setSkillDiving] = useState(4);
+
   if (!isAuthenticated) {
     return (
       <GuestAccountGateScreen
@@ -188,6 +216,16 @@ export default function FacilityDashboardPage() {
   }
 
   // If no facility is linked yet, allow claiming an existing facility or creating a new one
+  if (currentPersona.role !== "facility_manager" && !isStaffMode) {
+    return (
+      <RoleAccessDeniedScreen
+        descriptionAr="لوحة إدارة المنشأة متاحة فقط لحساب مدير المنشأة أو الموظفين المفعلين بصلاحية منشأة."
+        fallbackHref={currentPersona.role === "coach" ? "/dashboard/coach" : "/dashboard/athlete"}
+        fallbackLabelAr="الانتقال إلى لوحتي"
+      />
+    );
+  }
+
   if (!facility) {
     return (
       <div className="min-h-screen bg-canvas-alabaster pt-8 pb-16">
@@ -233,10 +271,15 @@ export default function FacilityDashboardPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!newFacName.trim()) return;
+                const resolvedFacCity =
+                  newFacCityInput.trim() ||
+                  (currentPersona.city && currentPersona.city !== "كل مصر"
+                    ? currentPersona.city
+                    : "مصر");
                 const created = seedNewFacilityConcierge({
                   nameAr: newFacName.trim(),
-                  city: currentPersona.city || "القاهرة",
-                  district: newFacDistrict.trim() || currentPersona.city || "المنطقة الرئيسية",
+                  city: resolvedFacCity,
+                  district: newFacDistrict.trim() || resolvedFacCity || "المنطقة الرئيسية",
                   sportSector: "swimming",
                   baseMonthlyPrice: 600,
                   whatsappNumber: newFacPhone.trim() || currentPersona.phone,
@@ -297,6 +340,7 @@ export default function FacilityDashboardPage() {
     if (!manualSubCode.trim()) return;
     const res = checkInBySubscriptionCode(
       manualSubCode.trim(),
+      facility.id,
       manualSubNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المنشأة"
     );
     setFeedback({ ok: res.ok, msg: res.messageAr });
@@ -481,7 +525,7 @@ export default function FacilityDashboardPage() {
             )}
 
             <Link
-              href={`/f/${facility.slug}`}
+              href={`/academy/${facility.slug}`}
               className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/15"
             >
               معاينة صفحة المنشأة العامة ←
@@ -704,6 +748,39 @@ export default function FacilityDashboardPage() {
                     ))}
                   </select>
                 </div>
+
+                {(() => {
+                  const bookablePackages = getFacilityBookablePackages(facility);
+                  if (bookablePackages.length === 0) return null;
+                  return (
+                    <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
+                      <label className="text-[11px] font-bold text-deep-olive">
+                        اختيار باقة / برنامج موثق بالمنشأة لتعبئة البيانات تلقائياً (اختياري)
+                      </label>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const found = bookablePackages.find((p) => p.id === e.target.value);
+                          if (!found) return;
+                          setSelectedTrack(found.trackType);
+                          setPkgTitleInput(found.nameAr);
+                          setSessionsCount(toLedgerSessionBucket(found.sessionsCount));
+                          if (found.baseMonthlyEgp > 0) {
+                            setAmountEgp(String(found.baseMonthlyEgp));
+                          }
+                        }}
+                        className="rounded-xl bg-lime-tint/30 px-3 py-2 text-xs font-bold text-dark-slate outline-none border border-deep-olive/30"
+                      >
+                        <option value="">-- اختر من باقات المنشأة ({bookablePackages.length}) أو أدخل باقة مخصصة --</option>
+                        {bookablePackages.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nameAr} — {p.sessionsCount} حصة ({p.baseMonthlyEgp} ج.م)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-bold text-dark-slate">مسمى الباقة / الموعد</label>
@@ -958,6 +1035,142 @@ export default function FacilityDashboardPage() {
                 </div>
               )}
             </section>
+
+            {/* تقييم السباحين والأرقام القياسية (PB + مهارات السباحة) */}
+            {(!isStaffMode || activeStaffAssignment?.role !== "accounts_manager") && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const selectedLedger = facilityLedgers.find((l) => l.id === pbAthleteId);
+                  const targetName = pbSwimmerName.trim() || selectedLedger?.athleteNameAr || "";
+                  const numericVal = Number(pbCurrentValue.trim());
+                  if (!targetName || !pbEventTitle.trim() || !Number.isFinite(numericVal) || numericVal <= 0) {
+                    setFeedback({
+                      ok: false,
+                      msg: "يرجى تحديد السباح وكتابة السباق ورقم قياسي صحيح (رقم أكبر من صفر).",
+                    });
+                    return;
+                  }
+                  const targetAthleteId = selectedLedger?.athleteId || "persona-athlete";
+                  recordCoachSkillAndPB({
+                    athleteId: targetAthleteId,
+                    swimmerNameAr: targetName,
+                    eventTitleAr: pbEventTitle.trim(),
+                    currentValue: numericVal,
+                    unitAr: pbUnitAr.trim() || "ثانية",
+                    coachNameAr: currentPersona.fullNameAr,
+                    facilityNameAr: facility.nameAr,
+                    skills: {
+                      athleteId: targetAthleteId,
+                      evaluatedDateAr: "اليوم",
+                      coachNameAr: currentPersona.fullNameAr,
+                      coachFeedbackAr: `تقييم فني مسجل عبر ${facility.nameAr}`,
+                      metrics: [
+                        { labelAr: "الطفو وتوازن الماء", score: skillFloating },
+                        { labelAr: "تنظيم النفس والفقاعات", score: skillBreathing },
+                        { labelAr: "التوافق الحركي والحرّة", score: skillFreestyle },
+                        { labelAr: "سباحة الظهر والاستلقاء", score: skillBackstroke },
+                        { labelAr: "الغوص وبداية الانطلاق", score: skillDiving },
+                      ],
+                    },
+                  });
+                  setPbCurrentValue("");
+                  setFeedback({
+                    ok: true,
+                    msg: `✓ تم تسجيل الرقم القياسي (${pbEventTitle.trim()}) وتحديث التقييم الفني للسباح «${targetName}» وربطه بملفه فوراً.`,
+                  });
+                }}
+                className="bg-surface-card rounded-[22px] p-6 shadow-sm border border-surface-container flex flex-col gap-4"
+              >
+                <div>
+                  <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                    <Icon name="speed" className="text-[20px] text-deep-olive" />
+                    <span>تقييم السباحين وتسجيل الأرقام القياسية (PB)</span>
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    يظهر التقييم والأرقام المسجلة مباشرة في ملف السباح الشخصي أو ملف الابن لدى ولي الأمر.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <select
+                    value={pbAthleteId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPbAthleteId(val);
+                      const found = facilityLedgers.find((l) => l.id === val);
+                      if (found) setPbSwimmerName(found.athleteNameAr);
+                    }}
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  >
+                    <option value="">-- اختر مشتركاً من الدليل أو اكتب الاسم --</option>
+                    {facilityLedgers.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.athleteNameAr} ({l.subscriptionCode || l.ledgerCode})
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={pbSwimmerName}
+                    onChange={(e) => setPbSwimmerName(e.target.value)}
+                    placeholder="اسم السباح *"
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  />
+
+                  <input
+                    value={pbEventTitle}
+                    onChange={(e) => setPbEventTitle(e.target.value)}
+                    placeholder="الاختبار / السباق (مثلاً 50م حرة) *"
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  />
+
+                  <div className="flex gap-2">
+                    <input
+                      value={pbCurrentValue}
+                      onChange={(e) => setPbCurrentValue(e.target.value)}
+                      placeholder="الزمن/المسافة (31.4)"
+                      className="flex-1 rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                    />
+                    <input
+                      value={pbUnitAr}
+                      onChange={(e) => setPbUnitAr(e.target.value)}
+                      placeholder="ثانية"
+                      className="w-20 rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs font-bold border border-surface-container outline-none text-center"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                  {[
+                    { label: "الطفو (/5)", val: skillFloating, set: setSkillFloating },
+                    { label: "التنفس (/5)", val: skillBreathing, set: setSkillBreathing },
+                    { label: "الحرّة (/5)", val: skillFreestyle, set: setSkillFreestyle },
+                    { label: "الظهر (/5)", val: skillBackstroke, set: setSkillBackstroke },
+                    { label: "الانطلاق (/5)", val: skillDiving, set: setSkillDiving },
+                  ].map((sk) => (
+                    <label key={sk.label} className="rounded-xl bg-surface-snow p-2.5 border border-surface-container flex flex-col gap-1 font-bold text-dark-slate">
+                      <span>{sk.label}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={sk.val}
+                        onChange={(e) => sk.set(Math.min(5, Math.max(1, Number(e.target.value) || 1)))}
+                        className="rounded-lg bg-surface-card px-2 py-1 text-xs border border-surface-container outline-none"
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  className="self-start px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95"
+                >
+                  حفظ الرقم القياسي والتقييم ✓
+                </button>
+              </form>
+            )}
           </div>
         )}
 
@@ -1095,7 +1308,7 @@ export default function FacilityDashboardPage() {
                   قائمة كباتن الأكاديمية الظاهرين في الصفحة العامة ({rosterCoaches.length + affiliatedRegisteredCoaches.length})
                 </h3>
                 <Link
-                  href={`/f/${facility.slug}`}
+                  href={`/academy/${facility.slug}`}
                   className="text-xs font-bold text-deep-olive hover:underline"
                 >
                   معاينة ظهورهم في تبويب «الكباتن الموثقون» ←
@@ -1261,14 +1474,63 @@ export default function FacilityDashboardPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold text-dark-slate">
-                    كود حساب الموظف لتفعيل تبديل الحساب (اختياري)
+                    ربط بحساب مسجل على كابتنلي (الاسم / الكود / الهاتف / البريد)
                   </label>
-                  <input
-                    value={staffAccountQuery}
-                    onChange={(e) => setStaffAccountQuery(e.target.value)}
-                    placeholder="CAP-M-XXXX أو اتركه فارغاً"
-                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-mono outline-none border border-surface-container"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={staffAccountQuery}
+                      onChange={(e) => setStaffAccountQuery(e.target.value)}
+                      placeholder="CAP-M-XXXX أو اسم الموظف أو بريده"
+                      className="flex-1 rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-mono outline-none border border-surface-container"
+                    />
+                    <button
+                      type="button"
+                      disabled={staffSearchBusy || !staffAccountQuery.trim()}
+                      onClick={async () => {
+                        setStaffSearchBusy(true);
+                        try {
+                          const found = await lookupStaffCandidatesRemote(staffAccountQuery);
+                          setStaffCandidates(found);
+                          if (found.length === 0) {
+                            setFeedback({
+                              ok: false,
+                              msg: "لم يتم العثور على حساب مطابق في قاعدة البيانات — تأكد من الكود أو الهاتف أو البريد.",
+                            });
+                          }
+                        } finally {
+                          setStaffSearchBusy(false);
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-lime-tint text-deep-olive text-xs font-bold border border-deep-olive/30 hover:opacity-90 disabled:opacity-50 shrink-0"
+                    >
+                      {staffSearchBusy ? "جاري البحث..." : "بحث الحساب"}
+                    </button>
+                  </div>
+                  {staffCandidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {staffCandidates.map((cand) => (
+                        <button
+                          key={cand.memberCode}
+                          type="button"
+                          onClick={() => {
+                            setStaffNameInput(cand.fullNameAr);
+                            if (cand.phone) setStaffPhoneInput(cand.phone);
+                            setStaffAccountQuery(cand.memberCode);
+                            setStaffCandidates([]);
+                            setFeedback({
+                              ok: true,
+                              msg: `تم اختيار الحساب «${cand.fullNameAr}» (${cand.memberCode}) — حدد الصلاحية واضغط إضافة الموظف.`,
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-lime-tint/70 hover:bg-lime-tint text-dark-slate text-[11px] font-bold border border-deep-olive/30 flex items-center gap-1.5"
+                        >
+                          <span>{cand.fullNameAr}</span>
+                          <span className="font-mono text-deep-olive">{cand.memberCode}</span>
+                          <span className="text-text-muted">({cand.city})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1374,6 +1636,7 @@ export default function FacilityDashboardPage() {
       <QrCameraScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
+        scopeFacilityId={facility.id}
         onLedgerCheckedIn={(_ledgerId, messageAr) => {
           setFeedback({ ok: true, msg: messageAr });
         }}

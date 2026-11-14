@@ -7,6 +7,24 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { isMemberAccountRole } from "@/types/captenly";
+
+function calcMobileImprovementPct(
+  previousValue: number,
+  currentValue: number,
+  unitAr?: string
+): number | null {
+  if (!previousValue || previousValue <= 0) return null;
+  const normalizedUnit = (unitAr || "").trim();
+  const higherIsBetter = ["متر", "سم", "كجم", "نقطة", "مرة", "تكرار", "لفة"].some((u) =>
+    normalizedUnit.includes(u)
+  );
+  const pct = higherIsBetter
+    ? ((currentValue - previousValue) / previousValue) * 100
+    : ((previousValue - currentValue) / previousValue) * 100;
+  return Number(pct.toFixed(1));
+}
 
 export default function Phone2() {
   const router = useRouter();
@@ -17,47 +35,83 @@ export default function Phone2() {
     addMinorAthlete,
     pbRecords,
     addNewPBRecord,
-    skillEvaluation,
+    getSkillEvaluationForAthlete,
     sessionLedgers,
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
   } = useCaptenly();
 
+  const canManageFamily = isMemberAccountRole(currentPersona.role);
   const [tab, setTab] = useState<"analytics" | "ledgers" | "family">("analytics");
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>("");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("8");
   const [eventTitle, setEventTitle] = useState("");
   const [newVal, setNewVal] = useState("");
   const [prevVal, setPrevVal] = useState("");
 
+  const effectiveAthleteId = useMemo(() => {
+    if (canManageFamily && selectedAthleteId && minorAthletes.some((m) => m.id === selectedAthleteId)) {
+      return selectedAthleteId;
+    }
+    return currentPersona.id;
+  }, [canManageFamily, selectedAthleteId, minorAthletes, currentPersona.id]);
+
+  const selectedAthleteName = useMemo(() => {
+    if (effectiveAthleteId === currentPersona.id) return currentPersona.fullNameAr;
+    return minorAthletes.find((m) => m.id === effectiveAthleteId)?.fullNameAr || currentPersona.fullNameAr;
+  }, [effectiveAthleteId, currentPersona.id, currentPersona.fullNameAr, minorAthletes]);
+
   const myLedgers = sessionLedgers.filter(
     (l) =>
       l.athleteId === currentPersona.id ||
       (currentPersona.memberCode &&
-        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase())
+        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+      (canManageFamily && minorAthletes.some((m) => m.id === l.athleteId))
   );
-  const myPBs = useMemo(
-    () =>
-      pbRecords.filter(
-        (p) =>
-          p.athleteId === currentPersona.id ||
-          minorAthletes.some((m) => m.id === p.athleteId)
-      ),
-    [pbRecords, currentPersona.id, minorAthletes]
+  const myPBs = useMemo(() => {
+    if (canManageFamily && selectedAthleteId) {
+      return pbRecords.filter((p) => p.athleteId === effectiveAthleteId);
+    }
+    return pbRecords.filter(
+      (p) =>
+        p.athleteId === currentPersona.id ||
+        (canManageFamily && minorAthletes.some((m) => m.id === p.athleteId))
+    );
+  }, [pbRecords, currentPersona.id, canManageFamily, minorAthletes, selectedAthleteId, effectiveAthleteId]);
+
+  const activeSkillEvaluation = useMemo(
+    () => getSkillEvaluationForAthlete(effectiveAthleteId),
+    [getSkillEvaluationForAthlete, effectiveAthleteId]
   );
 
   const avgScore = useMemo(() => {
-    if (!skillEvaluation.metrics.length) return "0";
-    const sum = skillEvaluation.metrics.reduce((s, m) => s + m.score, 0);
-    return (sum / skillEvaluation.metrics.length).toFixed(1);
-  }, [skillEvaluation]);
+    if (!activeSkillEvaluation.metrics.length) return "0";
+    const sum = activeSkillEvaluation.metrics.reduce((s, m) => s + m.score, 0);
+    return (sum / activeSkillEvaluation.metrics.length).toFixed(1);
+  }, [activeSkillEvaluation]);
 
   if (!isAuthenticated) {
     return (
       <GuestAccountGateScreen
         titleAr="ملفك الرياضي وجواز السفر المائي"
         descriptionAr="أنشئ حسابك أو سجّل دخولك في Captenly للحصول على كود عضوية فريد ومتابعة أرقامك القياسية."
+      />
+    );
+  }
+
+  if (currentPersona.role === "coach" || currentPersona.role === "facility_manager") {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="لوحة السبّاح وولي الأمر"
+        descriptionAr="هذه الصفحة مخصصة لحسابات السبّاحين وأولياء الأمور."
+        fallbackHref={
+          currentPersona.role === "facility_manager" ? "/dashboard/facility" : "/dashboard/coach"
+        }
+        fallbackLabelAr={
+          currentPersona.role === "facility_manager" ? "الانتقال للوحة المنشأة" : "الانتقال للوحة الكابتن"
+        }
       />
     );
   }
@@ -162,7 +216,7 @@ export default function Phone2() {
         {[
           { key: "analytics", label: "الأرقام والأداء" },
           { key: "ledgers", label: `حصصي QR (${myLedgers.length})` },
-          { key: "family", label: `الأبناء (${minorAthletes.length})` },
+          ...(canManageFamily ? [{ key: "family", label: `الأبناء والأسرة (${minorAthletes.length})` }] : []),
         ].map((item) => (
           <button
             key={item.key}
@@ -179,20 +233,45 @@ export default function Phone2() {
 
       {tab === "analytics" && (
         <>
+          {canManageFamily && minorAthletes.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedAthleteId("")}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                  !selectedAthleteId ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-dark-slate"
+                }`}
+              >
+                حسابي / الكل
+              </button>
+              {minorAthletes.map((child) => (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => setSelectedAthleteId(child.id)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                    selectedAthleteId === child.id
+                      ? "bg-deep-olive text-white"
+                      : "bg-surface-card text-dark-slate"
+                  }`}
+                >
+                  {child.fullNameAr}
+                </button>
+              ))}
+            </div>
+          )}
+
           <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
             <h2 className="font-card-title text-dark-slate">أرقامي القياسية (PB)</h2>
             <div className="flex flex-col gap-2">
               {myPBs.map((rec) => {
-                const pct =
-                  rec.previousValue > 0
-                    ? Number((((rec.previousValue - rec.currentValue) / rec.previousValue) * 100).toFixed(1))
-                    : 0;
+                const pct = calcMobileImprovementPct(rec.previousValue, rec.currentValue, rec.unitAr);
                 return (
                   <div key={rec.id} className="rounded-xl bg-surface-snow p-3 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-xs text-dark-slate">{rec.eventTitleAr}</div>
                       <div className="text-[10px] text-text-muted">
-                        {rec.athleteNameAr} {pct > 0 ? `• ↑ تطور +${pct}%` : ""}
+                        {rec.athleteNameAr} {pct !== null && pct > 0 ? `• ↑ تطور +${pct}%` : ""}
                       </div>
                     </div>
                     <div className="font-black text-base text-deep-olive">
@@ -208,8 +287,8 @@ export default function Phone2() {
                 e.preventDefault();
                 if (!eventTitle.trim() || !Number(newVal)) return;
                 addNewPBRecord({
-                  athleteId: currentPersona.id,
-                  athleteNameAr: currentPersona.fullNameAr,
+                  athleteId: effectiveAthleteId,
+                  athleteNameAr: selectedAthleteName,
                   sportType: "swimming",
                   eventTitleAr: eventTitle.trim(),
                   currentValue: Number(newVal) || 0,
@@ -258,7 +337,7 @@ export default function Phone2() {
 
           <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
             <h2 className="font-card-title-sm text-dark-slate">التقييم المهاري (5 محاور)</h2>
-            {skillEvaluation.metrics.map((m) => (
+            {activeSkillEvaluation.metrics.map((m) => (
               <div key={m.labelAr} className="flex flex-col gap-1">
                 <div className="flex justify-between text-xs font-bold">
                   <span>{m.labelAr}</span>
@@ -323,9 +402,14 @@ export default function Phone2() {
         </section>
       )}
 
-      {tab === "family" && (
+      {canManageFamily && tab === "family" && (
         <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3 border border-surface-container">
-          <div className="font-card-title-sm text-sm text-dark-slate">متابعة الأبناء (اختياري)</div>
+          <div className="flex items-center justify-between">
+            <div className="font-card-title-sm text-sm text-dark-slate">متابعة الأبناء (اختياري)</div>
+            <Link href="/dashboard/athlete/settings/family" className="text-[11px] font-bold text-deep-olive">
+              إدارة وتعديل ←
+            </Link>
+          </div>
           {minorAthletes.map((child) => (
             <div key={child.id} className="rounded-xl bg-surface-snow p-3 flex justify-between items-center text-xs">
               <div>

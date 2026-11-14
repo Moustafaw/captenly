@@ -57,6 +57,14 @@ export function MobileHeader() {
           <div className="flex items-center gap-1.5 shrink-0">
             {isAuthenticated ? (
               <>
+                {activeStaffAssignment && (
+                  <Link
+                    href="/dashboard/facility"
+                    className="px-2 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold whitespace-nowrap"
+                  >
+                    وضع موظف ✓
+                  </Link>
+                )}
                 {effectiveOffline && (
                   <Link
                     href="/dashboard/ledger"

@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 export default function Desktop18() {
   const { facilities, smartFilters, updateSmartFilters, resetSmartFilters } = useCaptenly();
@@ -15,8 +17,8 @@ export default function Desktop18() {
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
-      const basePrice = f.pricePackages[0]?.baseMonthlyEgp ?? null;
-      if (basePrice != null && basePrice > smartFilters.maxPriceEgp) return false;
+      const basePrice = getFacilityStartingPriceEgp(f);
+      if (basePrice > 0 && basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     }).length;
   }, [facilities, smartFilters]);
@@ -56,7 +58,7 @@ export default function Desktop18() {
           <div className="flex flex-col gap-2">
             <label className="font-card-title-sm text-dark-slate">المدينة / النطاق</label>
             <div className="flex flex-wrap gap-2">
-              {["الكل", "المحلة الكبرى", "طنطا", "زفتى"].map((c) => (
+              {["الكل", ...EGYPT_CITY_PRESETS.map((p) => p.city)].map((c) => (
                 <button
                   key={c}
                   type="button"

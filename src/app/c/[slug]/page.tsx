@@ -8,8 +8,18 @@ import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 
 export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
-  const { coaches, articles, createStructuredWhatsappLead, currentPersona, isAuthenticated } = useCaptenly();
+  const {
+    coaches,
+    articles,
+    createStructuredWhatsappLead,
+    currentPersona,
+    isAuthenticated,
+    openAuthGateModal,
+  } = useCaptenly();
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
   const coach = coaches.find((c) => c.slug === params.slug || c.id === params.slug);
   const coachArticles = coach
     ? articles.filter(
@@ -42,14 +52,14 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
               >
                 إدارة كباتن منشأتك
               </Link>
-            ) : (
+            ) : !isAthleteOrParent ? (
               <Link
                 href="/claim?mode=coach"
                 className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
               >
                 سجّل ووثّق ككابتن الآن
               </Link>
-            )}
+            ) : null}
             <Link
               href="/coaches"
               className="px-6 py-2.5 rounded-full bg-surface-snow text-dark-slate font-badge-label"
@@ -141,6 +151,20 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
               onWhatsappClick={handleWhatsappLead}
               fullWidthPrimary
             />
+
+            <Link
+              href={`/booking?coach=${coach.slug}`}
+              onClick={(e) => {
+                if (!isAuthenticated) {
+                  e.preventDefault();
+                  openAuthGateModal(`تجهيز حجز تدريب مع ${coach.fullNameAr}`);
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-full bg-white/10 hover:bg-white/20 text-electric-volt text-xs font-bold text-center inline-flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Icon name="calendar_month" className="text-[16px]" />
+              <span>تجهيز طلب حجز باقة وربط الكود ←</span>
+            </Link>
 
             {leadCode && (
               <span className="text-xs text-electric-volt font-mono">

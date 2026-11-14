@@ -29,6 +29,9 @@ export default function Phone21() {
 
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const isCoachRole = isAuthenticated && currentPersona.role === "coach";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<MobileCat>("all");
@@ -200,6 +203,8 @@ export default function Phone21() {
                   ? "/dashboard/facility"
                   : isCoachRole
                   ? "/dashboard/coach"
+                  : isAthleteOrParent
+                  ? "/dashboard/athlete"
                   : "/claim"
               }
               className="px-4 py-2.5 rounded-full bg-white/15 text-surface-card text-xs font-bold"
@@ -208,6 +213,8 @@ export default function Phone21() {
                 ? "لوحة إدارة منشأتك"
                 : isCoachRole
                 ? "لوحة الكابتن والشهادات"
+                : isAthleteOrParent
+                ? "حسابي ودفتر الحصص"
                 : "وثّق ناديك أو سجّل ككابتن"}
             </Link>
           </div>
@@ -325,46 +332,48 @@ export default function Phone21() {
       </section>
 
       {/* Verified Coaches — Zero Fake Coaches Rule */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-            الكباتن الموثقون
-          </h2>
-          <Link href="/coaches" className="text-xs font-bold text-deep-olive">
-            عرض الدليل ←
-          </Link>
-        </div>
-
-        {verifiedCoaches.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            {verifiedCoaches.map((coach) => (
-              <VerifiedCoachCard key={coach.id} coach={coach} />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-surface-card rounded-2xl p-5 shadow-sm border border-surface-container flex flex-col gap-2.5">
-            <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
-              <Icon name="verified" className="text-[18px]" />
-              <span>
-                {isFacilityManager
-                  ? "أضف كباتن منشأتك مباشرة"
-                  : "لا نعرض أي كابتن دون توثيق فعلي"}
-              </span>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed">
-              {isFacilityManager
-                ? "يمكنك من تبويب كباتن الأكاديمية في لوحة منشأتك إضافة مدربي السباحة والإنقاذ وشهاداتهم."
-                : "لا ننشر بروفايلات كباتن من الفراغ؛ يظهر الكابتن هنا فور تسجيله بنفسه برقم موبايله وتوثيق شهاداته للشارات الخضراء."}
-            </p>
-            <Link
-              href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
-              className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold w-fit"
-            >
-              {isFacilityManager ? "إدارة كباتن المنشأة" : isCoachRole ? "لوحة الكابتن" : "سجّل ووثّق ملفك ككابتن الآن"}
+      {!(isAthleteOrParent && verifiedCoaches.length === 0) && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
+              الكباتن الموثقون
+            </h2>
+            <Link href="/coaches" className="text-xs font-bold text-deep-olive">
+              عرض الدليل ←
             </Link>
           </div>
-        )}
-      </section>
+
+          {verifiedCoaches.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {verifiedCoaches.map((coach) => (
+                <VerifiedCoachCard key={coach.id} coach={coach} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-surface-card rounded-2xl p-5 shadow-sm border border-surface-container flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
+                <Icon name="verified" className="text-[18px]" />
+                <span>
+                  {isFacilityManager
+                    ? "أضف كباتن منشأتك مباشرة"
+                    : "لا نعرض أي كابتن دون توثيق فعلي"}
+                </span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                {isFacilityManager
+                  ? "يمكنك من تبويب كباتن الأكاديمية في لوحة منشأتك إضافة مدربي السباحة والإنقاذ وشهاداتهم."
+                  : "لا ننشر بروفايلات كباتن من الفراغ؛ يظهر الكابتن هنا فور تسجيله بنفسه برقم موبايله وتوثيق شهاداته للشارات الخضراء."}
+              </p>
+              <Link
+                href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
+                className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold w-fit"
+              >
+                {isFacilityManager ? "إدارة كباتن المنشأة" : isCoachRole ? "لوحة الكابتن" : "سجّل ووثّق ملفك ككابتن الآن"}
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Magazine Articles Carousel (All articles, swipe + drag + arrow buttons) */}
       <section className="flex flex-col gap-3">
@@ -476,28 +485,30 @@ export default function Phone21() {
         </div>
       </section>
 
-      {/* Bottom Mobile Claim Banner */}
-      <section className="rounded-2xl bg-surface-card p-5 shadow-sm border border-surface-container flex flex-col gap-2">
-        <h3 className="font-card-title-sm text-dark-slate">
-          {isFacilityManager ? "أدر منشأتك وفريق الكباتن والمشتركين" : "هل أنت كابتن أو صاحب أكاديمية؟"}
-        </h3>
-        <p className="text-xs text-text-muted">
-          {isFacilityManager
-            ? "تابع مواعيد المدارس، فعّل اشتراكات الـ QR، ومنح صلاحيات الموظفين من لوحة المنشأة."
-            : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك."}
-        </p>
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Link
-            href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
-            className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
-          >
-            {isFacilityManager ? "افتح لوحة المنشأة" : isCoachRole ? "افتح لوحة الكابتن" : "طالب بصفحتك مجاناً"}
-          </Link>
-          <Link href="/about" className="px-4 py-2 rounded-full bg-surface-snow text-dark-slate text-xs font-bold">
-            عن المنصة
-          </Link>
-        </div>
-      </section>
+      {/* Bottom Mobile Claim Banner (hidden for logged-in athletes/parents) */}
+      {!isAthleteOrParent && (
+        <section className="rounded-2xl bg-surface-card p-5 shadow-sm border border-surface-container flex flex-col gap-2">
+          <h3 className="font-card-title-sm text-dark-slate">
+            {isFacilityManager ? "أدر منشأتك وفريق الكباتن والمشتركين" : "هل أنت كابتن أو صاحب أكاديمية؟"}
+          </h3>
+          <p className="text-xs text-text-muted">
+            {isFacilityManager
+              ? "تابع مواعيد المدارس، فعّل اشتراكات الـ QR، ومنح صلاحيات الموظفين من لوحة المنشأة."
+              : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك."}
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Link
+              href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+              className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+            >
+              {isFacilityManager ? "افتح لوحة المنشأة" : isCoachRole ? "افتح لوحة الكابتن" : "طالب بصفحتك مجاناً"}
+            </Link>
+            <Link href="/about" className="px-4 py-2 rounded-full bg-surface-snow text-dark-slate text-xs font-bold">
+              عن المنصة
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export function GuestFloatingAuthBar({
 
   return (
     <div
-      className="fixed bottom-[76px] lg:bottom-6 inset-x-3 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 lg:w-[760px] z-40 rounded-2xl bg-dark-slate/95 backdrop-blur-md text-surface-card border border-electric-volt/35 shadow-2xl px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3"
+      className="hidden lg:flex fixed lg:bottom-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-[760px] z-40 rounded-2xl bg-dark-slate/95 backdrop-blur-md text-surface-card border border-electric-volt/35 shadow-2xl px-4 py-3 flex-row items-center justify-between gap-3"
       dir="rtl"
     >
       <div className="flex items-start sm:items-center gap-2.5 min-w-0 pr-1">

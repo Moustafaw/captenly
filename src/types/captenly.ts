@@ -6,6 +6,10 @@ export type AccountRole =
   | "facility_manager"
   | "super_admin";
 
+export function isMemberAccountRole(role?: AccountRole | string | null): boolean {
+  return role === "adult_athlete" || role === "parent";
+}
+
 export type SportSector = "swimming" | "fitness" | "both";
 
 export type BadgeCode =

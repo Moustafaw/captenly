@@ -38,7 +38,7 @@ export default function GoogleCompletePage() {
       } else if (res.persona.role === "facility_manager") {
         router.replace("/dashboard/facility");
       } else {
-        router.replace("/dashboard/ledger");
+        router.replace("/dashboard/athlete");
       }
     })();
 

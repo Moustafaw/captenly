@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { AthleteProfileSocialEditor } from "@/components/editorial/AthleteProfileSocialEditor";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { isMemberAccountRole } from "@/types/captenly";
 
 export default function SettingsHubPage() {
   const router = useRouter();
@@ -45,11 +46,11 @@ export default function SettingsHubPage() {
     : "ملفي الرياضي والجواز";
 
   const settingsLinks = [
-    ...(!isFacility && !isCoach
+    ...(isMemberAccountRole(currentPersona.role)
       ? [
           {
             href: "/dashboard/athlete/settings/family",
-            titleAr: "إدارة العائلة والأبناء",
+            titleAr: "إدارة العائلة والأبناء (اختياري)",
             descAr: "بيانات الأبناء، موافقة ولي الأمر الرسمية، وحماية خصوصية القُصّر (قانون 151)",
             icon: "family_restroom",
             badgeAr: `${minorAthletes.length} مسجلين`,
@@ -228,6 +229,34 @@ export default function SettingsHubPage() {
 
       {/* 4. Bio & Social Links Editor */}
       <AthleteProfileSocialEditor />
+
+      {/* 5. Discreet Self-Upgrade Section (Athlete / Parent only, zero public ads) */}
+      {!isFacility && !isCoach && (
+        <div className="p-5 rounded-2xl bg-surface-card border border-border-hairline shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-cairo font-bold text-card-title-sm text-dark-slate">
+              ترقية الحساب (كابتن معتمد أو إدارة منشأة)
+            </h3>
+            <p className="text-micro-caption text-text-muted mt-0.5">
+              إذا كنت مدرب سباحة أو مدير نادي/أكاديمية وترغب في توثيق حسابك وإدارة الحصص، يمكنك تقديم الطلب من هنا.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link
+              href="/claim?mode=coach"
+              className="px-4 py-2 rounded-full bg-surface-snow hover:bg-lime-tint text-dark-slate text-xs font-bold border border-border-hairline"
+            >
+              توثيق حساب كابتن
+            </Link>
+            <Link
+              href="/claim"
+              className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+            >
+              إدارة منشأة / أكاديمية
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

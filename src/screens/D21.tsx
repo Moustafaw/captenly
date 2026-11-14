@@ -142,7 +142,10 @@ export default function Desktop21() {
 
         {/* Articles Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
-          {filteredArticles.map((art) => {
+          {(featured && selectedCat === "الكل" && !searchQ.trim()
+            ? filteredArticles.filter((a) => a.id !== featured.id)
+            : filteredArticles
+          ).map((art) => {
             const fav = isFavorite(art.id);
             return (
               <article

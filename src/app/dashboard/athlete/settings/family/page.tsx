@@ -4,28 +4,95 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { isMemberAccountRole } from "@/types/captenly";
 
 export default function FamilySettingsPage() {
-  const { minorAthletes, addMinorAthlete } = useCaptenly();
+  const {
+    isAuthenticated,
+    currentPersona,
+    minorAthletes,
+    addMinorAthlete,
+    updateMinorAthlete,
+    removeMinorAthlete,
+  } = useCaptenly();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState(8);
   const [childGender, setChildGender] = useState<"male" | "female">("male");
   const [childSport, setChildSport] = useState<"swimming" | "fitness">("swimming");
   const [law151Consent, setLaw151Consent] = useState(true);
 
-  const handleAddChild = (e: React.FormEvent) => {
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="إدارة العائلة والأبناء"
+        descriptionAr="سجّل دخولك بحساب السبّاح وولي الأمر لإضافة ومتابعة ملفات الأبناء وحماية خصوصيتهم."
+      />
+    );
+  }
+
+  if (!isMemberAccountRole(currentPersona.role)) {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="متابعة الأبناء والأسرة خاصة بحساب السبّاح وولي الأمر"
+        descriptionAr="هذه الصفحة مخصصة لحسابات السبّاحين وأولياء الأمور لإضافة ومتابعة ملفات الأبناء من نفس الحساب الموحد."
+        fallbackHref={
+          currentPersona.role === "facility_manager"
+            ? "/dashboard/facility"
+            : currentPersona.role === "coach"
+            ? "/dashboard/coach"
+            : "/dashboard/athlete"
+        }
+        fallbackLabelAr="العودة للوحة حسابك"
+      />
+    );
+  }
+
+  const openAddModal = () => {
+    setEditingChildId(null);
+    setChildName("");
+    setChildAge(8);
+    setChildGender("male");
+    setChildSport("swimming");
+    setLaw151Consent(true);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (child: (typeof minorAthletes)[number]) => {
+    setEditingChildId(child.id);
+    setChildName(child.fullNameAr);
+    setChildAge(child.age);
+    setChildGender(child.gender);
+    setChildSport(child.primarySport);
+    setLaw151Consent(true);
+    setModalOpen(true);
+  };
+
+  const handleSaveChild = (e: React.FormEvent) => {
     e.preventDefault();
     if (!childName.trim() || !law151Consent) return;
 
-    addMinorAthlete({
-      fullNameAr: childName,
-      age: childAge,
-      gender: childGender,
-      primarySport: childSport,
-    });
+    if (editingChildId) {
+      updateMinorAthlete(editingChildId, {
+        fullNameAr: childName.trim(),
+        age: childAge,
+        gender: childGender,
+        primarySport: childSport,
+      });
+    } else {
+      addMinorAthlete({
+        fullNameAr: childName.trim(),
+        age: childAge,
+        gender: childGender,
+        primarySport: childSport,
+      });
+    }
 
+    setEditingChildId(null);
     setChildName("");
     setChildAge(8);
     setModalOpen(false);
@@ -54,7 +121,8 @@ export default function FamilySettingsPage() {
           </div>
 
           <button
-            onClick={() => setModalOpen(true)}
+            type="button"
+            onClick={openAddModal}
             className="px-4 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm flex items-center gap-1.5"
           >
             <Icon name="add" className="text-[18px]" />
@@ -140,25 +208,39 @@ export default function FamilySettingsPage() {
               </Link>
               <button
                 type="button"
+                onClick={() => openEditModal(athlete)}
                 className="px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-dark-slate text-micro-caption font-bold transition-colors"
                 title="تعديل البيانات"
               >
                 تعديل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window === "undefined" || window.confirm(`حذف ملف ${athlete.fullNameAr}؟`)) {
+                    removeMinorAthlete(athlete.id);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-status-danger text-micro-caption font-bold transition-colors"
+                title="حذف ملف الطفل"
+              >
+                حذف
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Add Child Modal */}
+      {/* Add / Edit Child Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-md bg-surface-card rounded-3xl shadow-2xl overflow-hidden border border-border-hairline p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-border-hairline pb-3">
               <h3 className="font-bold text-card-title text-dark-slate">
-                إضافة ابن أو بطل رياضي جديد
+                {editingChildId ? "تعديل بيانات الابن" : "إضافة ابن أو بطل رياضي جديد"}
               </h3>
               <button
+                type="button"
                 onClick={() => setModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center"
               >
@@ -166,7 +248,7 @@ export default function FamilySettingsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAddChild} className="space-y-4">
+            <form onSubmit={handleSaveChild} className="space-y-4">
               <div>
                 <label className="block text-body-compact font-bold text-dark-slate mb-1">
                   الاسم الرباعي للطفل:

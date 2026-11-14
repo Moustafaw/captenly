@@ -84,6 +84,24 @@ function inferGovernorateFromCity(city: string, address: string): string {
   return city || "مصر";
 }
 
+const SWIM_PLACE_IMAGES = [
+  "/screens/20b781f698f9.jpg",
+  "/screens/c4a35b02a5ab.jpg",
+  "/screens/bf4051042977.jpg",
+  "/screens/ffcc3e56ffaa.jpg",
+  "/screens/a62d511dce31.jpg",
+  "/screens/f26e73948f8b.jpg",
+  "/screens/7d7f304252a9.jpg",
+];
+
+function pickDeterministicPoolImage(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return SWIM_PLACE_IMAGES[hash % SWIM_PLACE_IMAGES.length];
+}
+
 function normalizeGooglePlaceToFacility(p: GooglePlaceItem, rawCity: string): Facility | null {
   if (!p.id || !p.displayName?.text) return null;
   const placeId = String(p.id);
@@ -127,7 +145,7 @@ function normalizeGooglePlaceToFacility(p: GooglePlaceItem, rawCity: string): Fa
     completenessScore: 60,
     rating: typeof p.rating === "number" ? p.rating : 4.4,
     reviewsCount: typeof p.userRatingCount === "number" ? p.userRatingCount : 0,
-    heroImage: "/screens/20b781f698f9.jpg",
+    heroImage: pickDeterministicPoolImage(placeId),
     publicDescriptionAr:
       p.editorialSummary?.text ||
       `مسبح أو نادي سباحة مدرج في دليل خرائط Google (${formattedAddress}).`,

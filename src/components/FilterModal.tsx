@@ -1,43 +1,72 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
 
 export function FilterModal() {
-  const { filterModalOpen, setFilterModalOpen } = useCaptenly();
+  const {
+    filterModalOpen,
+    setFilterModalOpen,
+    smartFilters,
+    updateSmartFilters,
+    resetSmartFilters,
+  } = useCaptenly();
 
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([
-    SWIMMING_SPECIALTIES_9[0], // "تأسيس أطفال ومبتدئين"
-  ]);
-  const [heatedPoolOnly, setHeatedPoolOnly] = useState<boolean>(true);
-  const [ladiesHoursOnly, setLadiesHoursOnly] = useState<boolean>(false);
-  const [maxPriceEgp, setMaxPriceEgp] = useState<number>(1200);
-  const [verifiedBadgesOnly, setVerifiedBadgesOnly] = useState<boolean>(true);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("");
+  const [heatedPoolOnly, setHeatedPoolOnly] = useState<boolean>(smartFilters.heatedOnly);
+  const [ladiesHoursOnly, setLadiesHoursOnly] = useState<boolean>(smartFilters.ladiesOnly);
+  const [maxPriceEgp, setMaxPriceEgp] = useState<number>(smartFilters.maxPriceEgp);
+  const [lifeguardOnly, setLifeguardOnly] = useState<boolean>(smartFilters.lifeguardOnly);
+
+  useEffect(() => {
+    if (!filterModalOpen) return;
+    setHeatedPoolOnly(smartFilters.heatedOnly);
+    setLadiesHoursOnly(smartFilters.ladiesOnly);
+    setLifeguardOnly(smartFilters.lifeguardOnly);
+    setMaxPriceEgp(smartFilters.maxPriceEgp);
+    setSelectedSpecialty(
+      SWIMMING_SPECIALTIES_9.includes(smartFilters.searchQuery) ? smartFilters.searchQuery : ""
+    );
+  }, [filterModalOpen, smartFilters]);
 
   if (!filterModalOpen) return null;
 
   const toggleSpecialty = (item: string) => {
-    setSelectedSpecialties((prev) =>
-      prev.includes(item) ? prev.filter((s) => s !== item) : [...prev, item]
-    );
+    setSelectedSpecialty((prev) => (prev === item ? "" : item));
   };
 
   const resetFilters = () => {
-    setSelectedSpecialties([]);
+    setSelectedSpecialty("");
     setHeatedPoolOnly(false);
     setLadiesHoursOnly(false);
-    setMaxPriceEgp(2000);
-    setVerifiedBadgesOnly(false);
+    setMaxPriceEgp(2500);
+    setLifeguardOnly(false);
+    resetSmartFilters();
+  };
+
+  const applyFilters = () => {
+    updateSmartFilters({
+      heatedOnly: heatedPoolOnly,
+      ladiesOnly: ladiesHoursOnly,
+      lifeguardOnly,
+      maxPriceEgp,
+      ...(selectedSpecialty
+        ? { searchQuery: selectedSpecialty }
+        : SWIMMING_SPECIALTIES_9.includes(smartFilters.searchQuery)
+        ? { searchQuery: "" }
+        : {}),
+    });
+    setFilterModalOpen(false);
   };
 
   const activeFiltersCount =
-    selectedSpecialties.length +
+    (selectedSpecialty ? 1 : 0) +
     (heatedPoolOnly ? 1 : 0) +
     (ladiesHoursOnly ? 1 : 0) +
-    (verifiedBadgesOnly ? 1 : 0) +
-    (maxPriceEgp < 2000 ? 1 : 0);
+    (lifeguardOnly ? 1 : 0) +
+    (maxPriceEgp < 2500 ? 1 : 0);
 
   return (
     <div
@@ -96,7 +125,7 @@ export function FilterModal() {
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {SWIMMING_SPECIALTIES_9.map((spec) => {
-                const isSelected = selectedSpecialties.includes(spec);
+                const isSelected = selectedSpecialty === spec;
                 return (
                   <button
                     key={spec}
@@ -167,17 +196,17 @@ export function FilterModal() {
                 <Icon name="verified" className="text-deep-olive text-[20px]" />
                 <div>
                   <span className="block font-bold text-body-compact text-dark-slate">
-                    شارات التوثيق الميداني الرسمية (6 شارات)
+                    إشراف إنقاذ مائي معتمد (EDLF)
                   </span>
                   <span className="block text-[11px] text-text-muted">
-                    عرض الكباتن والمنشآت الموثقة نقابياً واتحادياً فقط
+                    عرض المسابح التي يتوفر بها منقذ مائي معتمد على مدار الفترات
                   </span>
                 </div>
               </div>
               <input
                 type="checkbox"
-                checked={verifiedBadgesOnly}
-                onChange={(e) => setVerifiedBadgesOnly(e.target.checked)}
+                checked={lifeguardOnly}
+                onChange={(e) => setLifeguardOnly(e.target.checked)}
                 className="w-5 h-5 accent-deep-olive rounded cursor-pointer"
               />
             </div>
@@ -196,7 +225,7 @@ export function FilterModal() {
             <input
               type="range"
               min="400"
-              max="2000"
+              max="2500"
               step="50"
               value={maxPriceEgp}
               onChange={(e) => setMaxPriceEgp(Number(e.target.value))}
@@ -204,8 +233,8 @@ export function FilterModal() {
             />
             <div className="flex justify-between text-[11px] text-text-muted">
               <span>400 ج.م</span>
-              <span>1200 ج.م</span>
-              <span>2000 ج.م</span>
+              <span>1450 ج.م</span>
+              <span>2500 ج.م</span>
             </div>
           </div>
         </div>
@@ -221,7 +250,7 @@ export function FilterModal() {
           </button>
           <button
             type="button"
-            onClick={() => setFilterModalOpen(false)}
+            onClick={applyFilters}
             className="px-6 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm"
           >
             تطبيق الفلاتر ({activeFiltersCount})

@@ -10,6 +10,7 @@ import { FilterModal } from "@/components/FilterModal";
 import { AuthSessionWrapper } from "@/components/auth/AuthSessionWrapper";
 import { GoogleSessionBridge } from "@/components/auth/GoogleSessionBridge";
 import { AuthGateModal } from "@/components/auth/AuthGateModal";
+import { FloatingCompareDrawer } from "@/components/FloatingCompareDrawer";
 
 export const metadata: Metadata = {
   title: "كابتنلي CAPTENLY — المنظومة الرقمية للسباحة في مصر",
@@ -51,6 +52,7 @@ export default function RootLayout({
             <div className="flex-1 w-full">{children}</div>
             <SiteFooter />
             <SiteDock />
+            <FloatingCompareDrawer />
             <LocationModal />
             <FilterModal />
             <AuthGateModal />

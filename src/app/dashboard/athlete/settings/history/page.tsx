@@ -4,14 +4,45 @@ import React from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function HistorySettingsPage() {
-  const { sessionLedgers, currentPersona } = useCaptenly();
-  const isProvider =
-    currentPersona.role === "coach" || currentPersona.role === "facility_manager";
-  const visibleLedgers = isProvider
-    ? sessionLedgers
-    : sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
+  const {
+    isAuthenticated,
+    sessionLedgers,
+    currentPersona,
+    minorAthletes,
+    activeStaffAssignment,
+  } = useCaptenly();
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="أرشيف الإيصالات والاشتراكات"
+        descriptionAr="سجّل دخولك لعرض إيصالات باقاتك وسجل مدفوعاتك."
+      />
+    );
+  }
+
+  const visibleLedgers = activeStaffAssignment
+    ? sessionLedgers.filter((l) => l.facilityId === activeStaffAssignment.facilityId)
+    : currentPersona.role === "facility_manager"
+    ? sessionLedgers.filter(
+        (l) => !currentPersona.linkedFacilityId || l.facilityId === currentPersona.linkedFacilityId
+      )
+    : currentPersona.role === "coach"
+    ? sessionLedgers.filter(
+        (l) =>
+          l.coachId === (currentPersona.linkedCoachId || currentPersona.id) ||
+          l.coachNameAr === currentPersona.fullNameAr
+      )
+    : sessionLedgers.filter(
+        (l) =>
+          l.athleteId === currentPersona.id ||
+          (currentPersona.memberCode &&
+            l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+          minorAthletes.some((m) => m.id === l.athleteId)
+      );
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 md:px-6 pt-6 lg:pt-6 pb-12 flex flex-col gap-6" dir="rtl">

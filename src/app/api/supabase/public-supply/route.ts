@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
+import { getServerCaller, hasFacilityStaffAccess } from "@/lib/memberSession";
 import type { Coach, Facility } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
@@ -126,24 +127,49 @@ function mapCoachRow(row: Record<string, unknown>): Coach | null {
   };
 }
 
+async function ensureArticlesTableViaPg() {
+  await withPgClient(async (client) => {
+    await client.query(`
+      create table if not exists public.captenly_articles (
+        id text primary key,
+        slug text unique,
+        title_ar text not null,
+        category_ar text,
+        author_entity_id text,
+        payload jsonb not null,
+        updated_at timestamptz default now()
+      );
+    `);
+    return true;
+  });
+}
+
 export async function GET() {
   const admin = getSupabaseAdminClient();
   if (admin) {
     try {
-      const [{ data: facRows, error: facErr }, { data: coachRows, error: coachErr }] =
-        await Promise.all([
-          admin
-            .from("captenly_facilities")
-            .select("*")
-            .neq("supply_status", "seeded_unclaimed")
-            .order("updated_at", { ascending: false })
-            .limit(80),
-          admin
-            .from("captenly_coaches")
-            .select("*")
-            .order("updated_at", { ascending: false })
-            .limit(80),
-        ]);
+      const [
+        { data: facRows, error: facErr },
+        { data: coachRows, error: coachErr },
+        articleRes,
+      ] = await Promise.all([
+        admin
+          .from("captenly_facilities")
+          .select("*")
+          .neq("supply_status", "seeded_unclaimed")
+          .order("updated_at", { ascending: false })
+          .limit(80),
+        admin
+          .from("captenly_coaches")
+          .select("*")
+          .order("updated_at", { ascending: false })
+          .limit(80),
+        admin
+          .from("captenly_articles")
+          .select("payload")
+          .order("updated_at", { ascending: false })
+          .limit(60),
+      ]);
 
       if (!facErr && !coachErr) {
         const facilities = (facRows || [])
@@ -152,7 +178,10 @@ export async function GET() {
         const coaches = (coachRows || [])
           .map((r) => mapCoachRow(r as Record<string, unknown>))
           .filter((c): c is Coach => Boolean(c));
-        return NextResponse.json({ ok: true, facilities, coaches });
+        const articles = !articleRes.error && Array.isArray(articleRes.data)
+          ? articleRes.data.map((r) => (r as { payload: Record<string, unknown> }).payload).filter(Boolean)
+          : [];
+        return NextResponse.json({ ok: true, facilities, coaches, articles });
       }
     } catch {
       // Fall through to pg fallback
@@ -160,14 +189,16 @@ export async function GET() {
   }
 
   await ensureSupplyTablesViaPg();
+  await ensureArticlesTableViaPg();
   const pgRes = await withPgClient(async (client) => {
-    const [facRes, coachRes] = await Promise.all([
+    const [facRes, coachRes, articleRes] = await Promise.all([
       client.query(
         `select * from public.captenly_facilities where supply_status <> 'seeded_unclaimed' order by updated_at desc limit 80`
       ),
       client.query(`select * from public.captenly_coaches order by updated_at desc limit 80`),
+      client.query(`select payload from public.captenly_articles order by updated_at desc limit 60`),
     ]);
-    return { facRows: facRes.rows, coachRows: coachRes.rows };
+    return { facRows: facRes.rows, coachRows: coachRes.rows, articleRows: articleRes.rows };
   });
 
   if (pgRes.ok) {
@@ -177,25 +208,158 @@ export async function GET() {
     const coaches = pgRes.value.coachRows
       .map((r) => mapCoachRow(r as Record<string, unknown>))
       .filter((c): c is Coach => Boolean(c));
-    return NextResponse.json({ ok: true, facilities, coaches });
+    const articles = pgRes.value.articleRows
+      .map((r) => r.payload as Record<string, unknown>)
+      .filter(Boolean);
+    return NextResponse.json({ ok: true, facilities, coaches, articles });
   }
 
   return NextResponse.json({
     ok: false,
     facilities: [],
     coaches: [],
+    articles: [],
     reason: pgRes.errorCode || (admin ? "db_query_failed" : "supabase_not_configured"),
   });
 }
 
+async function authorizePublicSupplyPost(params: {
+  caller: Awaited<ReturnType<typeof getServerCaller>>;
+  facility?: Facility;
+  coach?: Coach;
+  article?: Record<string, unknown>;
+  deleteArticleId?: string;
+}): Promise<boolean> {
+  const { caller, facility, coach, article, deleteArticleId } = params;
+  if (!caller.authenticated) return false;
+  if (caller.isAdmin) return true;
+
+  const admin = getSupabaseAdminClient();
+
+  if (facility?.id) {
+    if (caller.linkedFacilityId === facility.id) return true;
+    if (await hasFacilityStaffAccess(facility.id, caller)) return true;
+    let existingStatus: string | null = null;
+    let found = false;
+    if (admin) {
+      const { data } = await admin
+        .from("captenly_facilities")
+        .select("supply_status")
+        .eq("id", facility.id)
+        .limit(1);
+      if (Array.isArray(data) && data.length > 0) {
+        found = true;
+        existingStatus = String((data[0] as { supply_status?: string }).supply_status || "");
+      }
+    }
+    if (!found) {
+      const pg = await withPgClient(async (client) => {
+        const { rows } = await client.query(
+          `select supply_status from public.captenly_facilities where id = $1 limit 1`,
+          [facility.id]
+        );
+        return rows[0] as { supply_status?: string } | undefined;
+      });
+      if (pg.ok && pg.value) {
+        found = true;
+        existingStatus = String(pg.value.supply_status || "");
+      }
+    }
+    return !found || existingStatus === "seeded_unclaimed";
+  }
+
+  if (coach?.id) {
+    if (caller.linkedCoachId === coach.id) return true;
+    if (
+      coach.SingleCoachId &&
+      caller.memberCode &&
+      coach.SingleCoachId.toUpperCase() === caller.memberCode.toUpperCase()
+    ) {
+      return true;
+    }
+    let found = false;
+    if (admin) {
+      const { data } = await admin.from("captenly_coaches").select("id").eq("id", coach.id).limit(1);
+      if (Array.isArray(data) && data.length > 0) found = true;
+    }
+    if (!found) {
+      const pg = await withPgClient(async (client) => {
+        const { rows } = await client.query(`select id from public.captenly_coaches where id = $1 limit 1`, [
+          coach.id,
+        ]);
+        return rows[0];
+      });
+      if (pg.ok && pg.value) found = true;
+    }
+    return !found;
+  }
+
+  if (deleteArticleId) {
+    let authorEntityId: string | null = null;
+    if (admin) {
+      const { data } = await admin
+        .from("captenly_articles")
+        .select("author_entity_id")
+        .eq("id", deleteArticleId)
+        .limit(1);
+      if (Array.isArray(data) && data[0]) {
+        authorEntityId = (data[0] as { author_entity_id?: string | null }).author_entity_id || null;
+      }
+    }
+    if (!authorEntityId) {
+      const pg = await withPgClient(async (client) => {
+        const { rows } = await client.query(
+          `select author_entity_id from public.captenly_articles where id = $1 limit 1`,
+          [deleteArticleId]
+        );
+        return rows[0] as { author_entity_id?: string | null } | undefined;
+      });
+      if (pg.ok && pg.value) authorEntityId = pg.value.author_entity_id || null;
+    }
+    if (!authorEntityId) {
+      return caller.role === "coach" || caller.role === "facility_manager";
+    }
+    return authorEntityId === caller.linkedCoachId || authorEntityId === caller.linkedFacilityId;
+  }
+
+  if (article?.id) {
+    return (
+      caller.role === "coach" ||
+      caller.role === "facility_manager" ||
+      Boolean(caller.linkedCoachId) ||
+      Boolean(caller.linkedFacilityId)
+    );
+  }
+
+  return false;
+}
+
 export async function POST(request: Request) {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json({ persisted: false, error: "unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const facility = body?.facility as Facility | undefined;
     const coach = body?.coach as Coach | undefined;
+    const article = body?.article as Record<string, unknown> | undefined;
+    const deleteArticleId = typeof body?.deleteArticleId === "string" ? body.deleteArticleId : undefined;
 
-    if (!facility?.id && !coach?.id) {
+    if (!facility?.id && !coach?.id && !article?.id && !deleteArticleId) {
       return NextResponse.json({ persisted: false, error: "missing_entity" }, { status: 400 });
+    }
+
+    const allowed = await authorizePublicSupplyPost({
+      caller,
+      facility,
+      coach,
+      article,
+      deleteArticleId,
+    });
+    if (!allowed) {
+      return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
     }
 
     const admin = getSupabaseAdminClient();
@@ -334,6 +498,53 @@ export async function POST(request: Request) {
         return true;
       });
       return NextResponse.json({ persisted: pgRes.ok, type: "coach" });
+    }
+
+    if (deleteArticleId) {
+      if (admin) {
+        const { error } = await admin.from("captenly_articles").delete().eq("id", deleteArticleId);
+        if (!error) return NextResponse.json({ persisted: true, type: "article_delete" });
+      }
+      await ensureArticlesTableViaPg();
+      const pgRes = await withPgClient(async (client) => {
+        await client.query(`delete from public.captenly_articles where id = $1`, [deleteArticleId]);
+        return true;
+      });
+      return NextResponse.json({ persisted: pgRes.ok, type: "article_delete" });
+    }
+
+    if (article?.id) {
+      const id = String(article.id);
+      const row = {
+        id,
+        slug: String(article.slug || id),
+        title_ar: String(article.titleAr || "مقال تدريبي"),
+        category_ar: String(article.categoryAr || "تعليم السباحة"),
+        author_entity_id: typeof article.authorEntityId === "string" ? article.authorEntityId : null,
+        payload: article,
+        updated_at: new Date().toISOString(),
+      };
+      if (admin) {
+        const { error } = await admin.from("captenly_articles").upsert(row, { onConflict: "id" });
+        if (!error) return NextResponse.json({ persisted: true, type: "article" });
+      }
+      await ensureArticlesTableViaPg();
+      const pgRes = await withPgClient(async (client) => {
+        await client.query(
+          `insert into public.captenly_articles (id, slug, title_ar, category_ar, author_entity_id, payload, updated_at)
+           values ($1,$2,$3,$4,$5,$6::jsonb,now())
+           on conflict (id) do update set
+             slug = excluded.slug,
+             title_ar = excluded.title_ar,
+             category_ar = excluded.category_ar,
+             author_entity_id = excluded.author_entity_id,
+             payload = excluded.payload,
+             updated_at = now()`,
+          [row.id, row.slug, row.title_ar, row.category_ar, row.author_entity_id, JSON.stringify(article)]
+        );
+        return true;
+      });
+      return NextResponse.json({ persisted: pgRes.ok, type: "article" });
     }
 
     return NextResponse.json({ persisted: false });

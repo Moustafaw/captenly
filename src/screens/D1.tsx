@@ -9,7 +9,7 @@ import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
-type OnboardRole = "adult_athlete" | "parent" | "coach" | "facility_manager";
+type OnboardRole = "adult_athlete" | "coach" | "facility_manager";
 
 const ROLE_OPTIONS: {
   key: OnboardRole;
@@ -20,16 +20,9 @@ const ROLE_OPTIONS: {
 }[] = [
   {
     key: "adult_athlete",
-    titleAr: "سبّاح / رياضي مستقل",
-    descAr: "متابعة باقاتي وحصصي الـ QR وأرقامي القياسية الشخصية.",
-    icon: "person",
-    prefix: "CAP-M",
-  },
-  {
-    key: "parent",
-    titleAr: "ولي أمر (إشراف عائلي)",
-    descAr: "متابعة دفاتر وحضور الأبناء تحت 14 سنة من موبايلك.",
-    icon: "groups",
+    titleAr: "سبّاح / متدرب وولي أمر (حساب موحد)",
+    descAr: "متابعة باقاتك وحصصك الـ QR وأرقامك القياسية، مع إمكانية إضافة ومتابعة أبنائك اختيارياً.",
+    icon: "pool",
     prefix: "CAP-M",
   },
   {
@@ -54,16 +47,14 @@ function Desktop1Inner() {
   const { currentPersona, userLocation, addMinorAthlete, completeGoogleOnboarding } = useCaptenly();
 
   const initialRole: OnboardRole =
-    currentPersona.role === "parent" ||
-    currentPersona.role === "coach" ||
-    currentPersona.role === "facility_manager"
+    currentPersona.role === "coach" || currentPersona.role === "facility_manager"
       ? currentPersona.role
       : "adult_athlete";
 
   const [selectedRole, setSelectedRole] = useState<OnboardRole>(initialRole);
   const [phone, setPhone] = useState(currentPersona.phone || "");
   const [city, setCity] = useState(
-    (userLocation.isSpecified && userLocation.city) || currentPersona.city || "القاهرة"
+    (userLocation.isSpecified && userLocation.city) || currentPersona.city || "كل مصر"
   );
   const [copied, setCopied] = useState(false);
   const [addChildOptional, setAddChildOptional] = useState(false);
@@ -94,11 +85,11 @@ function Desktop1Inner() {
       role: selectedRole,
       phone: phone.trim(),
       city,
-      hasParentSupervision: selectedRole === "parent",
+      hasParentSupervision: selectedRole === "adult_athlete" && addChildOptional,
     });
 
     if (
-      (selectedRole === "adult_athlete" || selectedRole === "parent") &&
+      selectedRole === "adult_athlete" &&
       addChildOptional &&
       childName.trim()
     ) {
@@ -115,7 +106,7 @@ function Desktop1Inner() {
     } else if (selectedRole === "facility_manager") {
       router.push("/claim");
     } else {
-      router.push("/welcome");
+      router.push("/dashboard/athlete");
     }
   };
 
@@ -146,8 +137,8 @@ function Desktop1Inner() {
               </p>
             )}
           </div>
-          <Link href="/welcome" className="text-xs font-bold text-text-muted hover:text-dark-slate">
-            تخطي للرئيسية ←
+          <Link href="/dashboard/athlete" className="text-xs font-bold text-text-muted hover:text-dark-slate">
+            تخطي لحسابي ←
           </Link>
         </div>
 
@@ -203,7 +194,7 @@ function Desktop1Inner() {
               )}
             </div>
           </div>
-          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
+          {selectedRole === "adult_athlete" && (
             <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
           )}
         </div>
@@ -214,7 +205,7 @@ function Desktop1Inner() {
             <label className="text-sm font-bold text-dark-slate">
               1) اختر نوع حسابك الأساسي داخل كابتنلي:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {ROLE_OPTIONS.map((r) => {
                 const active = selectedRole === r.key;
                 return (
@@ -269,6 +260,7 @@ function Desktop1Inner() {
                 onChange={(e) => setCity(e.target.value)}
                 className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container focus:border-deep-olive"
               >
+                <option value="كل مصر">كل مصر (تصفّح عام بدون تحديد مدينة الآن)</option>
                 {EGYPT_CITY_PRESETS.map((c) => (
                   <option key={c.city} value={c.city}>
                     {c.city} ({c.governorate})
@@ -278,7 +270,7 @@ function Desktop1Inner() {
             </div>
           </div>
 
-          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
+          {selectedRole === "adult_athlete" && (
             <>
               <label className="flex items-center gap-3 p-4 rounded-2xl bg-surface-snow cursor-pointer border border-surface-container">
                 <input
@@ -289,10 +281,10 @@ function Desktop1Inner() {
                 />
                 <div>
                   <div className="font-card-title-sm text-dark-slate">
-                    (اختياري) إضافة طفل تحت 14 سنة لمتابعته من حسابي
+                    (اختياري) إضافة طفل للمتابعة العائلية داخل الحساب
                   </div>
                   <div className="text-xs text-text-muted">
-                    إن كنت تسجل لنفسك كسباح أو متدرب جيم مستقل، اتركه غير محدد واضغط حفظ ومتابعة.
+                    يمكنك إضافة الأبناء الآن أو لاحقاً من قسم متابعة الأبناء والأسرة.
                   </div>
                 </div>
               </label>

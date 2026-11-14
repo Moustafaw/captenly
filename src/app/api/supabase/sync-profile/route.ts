@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import type { AccountRole } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
+import { attachMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +87,11 @@ function normalizeRowToProfile(row: Record<string, unknown>) {
 }
 
 export async function GET(request: Request) {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json({ ok: false, found: false, profile: null, error: "unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const emailParam = (searchParams.get("email") || "").trim().toLowerCase();
   const memberCodeParam = (searchParams.get("memberCode") || "").trim().toUpperCase();
@@ -94,6 +101,16 @@ export async function GET(request: Request) {
 
   if (!emailParam && !memberCodeParam && !phoneTail10) {
     return NextResponse.json({ ok: false, found: false, profile: null, error: "missing_lookup_query" }, { status: 400 });
+  }
+
+  if (!caller.isAdmin) {
+    const emailMatches = Boolean(emailParam && caller.email && caller.email.toLowerCase() === emailParam);
+    const codeMatches = Boolean(memberCodeParam && caller.memberCode && caller.memberCode.toUpperCase() === memberCodeParam);
+    const callerTail10 = (caller.phone || "").replace(/\D/g, "").slice(-10);
+    const phoneMatches = Boolean(phoneTail10 && callerTail10.length >= 9 && callerTail10 === phoneTail10);
+    if (!emailMatches && !codeMatches && !phoneMatches) {
+      return NextResponse.json({ ok: false, found: false, profile: null, error: "forbidden" }, { status: 403 });
+    }
   }
 
   const admin = getSupabaseAdminClient();
@@ -162,9 +179,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json({ persisted: false, error: "unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
-    const memberCode = typeof body.memberCode === "string" ? body.memberCode.trim() : "";
+    const memberCode = typeof body.memberCode === "string" ? body.memberCode.trim().toUpperCase() : "";
     const fullNameAr = typeof body.fullNameAr === "string" ? body.fullNameAr.trim() : "";
     const role = typeof body.role === "string" && ALLOWED_ROLES.has(body.role) ? body.role : "adult_athlete";
 
@@ -176,6 +198,29 @@ export async function POST(request: Request) {
       typeof body.email === "string" && body.email.includes("@")
         ? body.email.trim().toLowerCase()
         : null;
+
+    if (!caller.isAdmin) {
+      const codeMatches = Boolean(caller.memberCode && caller.memberCode.toUpperCase() === memberCode);
+      const emailMatches = Boolean(email && caller.email && caller.email.toLowerCase() === email);
+      if (!codeMatches && !emailMatches) {
+        return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+      }
+    }
+
+    const sessionCookieInput = {
+      memberCode,
+      role: role as AccountRole,
+      email: email || caller.email,
+      phone: typeof body.phone === "string" ? body.phone.trim() || caller.phone : caller.phone,
+      linkedFacilityId:
+        typeof body.linkedFacilityId === "string" && body.linkedFacilityId.trim()
+          ? body.linkedFacilityId.trim()
+          : caller.linkedFacilityId,
+      linkedCoachId:
+        typeof body.linkedCoachId === "string" && body.linkedCoachId.trim()
+          ? body.linkedCoachId.trim()
+          : caller.linkedCoachId,
+    };
 
     const mergedSocialLinks: Record<string, unknown> | undefined =
       (body.socialLinks && typeof body.socialLinks === "object") ||
@@ -228,7 +273,7 @@ export async function POST(request: Request) {
       }
 
       if (!error) {
-        return NextResponse.json({ persisted: true });
+        return attachMemberSessionCookie(NextResponse.json({ persisted: true }), sessionCookieInput);
       }
     }
 
@@ -311,7 +356,7 @@ export async function POST(request: Request) {
     });
 
     if (pgRes.ok) {
-      return NextResponse.json({ persisted: true });
+      return attachMemberSessionCookie(NextResponse.json({ persisted: true }), sessionCookieInput);
     }
 
     return NextResponse.json({

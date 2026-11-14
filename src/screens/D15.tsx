@@ -7,11 +7,22 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { isMemberAccountRole } from "@/types/captenly";
 
-function calcImprovementPct(previousValue: number, currentValue: number): number | null {
+function calcImprovementPct(
+  previousValue: number,
+  currentValue: number,
+  unitAr?: string
+): number | null {
   if (!previousValue || previousValue <= 0) return null;
-  // In swimming timing (seconds), smaller is faster => improvement %
-  const pct = ((previousValue - currentValue) / previousValue) * 100;
+  const normalizedUnit = (unitAr || "").trim();
+  const higherIsBetter = ["متر", "سم", "كجم", "نقطة", "مرة", "تكرار", "لفة"].some((u) =>
+    normalizedUnit.includes(u)
+  );
+  const pct = higherIsBetter
+    ? ((currentValue - previousValue) / previousValue) * 100
+    : ((previousValue - currentValue) / previousValue) * 100;
   return Number(pct.toFixed(1));
 }
 
@@ -24,14 +35,16 @@ export default function Desktop15() {
     addMinorAthlete,
     pbRecords,
     addNewPBRecord,
-    skillEvaluation,
+    getSkillEvaluationForAthlete,
     sessionLedgers,
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
   } = useCaptenly();
 
+  const canManageFamily = isMemberAccountRole(currentPersona.role);
   const [activeTab, setActiveTab] = useState<"analytics" | "ledgers" | "family">("analytics");
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>("");
 
   // Child form
   const [childFormOpen, setChildFormOpen] = useState(false);
@@ -43,31 +56,50 @@ export default function Desktop15() {
   const [newVal, setNewVal] = useState("");
   const [prevVal, setPrevVal] = useState("");
 
+  const effectiveAthleteId = useMemo(() => {
+    if (canManageFamily && selectedAthleteId && minorAthletes.some((m) => m.id === selectedAthleteId)) {
+      return selectedAthleteId;
+    }
+    return currentPersona.id;
+  }, [canManageFamily, selectedAthleteId, minorAthletes, currentPersona.id]);
+
+  const selectedAthleteName = useMemo(() => {
+    if (effectiveAthleteId === currentPersona.id) return currentPersona.fullNameAr;
+    return minorAthletes.find((m) => m.id === effectiveAthleteId)?.fullNameAr || currentPersona.fullNameAr;
+  }, [effectiveAthleteId, currentPersona.id, currentPersona.fullNameAr, minorAthletes]);
+
   const myLedgers = sessionLedgers.filter(
     (l) =>
       l.athleteId === currentPersona.id ||
       (currentPersona.memberCode &&
-        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase())
+        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+      (canManageFamily && minorAthletes.some((m) => m.id === l.athleteId))
   );
-  const myPBs = useMemo(
-    () =>
-      pbRecords.filter(
-        (p) =>
-          p.athleteId === currentPersona.id ||
-          minorAthletes.some((m) => m.id === p.athleteId)
-      ),
-    [pbRecords, currentPersona.id, minorAthletes]
+  const myPBs = useMemo(() => {
+    if (canManageFamily && selectedAthleteId) {
+      return pbRecords.filter((p) => p.athleteId === effectiveAthleteId);
+    }
+    return pbRecords.filter(
+      (p) =>
+        p.athleteId === currentPersona.id ||
+        (canManageFamily && minorAthletes.some((m) => m.id === p.athleteId))
+    );
+  }, [pbRecords, currentPersona.id, canManageFamily, minorAthletes, selectedAthleteId, effectiveAthleteId]);
+
+  const activeSkillEvaluation = useMemo(
+    () => getSkillEvaluationForAthlete(effectiveAthleteId),
+    [getSkillEvaluationForAthlete, effectiveAthleteId]
   );
 
   const avgSkillScore = useMemo(() => {
-    if (!skillEvaluation.metrics.length) return 0;
-    const total = skillEvaluation.metrics.reduce((sum, m) => sum + m.score, 0);
-    return (total / skillEvaluation.metrics.length).toFixed(1);
-  }, [skillEvaluation]);
+    if (!activeSkillEvaluation.metrics.length) return 0;
+    const total = activeSkillEvaluation.metrics.reduce((sum, m) => sum + m.score, 0);
+    return (total / activeSkillEvaluation.metrics.length).toFixed(1);
+  }, [activeSkillEvaluation]);
 
   const handleAddChild = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!childName.trim()) return;
+    if (!childName.trim() || !canManageFamily) return;
     addMinorAthlete({
       fullNameAr: childName.trim(),
       age: Number(childAge) || 8,
@@ -82,8 +114,8 @@ export default function Desktop15() {
     e.preventDefault();
     if (!eventTitle.trim() || !Number(newVal)) return;
     addNewPBRecord({
-      athleteId: currentPersona.id,
-      athleteNameAr: currentPersona.fullNameAr,
+      athleteId: effectiveAthleteId,
+      athleteNameAr: selectedAthleteName,
       sportType: "swimming",
       eventTitleAr: eventTitle.trim(),
       currentValue: Number(newVal) || 0,
@@ -104,6 +136,21 @@ export default function Desktop15() {
       <GuestAccountGateScreen
         titleAr="ملفك الرياضي وجواز السفر المائي"
         descriptionAr="أنشئ حسابك أو سجّل دخولك في Captenly للحصول على كود عضوية فريد، متابعة الأرقام القياسية، وحفظ دفاتر حصصك."
+      />
+    );
+  }
+
+  if (currentPersona.role === "coach" || currentPersona.role === "facility_manager") {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="لوحة السبّاح وولي الأمر"
+        descriptionAr="هذه الصفحة مخصصة لحسابات السبّاحين وأولياء الأمور لمتابعة الأرقام القياسية ودفاتر الحصص."
+        fallbackHref={
+          currentPersona.role === "facility_manager" ? "/dashboard/facility" : "/dashboard/coach"
+        }
+        fallbackLabelAr={
+          currentPersona.role === "facility_manager" ? "الانتقال للوحة المنشأة" : "الانتقال للوحة الكابتن"
+        }
       />
     );
   }
@@ -233,7 +280,9 @@ export default function Desktop15() {
           {[
             { key: "analytics", label: "أرقامي وتحليل الأداء", icon: "monitoring" },
             { key: "ledgers", label: `حصصي QR (${myLedgers.length})`, icon: "qr_code_2" },
-            { key: "family", label: `الأبناء (${minorAthletes.length})`, icon: "family_restroom" },
+            ...(canManageFamily
+              ? [{ key: "family", label: `الأبناء والأسرة (${minorAthletes.length})`, icon: "family_restroom" }]
+              : []),
           ].map((t) => (
             <button
               key={t.key}
@@ -251,6 +300,36 @@ export default function Desktop15() {
           ))}
         </div>
 
+        {/* Child Filter Selector (only shown when member has added children) */}
+        {activeTab === "analytics" && canManageFamily && minorAthletes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 bg-surface-card px-4 py-3 rounded-2xl border border-surface-container">
+            <span className="text-xs font-bold text-text-muted ml-1">عرض تطور وتقييم:</span>
+            <button
+              type="button"
+              onClick={() => setSelectedAthleteId("")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                !selectedAthleteId ? "bg-dark-slate text-electric-volt" : "bg-surface-snow text-dark-slate"
+              }`}
+            >
+              جميع سجلات الأسرة / حسابي
+            </button>
+            {minorAthletes.map((child) => (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => setSelectedAthleteId(child.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  selectedAthleteId === child.id
+                    ? "bg-deep-olive text-white"
+                    : "bg-surface-snow text-dark-slate hover:bg-lime-tint"
+                }`}
+              >
+                {child.fullNameAr} ({child.age} س)
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tab 1: Performance Analytics & PB Tracking */}
         {activeTab === "analytics" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
@@ -266,7 +345,7 @@ export default function Desktop15() {
 
               <div className="flex flex-col gap-3">
                 {myPBs.map((rec) => {
-                  const pct = calcImprovementPct(rec.previousValue, rec.currentValue);
+                  const pct = calcImprovementPct(rec.previousValue, rec.currentValue, rec.unitAr);
                   const barWidth = Math.max(20, Math.min(100, Math.round(100 - (rec.currentValue / 90) * 60)));
                   return (
                     <div
@@ -353,7 +432,7 @@ export default function Desktop15() {
                 <span className="text-xs font-extrabold text-deep-olive">{avgSkillScore} / 5</span>
               </div>
               <div className="flex flex-col gap-3">
-                {skillEvaluation.metrics.map((m) => (
+                {activeSkillEvaluation.metrics.map((m) => (
                   <div key={m.labelAr} className="flex flex-col gap-1">
                     <div className="flex justify-between text-xs font-bold text-dark-slate">
                       <span>{m.labelAr}</span>
@@ -369,8 +448,8 @@ export default function Desktop15() {
                 ))}
               </div>
               <p className="text-xs text-text-muted bg-surface-snow p-3.5 rounded-xl leading-relaxed">
-                <strong className="text-dark-slate">ملاحظة الكابتن ({skillEvaluation.coachNameAr}):</strong>{" "}
-                {skillEvaluation.coachFeedbackAr}
+                <strong className="text-dark-slate">ملاحظة الكابتن ({activeSkillEvaluation.coachNameAr}):</strong>{" "}
+                {activeSkillEvaluation.coachFeedbackAr}
               </p>
             </section>
           </div>
@@ -435,16 +514,22 @@ export default function Desktop15() {
           </section>
         )}
 
-        {/* Tab 3: Optional Family / Minor Athletes Supervision */}
-        {activeTab === "family" && (
+        {/* Tab 3: Family / Minor Athletes Supervision (optional in unified swimmer & family account) */}
+        {canManageFamily && activeTab === "family" && (
           <section className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-section-title text-dark-slate">متابعة الأبناء والأسرة (اختياري)</h2>
                 <p className="text-xs text-text-muted mt-0.5">
-                  أضف ملفات أبنائك لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك وبموافقة ولي الأمر (قانون 151 لسنة 2020).
+                  إذا كنت ولي أمر وتتابع سبّاحين صغاراً (تحت 14 سنة)، يمكنك إضافة ملفاتهم هنا لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك الموحد (قانون 151 لسنة 2020).
                 </p>
               </div>
+              <Link
+                href="/dashboard/athlete/settings/family"
+                className="text-xs font-bold text-deep-olive hover:underline shrink-0"
+              >
+                تعديل أو حذف ملفات الأبناء ←
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

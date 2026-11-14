@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
+import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
@@ -35,9 +37,16 @@ export function ClaimAndVerifyClient({
   const effectiveMode: "facility" | "coach" = lockedRoleMode ?? mode;
 
   // Facility claim state
+  const claimableFacilities = useMemo(
+    () => facilities.filter((f) => f.supplyStatus !== "verified_active"),
+    [facilities]
+  );
   const preselected = useMemo(
-    () => facilities.find((f) => f.slug === initialSlug) || facilities[0],
-    [facilities, initialSlug]
+    () =>
+      facilities.find((f) => f.slug === initialSlug) ||
+      claimableFacilities[0] ||
+      facilities[0],
+    [facilities, claimableFacilities, initialSlug]
   );
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>(preselected?.id || "");
   const [managerName, setManagerName] = useState("");
@@ -64,7 +73,7 @@ export function ClaimAndVerifyClient({
   const [coachWhatsapp, setCoachWhatsapp] = useState("");
   const [coachFacebook, setCoachFacebook] = useState("");
   const [coachInstagram, setCoachInstagram] = useState("");
-  const [coachCity, setCoachCity] = useState("المحلة الكبرى");
+  const [coachCity, setCoachCity] = useState("");
   const [coachDistrict, setCoachDistrict] = useState("وسط المدينة");
   const [yearsExp, setYearsExp] = useState("6");
   const [coachBio, setCoachBio] = useState(
@@ -120,7 +129,7 @@ export function ClaimAndVerifyClient({
       titleAr: coachTitle.trim(),
       phone: coachPhone.trim(),
       city: coachCity,
-      governorate: "الغربية",
+      governorate: resolveGovernorateFromCity(coachCity, "مصر"),
       district: coachDistrict.trim(),
       sportSector: "swimming",
       yearsExperience: Number(yearsExp) || 4,
@@ -288,12 +297,21 @@ export function ClaimAndVerifyClient({
                     className="w-full rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   >
                     {facilities.map((f) => (
-                      <option key={f.id} value={f.id}>
+                      <option
+                        key={f.id}
+                        value={f.id}
+                        disabled={f.supplyStatus === "verified_active"}
+                      >
                         {f.nameAr} — {f.city} (
-                        {f.supplyStatus === "seeded_unclaimed" ? "بانتظار التفعيل" : "موثقة"})
+                        {f.supplyStatus === "seeded_unclaimed" ? "بانتظار التفعيل" : "موثقة بالفعل — لا يمكن إعادة الاستلام"})
                       </option>
                     ))}
                   </select>
+                  {facilities.find((f) => f.id === selectedFacilityId)?.supplyStatus === "verified_active" && (
+                    <p className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
+                      هذه المنشأة موثقة ومفعلة بالفعل ولا يمكن إعادة المطالبة بها. اختر منشأة بانتظار التفعيل من القائمة.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -534,16 +552,19 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">المدينة</label>
+                  <label className="font-badge-label text-dark-slate">المدينة *</label>
                   <select
+                    required
                     value={coachCity}
                     onChange={(e) => setCoachCity(e.target.value)}
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   >
-                    <option value="المحلة الكبرى">المحلة الكبرى</option>
-                    <option value="طنطا">طنطا</option>
-                    <option value="سمنود">سمنود</option>
-                    <option value="زفتى">زفتى</option>
+                    <option value="">-- اختر المدينة / المحافظة --</option>
+                    {EGYPT_CITY_PRESETS.map((preset) => (
+                      <option key={preset.city} value={preset.city}>
+                        {preset.city} ({preset.governorate})
+                      </option>
+                    ))}
                   </select>
                 </div>
 

@@ -6,6 +6,7 @@ import { Facility } from "@/types/captenly";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { useState } from "react";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
 export function resolveFacilityImage(heroImage?: string): string {
   if (heroImage && heroImage.startsWith("/")) return heroImage;
@@ -33,8 +34,10 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
-  const basePackage = facility.pricePackages[0];
-  const monthlyPrice = basePackage ? basePackage.baseMonthlyEgp : null;
+  const bookablePackages = getFacilityBookablePackages(facility);
+  const basePackage = bookablePackages[0];
+  const startingPrice = getFacilityStartingPriceEgp(facility);
+  const monthlyPrice = startingPrice > 0 ? startingPrice : null;
 
   const handleCompareClick = () => {
     const res = toggleCompareFacility(facility.id);

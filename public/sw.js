@@ -47,7 +47,11 @@ self.addEventListener("fetch", (event) => {
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
-          return (await caches.match("/dashboard/ledger")) || (await caches.match("/"));
+          const url = new URL(request.url);
+          if (url.pathname.startsWith("/dashboard/ledger")) {
+            return (await caches.match("/dashboard/ledger")) || (await caches.match("/"));
+          }
+          return await caches.match("/");
         })
     );
     return;

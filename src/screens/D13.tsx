@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
 import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
 import { AuthorArticlesManager } from "@/components/editorial/AuthorArticlesManager";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
@@ -57,10 +58,34 @@ export default function Desktop13() {
   );
 
   // Coach PB & Skill Assessment logger
+  const [pbSelectedAthleteId, setPbSelectedAthleteId] = useState("");
   const [pbSwimmerName, setPbSwimmerName] = useState("");
   const [pbEventTitle, setPbEventTitle] = useState("");
   const [pbTimeSeconds, setPbTimeSeconds] = useState("");
   const [pbRatingOverall, setPbRatingOverall] = useState("5");
+  const [pbSkills, setPbSkills] = useState<[number, number, number, number, number]>([5, 5, 4, 5, 5]);
+  const [pbFeedbackNote, setPbFeedbackNote] = useState("");
+
+  const linkedCoachId = currentPersona.linkedCoachId || currentPersona.id;
+  const coachLedgers = useMemo(
+    () =>
+      sessionLedgers.filter(
+        (l) =>
+          l.coachId === linkedCoachId ||
+          l.coachNameAr === (activeCoach?.fullNameAr || currentPersona.fullNameAr)
+      ),
+    [sessionLedgers, linkedCoachId, activeCoach?.fullNameAr, currentPersona.fullNameAr]
+  );
+
+  const coachSwimmers = useMemo(() => {
+    const map = new Map<string, string>();
+    coachLedgers.forEach((l) => {
+      if (l.athleteId && l.athleteNameAr) {
+        map.set(l.athleteId, l.athleteNameAr);
+      }
+    });
+    return Array.from(map.entries()).map(([id, nameAr]) => ({ id, nameAr }));
+  }, [coachLedgers]);
 
   const matchedMember = useMemo(
     () =>
@@ -93,6 +118,21 @@ export default function Desktop13() {
       <GuestAccountGateScreen
         titleAr="لوحة الكابتن وتفعيل دفاتر الحصص"
         descriptionAr="سجّل دخولك أو أنشئ حساب كابتن على Captenly لإدارة عروض حصصك وتفعيل دفاتر المتدربين ونشر مقالاتك الرياضية."
+      />
+    );
+  }
+
+  if (currentPersona.role !== "coach") {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="لوحة إدارة الكابتن المعتمد"
+        descriptionAr="هذه الصفحة مخصصة لحسابات الكباتن والمدربين المعتمدين لإدارة المتدربين، المسح بالـ QR، وتسجيل الأرقام القياسية."
+        fallbackHref={
+          currentPersona.role === "facility_manager" ? "/dashboard/facility" : "/dashboard/athlete"
+        }
+        fallbackLabelAr={
+          currentPersona.role === "facility_manager" ? "الانتقال للوحة المنشأة" : "العودة لحسابي"
+        }
       />
     );
   }
@@ -213,7 +253,9 @@ export default function Desktop13() {
               if (!manualSubCode.trim()) return;
               const res = checkInBySubscriptionCode(
                 manualSubCode.trim(),
-                manualSubNote.trim() || "حضور مسجل بواسطة الكابتن بكود الاشتراك"
+                undefined,
+                manualSubNote.trim() || "حضور مسجل بواسطة الكابتن بكود الاشتراك",
+                linkedCoachId
               );
               setStatusMsg({ ok: res.ok, msg: res.messageAr });
               if (res.ok) {
@@ -389,9 +431,13 @@ export default function Desktop13() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const score = Math.max(1, Math.min(5, Number(pbRatingOverall) || 4));
+                const chosenSwimmer = coachSwimmers.find((s) => s.id === pbSelectedAthleteId);
+                const swimmerName =
+                  chosenSwimmer?.nameAr || pbSwimmerName.trim() || "سبّاح متدرب";
+                const targetAthleteId = chosenSwimmer?.id || `athlete-${Date.now()}`;
                 recordCoachSkillAndPB({
-                  swimmerNameAr: pbSwimmerName.trim() || "سبّاح كابتنلي",
+                  athleteId: targetAthleteId,
+                  swimmerNameAr: swimmerName,
                   eventTitleAr: pbEventTitle.trim() || "سباق حر",
                   currentValue: Number(pbTimeSeconds) || 0,
                   unitAr: "ثانية",
@@ -399,26 +445,29 @@ export default function Desktop13() {
                   facilityNameAr:
                     facilities.find((f) => f.id === selectedFacId)?.nameAr || currentPersona.city,
                   skills: {
-                    athleteId: "persona-athlete",
+                    athleteId: targetAthleteId,
                     evaluatedDateAr: "اليوم — تقييم الكابتن",
                     coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
                     metrics: [
-                      { labelAr: "التنفس والانسيابية", score },
-                      { labelAr: "ضربة الرجلين", score },
-                      { labelAr: "دوران الذراعين", score: Math.max(1, score - 1) },
-                      { labelAr: "الغطس والدوران", score },
-                      { labelAr: "التحمل والسرعة", score },
+                      { labelAr: "التنفس والانسيابية", score: pbSkills[0] },
+                      { labelAr: "ضربة الرجلين", score: pbSkills[1] },
+                      { labelAr: "دوران الذراعين", score: pbSkills[2] },
+                      { labelAr: "الغطس والدوران", score: pbSkills[3] },
+                      { labelAr: "التحمل والسرعة", score: pbSkills[4] },
                     ],
-                    coachFeedbackAr: `تقييم موثق لزمن ${pbTimeSeconds} ثانية في سباق ${pbEventTitle}.`,
+                    coachFeedbackAr:
+                      pbFeedbackNote.trim() ||
+                      `تقييم موثق لزمن ${pbTimeSeconds} ثانية في سباق ${pbEventTitle}.`,
                   },
                 });
                 setStatusMsg({
                   ok: true,
-                  msg: `تم تسجيل الرقم القياسي والتقييم المعتمد للسباح «${pbSwimmerName}» بنجاح!`,
+                  msg: `تم تسجيل الرقم القياسي والتقييم المهاري للسباح «${swimmerName}» ومزامنته لحسابه بنجاح!`,
                 });
                 setPbSwimmerName("");
                 setPbEventTitle("");
                 setPbTimeSeconds("");
+                setPbFeedbackNote("");
               }}
               className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-3"
             >
@@ -426,13 +475,29 @@ export default function Desktop13() {
                 تسجيل رقم قياسي وتقييم مهاري موثق للسباح
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  required
-                  value={pbSwimmerName}
-                  onChange={(e) => setPbSwimmerName(e.target.value)}
-                  placeholder="اسم السباح"
-                  className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
-                />
+                {coachSwimmers.length > 0 ? (
+                  <select
+                    value={pbSelectedAthleteId}
+                    onChange={(e) => setPbSelectedAthleteId(e.target.value)}
+                    className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                  >
+                    <option value="">اختر سبّاحاً من متدربيك (أو أدخل يدوياً)</option>
+                    {coachSwimmers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nameAr}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {(!pbSelectedAthleteId || coachSwimmers.length === 0) && (
+                  <input
+                    required={!pbSelectedAthleteId}
+                    value={pbSwimmerName}
+                    onChange={(e) => setPbSwimmerName(e.target.value)}
+                    placeholder="اسم السباح"
+                    className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                  />
+                )}
                 <input
                   required
                   value={pbEventTitle}
@@ -451,14 +516,43 @@ export default function Desktop13() {
                 />
                 <select
                   value={pbRatingOverall}
-                  onChange={(e) => setPbRatingOverall(e.target.value)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 4;
+                    setPbRatingOverall(e.target.value);
+                    setPbSkills([v, v, v, v, v]);
+                  }}
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 >
-                  <option value="5">التقييم: 5/5 ممتاز</option>
-                  <option value="4">التقييم: 4/5 متقدم</option>
-                  <option value="3">التقييم: 3/5 جيد</option>
+                  <option value="5">التقييم العام: 5/5 ممتاز</option>
+                  <option value="4">التقييم العام: 4/5 متقدم</option>
+                  <option value="3">التقييم العام: 3/5 جيد</option>
                 </select>
               </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {["التنفس", "الرجلين", "الذراعين", "الدوران", "التحمل"].map((label, idx) => (
+                  <div key={label} className="flex flex-col gap-0.5 text-center">
+                    <span className="text-[10px] text-text-muted">{label}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={pbSkills[idx]}
+                      onChange={(e) => {
+                        const next = [...pbSkills] as [number, number, number, number, number];
+                        next[idx] = Math.max(1, Math.min(5, Number(e.target.value) || 3));
+                        setPbSkills(next);
+                      }}
+                      className="rounded-lg bg-surface-snow py-1 text-center text-xs font-bold border border-surface-container"
+                    />
+                  </div>
+                ))}
+              </div>
+              <input
+                value={pbFeedbackNote}
+                onChange={(e) => setPbFeedbackNote(e.target.value)}
+                placeholder="ملاحظة الكابتن للسباح أو ولي الأمر (اختياري)"
+                className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+              />
               <button
                 type="submit"
                 className="py-2.5 rounded-full bg-dark-slate text-electric-volt font-bold text-xs"
@@ -491,14 +585,19 @@ export default function Desktop13() {
         <section className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-section-title text-dark-slate">
-              قائمة متدربي الكابتن وأكواد اشتراكاتهم ({sessionLedgers.length}) • استفسارات واتساب ({verifiedLeads.length})
+              قائمة متدربي الكابتن وأكواد اشتراكاتهم ({coachLedgers.length}) • استفسارات واتساب ({verifiedLeads.length})
             </h2>
             <Link href="/dashboard/ledger" className="text-xs font-bold text-deep-olive hover:underline">
               فتح سجل الحصص الكامل ←
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sessionLedgers.map((l) => {
+          {coachLedgers.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-surface-snow text-center text-xs text-text-muted">
+              لا توجد دفاتر مسجلة باسمك بعد — امسح كود عضوية السبّاح أو فعّل له باقة جديدة لتظهر هنا.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {coachLedgers.map((l) => {
               const isExpired = Boolean(
                 l.isCodeExpired || l.status === "completed" || l.completedSessions >= l.totalSessions
               );
@@ -574,7 +673,8 @@ export default function Desktop13() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </section>
 
         {/* Coach Articles Manager */}
@@ -593,6 +693,7 @@ export default function Desktop13() {
       <QrCameraScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
+        scopeCoachId={linkedCoachId}
         onLedgerCheckedIn={(_ledgerId, messageAr) => {
           setStatusMsg({ ok: true, msg: messageAr });
         }}

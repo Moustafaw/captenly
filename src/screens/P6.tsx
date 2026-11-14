@@ -10,6 +10,7 @@ import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback"
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 import type { Facility } from "@/types/captenly";
 
 function Phone6Inner() {
@@ -39,6 +40,7 @@ function Phone6Inner() {
     const sport = searchParams?.get("sport");
     const ladies = searchParams?.get("ladies");
     const city = searchParams?.get("city");
+    const filtersOpen = searchParams?.get("filters");
     const patch: Partial<typeof smartFilters> = {};
     if (q !== null) {
       patch.searchQuery = q;
@@ -49,6 +51,7 @@ function Phone6Inner() {
     if (city) patch.city = city;
     if (ladies === "1") patch.ladiesOnly = true;
     if (Object.keys(patch).length > 0) updateSmartFilters(patch);
+    if (filtersOpen === "1") setFilterModalOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isPoolsRoute]);
 
@@ -131,13 +134,14 @@ function Phone6Inner() {
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
-      const basePrice = f.pricePackages[0]?.baseMonthlyEgp ?? null;
-      if (basePrice != null && basePrice > smartFilters.maxPriceEgp) return false;
+      if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
+      const basePrice = getFacilityStartingPriceEgp(f);
+      if (basePrice > 0 && basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     });
 
     const mergedList = [...list];
-    if (!smartFilters.heatedOnly && !smartFilters.ladiesOnly && googlePlacesResults.length > 0) {
+    if (!smartFilters.heatedOnly && !smartFilters.ladiesOnly && !smartFilters.lifeguardOnly && googlePlacesResults.length > 0) {
       const seenIds = new Set(mergedList.map((f) => f.id));
       const seenPlaceIds = new Set(mergedList.map((f) => f.googlePlaceId).filter(Boolean));
       for (const ext of googlePlacesResults) {
@@ -150,8 +154,8 @@ function Phone6Inner() {
     if (smartFilters.sortBy === "price_asc") {
       return [...mergedList].sort(
         (a, b) =>
-          (a.pricePackages[0]?.baseMonthlyEgp || 9999) -
-          (b.pricePackages[0]?.baseMonthlyEgp || 9999)
+          (getFacilityStartingPriceEgp(a) || 9999) -
+          (getFacilityStartingPriceEgp(b) || 9999)
       );
     }
     if (smartFilters.sortBy === "nearest" && userLocation.isSpecified) {
@@ -175,9 +179,10 @@ function Phone6Inner() {
       smartFilters.city !== "الكل" ? smartFilters.city : "",
       "القاهرة",
       "الإسكندرية",
-      "المحلة الكبرى",
-      "طنطا",
+      "الجيزة",
       "المنصورة",
+      "طنطا",
+      "المحلة الكبرى",
     ];
     return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
   }, [userLocation.isSpecified, userLocation.city, smartFilters.city]);
@@ -238,7 +243,7 @@ function Phone6Inner() {
       </div>
 
       {/* Horizontal Filter Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-margin px-margin scrollbar-none">
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
         {quickCities.map((c) => (
           <button
             key={c}

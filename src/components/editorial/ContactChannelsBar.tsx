@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useCaptenly } from "@/context/CaptenlyContext";
 import {
   ContactChannelKind,
   ResolvedContactChannel,
@@ -70,6 +71,7 @@ export function ContactChannelsBar({
   compact = false,
   fullWidthPrimary = false,
 }: ContactChannelsBarProps) {
+  const { isAuthenticated, openAuthGateModal } = useCaptenly();
   const { primary, secondary, hasAny } = resolveEntityContactChannels({
     supplyStatus,
     whatsappNumber,
@@ -78,6 +80,18 @@ export function ContactChannelsBar({
   });
 
   if (!hasAny || !primary) return null;
+
+  const handleGuardedChannel = (e: React.MouseEvent, customAction?: () => void) => {
+    if (!isAuthenticated) {
+      e.preventDefault();
+      e.stopPropagation();
+      openAuthGateModal("عرض وسائل التواصل المباشر مع المنشأة أو الكابتن");
+      return;
+    }
+    if (customAction) {
+      customAction();
+    }
+  };
 
   const renderPrimary = (channel: ResolvedContactChannel) => {
     const sizeCls = compact
@@ -89,7 +103,7 @@ export function ContactChannelsBar({
       return (
         <button
           type="button"
-          onClick={onWhatsappClick}
+          onClick={(e) => handleGuardedChannel(e, onWhatsappClick)}
           className={`inline-flex items-center ${sizeCls} ${widthCls} rounded-full ${channel.buttonBgClass} font-badge-label hover:opacity-90 transition-opacity shadow-sm cursor-pointer`}
         >
           <SocialChannelGlyph kind="whatsapp" className="w-4 h-4 shrink-0" />
@@ -100,9 +114,10 @@ export function ContactChannelsBar({
 
     return (
       <a
-        href={channel.url}
-        target="_blank"
-        rel="noopener noreferrer"
+        href={isAuthenticated ? channel.url : "#"}
+        target={isAuthenticated ? "_blank" : undefined}
+        rel={isAuthenticated ? "noopener noreferrer" : undefined}
+        onClick={(e) => handleGuardedChannel(e)}
         className={`inline-flex items-center ${sizeCls} ${widthCls} rounded-full ${channel.buttonBgClass} font-badge-label hover:opacity-90 transition-opacity shadow-sm`}
       >
         <SocialChannelGlyph kind={channel.kind} className="w-4 h-4 shrink-0" />
@@ -120,7 +135,7 @@ export function ContactChannelsBar({
           <button
             key={ch.kind}
             type="button"
-            onClick={onWhatsappClick}
+            onClick={(e) => handleGuardedChannel(e, onWhatsappClick)}
             title={ch.labelAr}
             aria-label={ch.labelAr}
             className="w-9 h-9 rounded-full bg-surface-card border border-surface-container hover:scale-105 text-dark-slate flex items-center justify-center transition-transform shadow-sm shrink-0"
@@ -130,9 +145,10 @@ export function ContactChannelsBar({
         ) : (
           <a
             key={ch.kind}
-            href={ch.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={isAuthenticated ? ch.url : "#"}
+            target={isAuthenticated ? "_blank" : undefined}
+            rel={isAuthenticated ? "noopener noreferrer" : undefined}
+            onClick={(e) => handleGuardedChannel(e)}
             title={ch.labelAr}
             aria-label={ch.labelAr}
             className={`w-9 h-9 rounded-full ${ch.buttonBgClass} hover:scale-105 flex items-center justify-center transition-transform shadow-sm shrink-0`}

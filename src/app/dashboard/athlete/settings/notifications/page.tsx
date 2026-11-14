@@ -4,13 +4,41 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function NotificationSettingsPage() {
-  const { currentPersona, userSettings, updateUserSettings } = useCaptenly();
+  const {
+    isAuthenticated,
+    currentPersona,
+    userSettings,
+    updateUserSettings,
+    updateCurrentPersonaProfile,
+  } = useCaptenly();
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState(currentPersona.phone || "");
+
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="إعدادات الإشعارات وواتساب"
+        descriptionAr="سجّل دخولك أولاً لتحديث رقم التنبيهات والتحكم في تفضيلات الإشعارات."
+      />
+    );
+  }
 
   const handleToggle = (key: keyof typeof userSettings) => {
     updateUserSettings({ [key]: !userSettings[key] });
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+  };
+
+  const handleSavePhone = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = phoneInput.trim();
+    if (!cleaned) return;
+    updateCurrentPersonaProfile({ phone: cleaned });
+    setEditingPhone(false);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
   };
@@ -43,31 +71,59 @@ export default function NotificationSettingsPage() {
       )}
 
       {/* WhatsApp Linked Number Card */}
-      <div className="p-4 rounded-2xl bg-surface-card border border-border-hairline shadow-sm flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-action-whatsapp/15 text-action-whatsapp flex items-center justify-center shrink-0">
-            <Icon name="chat" className="text-[24px]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-card-title-sm text-dark-slate">
-                رقم واتساب المرتبط بالتنبيهات
-              </span>
-              <span className="text-deep-olive text-[11px] font-extrabold">
-                نشط ✓
-              </span>
+      <div className="p-4 rounded-2xl bg-surface-card border border-border-hairline shadow-sm flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-action-whatsapp/15 text-action-whatsapp flex items-center justify-center shrink-0">
+              <Icon name="chat" className="text-[24px]" />
             </div>
-            <p className="text-micro-caption text-text-muted mt-0.5 font-mono">
-              {currentPersona.phone}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-card-title-sm text-dark-slate">
+                  رقم واتساب المرتبط بالتنبيهات
+                </span>
+                {currentPersona.phone ? (
+                  <span className="text-deep-olive text-[11px] font-extrabold">نشط ✓</span>
+                ) : (
+                  <span className="text-amber-700 text-[11px] font-extrabold">غير مضاف</span>
+                )}
+              </div>
+              <p className="text-micro-caption text-text-muted mt-0.5 font-mono" dir="ltr">
+                {currentPersona.phone || "لم يُضاف رقم موبايل بعد"}
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPhoneInput(currentPersona.phone || "");
+              setEditingPhone((v) => !v);
+            }}
+            className="px-4 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-dark-slate text-micro-caption font-bold transition-colors"
+          >
+            {editingPhone ? "إلغاء" : "تغيير الرقم"}
+          </button>
         </div>
-        <button
-          type="button"
-          className="px-4 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-dark-slate text-micro-caption font-bold transition-colors"
-        >
-          تغيير الرقم
-        </button>
+
+        {editingPhone && (
+          <form onSubmit={handleSavePhone} className="flex flex-wrap gap-2 pt-2 border-t border-border-hairline">
+            <input
+              required
+              type="tel"
+              dir="ltr"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              placeholder="010xxxxxxxx"
+              className="flex-1 min-w-[180px] rounded-xl bg-surface-snow px-3.5 py-2 text-xs text-right border border-border-hairline outline-none"
+            />
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-xl bg-dark-slate text-electric-volt text-xs font-bold"
+            >
+              حفظ الرقم
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Preferences Toggles List */}

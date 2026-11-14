@@ -21,9 +21,9 @@ export function FloatingCompareDrawer() {
 
   return (
     <div className="fixed bottom-24 lg:bottom-8 left-3 right-3 z-40 pointer-events-none">
-      <div className="max-w-4xl mx-auto pointer-events-auto bg-captenly-slate text-white border-2 border-captenly-volt rounded-2xl shadow-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5">
+      <div className="max-w-4xl mx-auto pointer-events-auto bg-dark-slate text-white border-2 border-electric-volt rounded-2xl shadow-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <div className="flex items-center gap-1.5 bg-captenly-volt text-captenly-slate font-extrabold text-xs px-3 py-1.5 rounded-xl shrink-0">
+          <div className="flex items-center gap-1.5 bg-electric-volt text-dark-slate font-extrabold text-xs px-3 py-1.5 rounded-xl shrink-0">
             <Icon name="compare_arrows" className="text-[15px]" />
             <span>مقارنة ({selectedFacilities.length}/4)</span>
           </div>
@@ -58,7 +58,7 @@ export function FloatingCompareDrawer() {
           </button>
           <Link
             href="/compare"
-            className="inline-flex items-center gap-1.5 bg-captenly-volt hover:brightness-105 text-captenly-slate font-extrabold text-xs px-4 py-2 rounded-xl shadow-volt transition"
+            className="inline-flex items-center gap-1.5 bg-electric-volt hover:brightness-105 text-dark-slate font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition"
           >
             <span>قارن الآن</span>
             <Icon name="arrow_back" className="text-[15px]" />

@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import type { SessionLedger } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
+import {
+  callerHasAnyStaffRole,
+  getServerCaller,
+  hasFacilityStaffAccess,
+  sanitizeFilterToken,
+  type ServerCallerContext,
+} from "@/lib/memberSession";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +56,21 @@ async function ensureLedgerTableExists(): Promise<{ ok: boolean; errorCode?: str
   return res.ok ? { ok: true } : { ok: false, errorCode: res.errorCode };
 }
 
-function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null {
+function canCallerSeePin(row: Record<string, unknown>, caller: ServerCallerContext): boolean {
+  if (caller.isAdmin) return true;
+  const payload = (row.payload || {}) as Partial<SessionLedger>;
+  const rowMemberCode = String(row.member_code || payload.memberCode || "")
+    .trim()
+    .toUpperCase();
+  return Boolean(
+    caller.memberCode && rowMemberCode && caller.memberCode.toUpperCase() === rowMemberCode
+  );
+}
+
+function rowToSessionLedger(
+  row: Record<string, unknown>,
+  revealPin = false
+): SessionLedger | null {
   const payload = (row.payload || {}) as Partial<SessionLedger>;
   const id = String(row.id || payload.id || "");
   const ledgerCode = String(row.ledger_code || payload.ledgerCode || "");
@@ -84,7 +105,7 @@ function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null 
     packageTitleAr: payload.packageTitleAr || "باقة سباحة",
     totalSessions,
     completedSessions,
-    pinCode: String(row.pin_code || payload.pinCode || "0000"),
+    pinCode: revealPin ? String(row.pin_code || payload.pinCode || "0000") : "****",
     status,
     isCodeExpired: Boolean(payload.isCodeExpired || completedSessions >= totalSessions || status === "completed"),
     startedDateAr: payload.startedDateAr || "مفعل عبر كابتنلي",
@@ -93,13 +114,16 @@ function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null 
   };
 }
 
-async function queryLedgersWithPgFallback(filters: {
-  memberCode?: string;
-  athleteId?: string;
-  coachId?: string;
-  facilityId?: string;
-  ledgerCode?: string;
-}): Promise<{ ok: boolean; ledgers: SessionLedger[]; errorCode?: string }> {
+async function queryLedgersWithPgFallback(
+  filters: {
+    memberCode?: string;
+    athleteId?: string;
+    coachId?: string;
+    facilityId?: string;
+    ledgerCode?: string;
+  },
+  caller: ServerCallerContext
+): Promise<{ ok: boolean; ledgers: SessionLedger[]; errorCode?: string }> {
   const res = await withPgClient(async (client) => {
     await runBootstrapDdl(client);
 
@@ -131,7 +155,10 @@ async function queryLedgersWithPgFallback(filters: {
     const sql = `SELECT * FROM public.captenly_session_ledgers WHERE ${conditions.join(" OR ")} ORDER BY updated_at DESC LIMIT 80`;
     const q = await client.query(sql, values);
     return (q.rows || [])
-      .map((r) => rowToSessionLedger(r as Record<string, unknown>))
+      .map((r) => {
+        const row = r as Record<string, unknown>;
+        return rowToSessionLedger(row, canCallerSeePin(row, caller));
+      })
       .filter((x): x is SessionLedger => Boolean(x));
   });
   return res.ok
@@ -140,16 +167,55 @@ async function queryLedgersWithPgFallback(filters: {
 }
 
 export async function GET(request: Request) {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json(
+      { persisted: false, ledgers: [], profile: null, reason: "unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const admin = getSupabaseAdminClient();
   const { searchParams } = new URL(request.url);
-  const memberCode = (searchParams.get("memberCode") || "").trim().toUpperCase();
-  const athleteId = (searchParams.get("athleteId") || "").trim();
-  const coachId = (searchParams.get("coachId") || "").trim();
-  const facilityId = (searchParams.get("facilityId") || "").trim();
-  const ledgerCode = (searchParams.get("ledgerCode") || "").trim().toUpperCase();
+  const memberCode = sanitizeFilterToken(searchParams.get("memberCode") || "").toUpperCase();
+  const athleteId = sanitizeFilterToken(searchParams.get("athleteId") || "");
+  const coachId = sanitizeFilterToken(searchParams.get("coachId") || "");
+  const facilityId = sanitizeFilterToken(searchParams.get("facilityId") || "");
+  const ledgerCode = sanitizeFilterToken(searchParams.get("ledgerCode") || "").toUpperCase();
 
   if (!memberCode && !athleteId && !coachId && !facilityId && !ledgerCode) {
     return NextResponse.json({ persisted: false, ledgers: [], profile: null });
+  }
+
+  const isStaff = await callerHasAnyStaffRole(caller);
+  if (!caller.isAdmin) {
+    if (facilityId && !(await hasFacilityStaffAccess(facilityId, caller))) {
+      return NextResponse.json(
+        { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
+        { status: 403 }
+      );
+    }
+    if (coachId) {
+      const ownsCoach =
+        caller.linkedCoachId === coachId || (caller.role === "coach" && !caller.linkedCoachId);
+      if (!ownsCoach) {
+        return NextResponse.json(
+          { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
+          { status: 403 }
+        );
+      }
+    }
+    if ((memberCode || ledgerCode || athleteId) && !isStaff) {
+      const selfMatches = Boolean(
+        memberCode && caller.memberCode && caller.memberCode.toUpperCase() === memberCode
+      );
+      if (!selfMatches || ledgerCode || athleteId) {
+        return NextResponse.json(
+          { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
+          { status: 403 }
+        );
+      }
+    }
   }
 
   let matchedProfile: {
@@ -228,16 +294,27 @@ export async function GET(request: Request) {
         data = retry.data;
         error = null;
       } else {
-        const pgFallback = await queryLedgersWithPgFallback({
-          memberCode,
-          athleteId,
-          coachId,
-          facilityId,
-          ledgerCode,
-        });
+        const pgFallback = await queryLedgersWithPgFallback(
+          {
+            memberCode,
+            athleteId,
+            coachId,
+            facilityId,
+            ledgerCode,
+          },
+          caller
+        );
+        const visiblePgLedgers =
+          !caller.isAdmin && !isStaff && caller.memberCode
+            ? pgFallback.ledgers.filter(
+                (l) =>
+                  l.memberCode &&
+                  l.memberCode.toUpperCase() === caller.memberCode!.toUpperCase()
+              )
+            : pgFallback.ledgers;
         return NextResponse.json({
           persisted: pgFallback.ok,
-          ledgers: pgFallback.ledgers,
+          ledgers: visiblePgLedgers,
           profile: matchedProfile,
           ...(pgFallback.ok ? {} : { reason: pgFallback.errorCode || retry.error.code }),
         });
@@ -253,9 +330,21 @@ export async function GET(request: Request) {
       });
     }
 
-    const ledgers = (data || [])
-      .map((r) => rowToSessionLedger(r as Record<string, unknown>))
+    const rawLedgers = (data || [])
+      .map((r) => {
+        const row = r as Record<string, unknown>;
+        return rowToSessionLedger(row, canCallerSeePin(row, caller));
+      })
       .filter((x): x is SessionLedger => Boolean(x));
+
+    const ledgers =
+      !caller.isAdmin && !isStaff && caller.memberCode
+        ? rawLedgers.filter(
+            (l) =>
+              l.memberCode &&
+              l.memberCode.toUpperCase() === caller.memberCode!.toUpperCase()
+          )
+        : rawLedgers;
 
     return NextResponse.json({
       persisted: true,
@@ -273,6 +362,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json({ persisted: false, error: "unauthorized" }, { status: 401 });
+  }
+
   const admin = getSupabaseAdminClient();
   if (!admin) {
     return NextResponse.json({ persisted: false, reason: "supabase_not_configured" });
@@ -285,19 +379,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ persisted: false, error: "invalid_ledger" }, { status: 400 });
     }
 
+    const isStaff = await hasFacilityStaffAccess(ledger.facilityId, caller);
+    const isCoachOwner =
+      Boolean(caller.linkedCoachId && caller.linkedCoachId === ledger.coachId) ||
+      (caller.role === "coach" && !caller.linkedCoachId);
+    const isSwimmerOwner = Boolean(
+      caller.memberCode &&
+        ledger.memberCode &&
+        caller.memberCode.trim().toUpperCase() === ledger.memberCode.trim().toUpperCase()
+    );
+
+    if (!caller.isAdmin && !isStaff && !isCoachOwner && !isSwimmerOwner) {
+      return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+    }
+
+    let resolvedPinCode = (ledger.pinCode || "").trim();
+    if (!resolvedPinCode || resolvedPinCode === "****") {
+      try {
+        const { data: existingPinRow } = await admin
+          .from("captenly_session_ledgers")
+          .select("pin_code")
+          .eq("id", ledger.id)
+          .maybeSingle();
+        if (typeof existingPinRow?.pin_code === "string" && existingPinRow.pin_code !== "****") {
+          resolvedPinCode = existingPinRow.pin_code;
+        }
+      } catch {
+        // ignore lookup failure
+      }
+      if (!resolvedPinCode || resolvedPinCode === "****") {
+        resolvedPinCode = "0000";
+      }
+    }
+
+    const storedLedger: SessionLedger = {
+      ...ledger,
+      pinCode: resolvedPinCode,
+    };
+
+    const responseLedger: SessionLedger =
+      caller.isAdmin || isSwimmerOwner
+        ? storedLedger
+        : { ...storedLedger, pinCode: "****" };
+
     const record = {
-      id: ledger.id,
-      ledger_code: ledger.ledgerCode.toUpperCase(),
-      member_code: ledger.memberCode ? ledger.memberCode.trim().toUpperCase() : null,
-      athlete_id: ledger.athleteId,
-      athlete_name_ar: ledger.athleteNameAr,
-      coach_id: ledger.coachId,
-      facility_id: ledger.facilityId,
-      pin_code: ledger.pinCode,
-      total_sessions: ledger.totalSessions,
-      completed_sessions: ledger.completedSessions,
-      status: ledger.status,
-      payload: ledger,
+      id: storedLedger.id,
+      ledger_code: storedLedger.ledgerCode.toUpperCase(),
+      member_code: storedLedger.memberCode ? storedLedger.memberCode.trim().toUpperCase() : null,
+      athlete_id: storedLedger.athleteId,
+      athlete_name_ar: storedLedger.athleteNameAr,
+      coach_id: storedLedger.coachId,
+      facility_id: storedLedger.facilityId,
+      pin_code: storedLedger.pinCode,
+      total_sessions: storedLedger.totalSessions,
+      completed_sessions: storedLedger.completedSessions,
+      status: storedLedger.status,
+      payload: storedLedger,
       updated_at: new Date().toISOString(),
     };
 
@@ -319,7 +456,6 @@ export async function POST(request: Request) {
       error = retry.error;
 
       if (error) {
-        // Direct pg upsert fallback while PostgREST schema cache catches up
         const pgRes = await withPgClient(async (client) => {
           await runBootstrapDdl(client);
           await client.query(
@@ -350,7 +486,7 @@ export async function POST(request: Request) {
           return true;
         });
         if (pgRes.ok) {
-          return NextResponse.json({ persisted: true, ledger });
+          return NextResponse.json({ persisted: true, ledger: responseLedger });
         }
         return NextResponse.json({ persisted: false, reason: pgRes.errorCode });
       }
@@ -360,7 +496,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ persisted: false, reason: error.code || "db_error" });
     }
 
-    return NextResponse.json({ persisted: true, ledger });
+    return NextResponse.json({ persisted: true, ledger: responseLedger });
   } catch {
     return NextResponse.json({ persisted: false, reason: "invalid_payload" }, { status: 400 });
   }

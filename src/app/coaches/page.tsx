@@ -12,6 +12,9 @@ export default function CoachesDirectoryPage() {
   const { coaches, facilities, isAuthenticated, currentPersona } = useCaptenly();
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const isCoachRole = isAuthenticated && currentPersona.role === "coach";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
   const [cityFilter, setCityFilter] = useState("الكل");
   const [searchQ, setSearchQ] = useState("");
   const [tab, setTab] = useState<"coaches" | "facilities">("coaches");
@@ -22,7 +25,7 @@ export default function CoachesDirectoryPage() {
       if (!c.isVerifiedCoach) return false;
       if (c.sportSector === "fitness") return false;
       if (q) {
-        const hay = `${c.fullNameAr} ${c.titleAr} ${c.city} ${c.governorate} ${c.specialties.join(" ")}`.toLowerCase();
+        const hay = `${c.fullNameAr} ${c.titleAr} ${c.city} ${c.governorate} ${c.specialties.map((s) => s.nameAr).join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       } else if (cityFilter !== "الكل" && c.city !== cityFilter) {
         return false;
@@ -77,6 +80,13 @@ export default function CoachesDirectoryPage() {
                 className="px-6 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-center hover:brightness-105 transition-all shadow-md"
               >
                 فتح لوحة الكابتن الخاصة بك
+              </Link>
+            ) : isAthleteOrParent ? (
+              <Link
+                href="/explore"
+                className="px-6 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-center hover:brightness-105 transition-all shadow-md"
+              >
+                استكشف المسابح والأندية القريبة
               </Link>
             ) : (
               <>
@@ -188,14 +198,14 @@ export default function CoachesDirectoryPage() {
                     >
                       لوحة الكابتن
                     </Link>
-                  ) : (
+                  ) : !isAthleteOrParent ? (
                     <Link
                       href="/claim?mode=coach"
                       className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm shadow-sm hover:opacity-95 transition-opacity"
                     >
                       كن أول كابتن موثق في مدينتك الآن
                     </Link>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setTab("facilities")}

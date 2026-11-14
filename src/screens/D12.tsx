@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
 export default function Desktop12() {
   const {
@@ -30,8 +31,10 @@ export default function Desktop12() {
   const compared = facilities.filter((f) => compareFacilityIds.includes(f.id));
   const availableToAdd = facilities.filter((f) => !compareFacilityIds.includes(f.id));
 
-  const getPrice = (f: (typeof facilities)[number]): number | null =>
-    f.pricePackages[0]?.baseMonthlyEgp ?? null;
+  const getPrice = (f: (typeof facilities)[number]): number | null => {
+    const p = getFacilityStartingPriceEgp(f);
+    return p > 0 ? p : null;
+  };
   const numericPrices = compared.map((f) => getPrice(f)).filter((p): p is number => p !== null);
   const lowestPrice = numericPrices.length > 1 ? Math.min(...numericPrices) : null;
 
@@ -70,7 +73,7 @@ export default function Desktop12() {
               {price.toLocaleString("en-US")} ج.م
             </span>
             <span className="text-[11px] text-text-muted">
-              {f.pricePackages[0]?.sessionsCount || 8} حصة
+              {getFacilityBookablePackages(f)[0]?.sessionsCount || 8} حصة
               {isLowest ? " • الأقل سعراً" : ""}
             </span>
           </div>

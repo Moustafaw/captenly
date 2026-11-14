@@ -10,6 +10,7 @@ import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback"
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 import type { Facility } from "@/types/captenly";
 
 function Desktop23Inner() {
@@ -133,8 +134,8 @@ function Desktop23Inner() {
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
-      const basePrice = f.pricePackages[0]?.baseMonthlyEgp ?? null;
-      if (basePrice != null && basePrice > smartFilters.maxPriceEgp) return false;
+      const basePrice = getFacilityStartingPriceEgp(f);
+      if (basePrice > 0 && basePrice > smartFilters.maxPriceEgp) return false;
       return true;
     });
 
@@ -153,8 +154,8 @@ function Desktop23Inner() {
     if (smartFilters.sortBy === "price_asc") {
       return [...mergedList].sort(
         (a, b) =>
-          (a.pricePackages[0]?.baseMonthlyEgp || 9999) -
-          (b.pricePackages[0]?.baseMonthlyEgp || 9999)
+          (getFacilityStartingPriceEgp(a) || 9999) -
+          (getFacilityStartingPriceEgp(b) || 9999)
       );
     }
     if (smartFilters.sortBy === "nearest" && userLocation.isSpecified) {
@@ -178,9 +179,10 @@ function Desktop23Inner() {
       smartFilters.city !== "الكل" ? smartFilters.city : "",
       "القاهرة",
       "الإسكندرية",
-      "المحلة الكبرى",
-      "طنطا",
+      "الجيزة",
       "المنصورة",
+      "طنطا",
+      "المحلة الكبرى",
     ];
     return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
   }, [userLocation.isSpecified, userLocation.city, smartFilters.city]);
@@ -330,6 +332,19 @@ function Desktop23Inner() {
               >
                 <Icon name="female" className="text-[14px]" />
                 <span>ساعات سيدات</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateSmartFilters({ lifeguardOnly: !smartFilters.lifeguardOnly })}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
+                  smartFilters.lifeguardOnly
+                    ? "bg-lime-tint text-deep-olive"
+                    : "bg-surface-snow text-text-muted"
+                }`}
+              >
+                <Icon name="verified" className="text-[14px]" />
+                <span>إنقاذ مائي معتمد</span>
               </button>
             </div>
 

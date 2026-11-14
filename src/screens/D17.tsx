@@ -64,12 +64,14 @@ export default function Desktop17() {
               لا تُنشر أي ملفات كباتن دون مراجعة المستندات وتوثيق رقم الهاتف لضمان موثوقية التدريب والسلامة داخل المسابح.
             </p>
           </div>
-          <Link
-            href={isFacilityManager ? "/dashboard/facility" : isCoach ? "/dashboard/coach" : "/claim"}
-            className="px-6 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm shrink-0 text-center"
-          >
-            {isFacilityManager ? "لوحة إدارة منشأتك" : isCoach ? "إدارة ملفك وشهاداتك" : "وثّق منشأتك أو ملفك الآن"}
-          </Link>
+          {(isFacilityManager || isCoach || !isAuthenticated) && (
+            <Link
+              href={isFacilityManager ? "/dashboard/facility" : isCoach ? "/dashboard/coach" : "/claim"}
+              className="px-6 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm shrink-0 text-center"
+            >
+              {isFacilityManager ? "لوحة إدارة منشأتك" : isCoach ? "إدارة ملفك وشهاداتك" : "وثّق منشأتك أو ملفك الآن"}
+            </Link>
+          )}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">

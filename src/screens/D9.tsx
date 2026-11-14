@@ -6,13 +6,33 @@ import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { getFacilityBookablePackages } from "@/lib/facilityPricing";
+import { isMemberAccountRole } from "@/types/captenly";
 
 function Desktop9Inner() {
   const searchParams = useSearchParams();
   const facSlug = searchParams?.get("facility") || "";
+  const coachSlug = searchParams?.get("coach") || "";
   const pkgParam = searchParams?.get("pkg") || "";
 
-  const { facilities, currentPersona, createStructuredWhatsappLead, placesHydrating, isAuthenticated } = useCaptenly();
+  const {
+    facilities,
+    coaches,
+    minorAthletes,
+    currentPersona,
+    createStructuredWhatsappLead,
+    placesHydrating,
+    isAuthenticated,
+  } = useCaptenly();
+
+  const initialCoach = useMemo(
+    () => (coachSlug ? coaches.find((c) => c.slug === coachSlug || c.id === coachSlug) : undefined),
+    [coaches, coachSlug]
+  );
+
+  const [bookingTargetType, setBookingTargetType] = useState<"facility" | "coach">(
+    initialCoach ? "coach" : "facility"
+  );
 
   const initialFacility = useMemo(
     () => (facSlug ? facilities.find((f) => f.slug === facSlug || f.id === facSlug) : facilities[0]),
@@ -20,16 +40,49 @@ function Desktop9Inner() {
   );
 
   const [selectedFacId, setSelectedFacId] = useState(initialFacility?.id || "");
+  const [selectedCoachId, setSelectedCoachId] = useState(initialCoach?.id || coaches[0]?.id || "");
   const facility = facilities.find((f) => f.id === selectedFacId) || initialFacility;
+  const coach = coaches.find((c) => c.id === selectedCoachId) || initialCoach || coaches[0];
 
-  const [selectedPkgId, setSelectedPkgId] = useState(
-    pkgParam || facility?.pricePackages[0]?.id || ""
+  const facilityPackages = useMemo(
+    () => (facility ? getFacilityBookablePackages(facility) : []),
+    [facility]
   );
+  const coachPackages = useMemo(() => {
+    if (!coach) return [];
+    if (coach.sessionOffers && coach.sessionOffers.length > 0) {
+      return coach.sessionOffers.map((o) => ({
+        id: o.id,
+        nameAr: o.titleAr,
+        baseMonthlyEgp: o.priceEgp,
+      }));
+    }
+    return [
+      {
+        id: "coach-8",
+        nameAr: "باقة تدريب خاصة — 8 حصص",
+        baseMonthlyEgp: coach.privatePackage8Egp,
+      },
+      {
+        id: "coach-12",
+        nameAr: "باقة تدريب خاصة — 12 حصة",
+        baseMonthlyEgp: coach.privatePackage12Egp,
+      },
+    ];
+  }, [coach]);
+
+  const activePackages = bookingTargetType === "coach" ? coachPackages : facilityPackages;
+  const [selectedPkgId, setSelectedPkgId] = useState(
+    pkgParam || activePackages[0]?.id || ""
+  );
+  const [selectedChildId, setSelectedChildId] = useState(minorAthletes[0]?.id || "");
   const [inquirerName, setInquirerName] = useState(
     currentPersona.role === "guest" ? "" : currentPersona.fullNameAr
   );
   const [inquirerPhone, setInquirerPhone] = useState(currentPersona.phone || "");
-  const [athleteAge, setAthleteAge] = useState("10");
+  const [athleteAge, setAthleteAge] = useState(
+    minorAthletes[0]?.age ? String(minorAthletes[0].age) : "10"
+  );
   const [preferredSchedule, setPreferredSchedule] = useState("الفترة المسائية — السبت والاثنين");
   const [generatedLead, setGeneratedLead] = useState<{
     referralCode: string;
@@ -45,7 +98,7 @@ function Desktop9Inner() {
     );
   }
 
-  if (!facility) {
+  if (bookingTargetType === "facility" && !facility) {
     return (
       <div className="screen-root bg-canvas-alabaster font-body-default min-h-screen flex items-center justify-center p-6">
         <div className="max-w-md w-full rounded-[24px] bg-surface-card border border-surface-container p-8 text-center flex flex-col items-center gap-4 shadow-sm">
@@ -67,20 +120,52 @@ function Desktop9Inner() {
     );
   }
 
-  const pkg =
-    facility.pricePackages.find((p) => p.id === selectedPkgId) || facility.pricePackages[0];
+  if (bookingTargetType === "coach" && !coach) {
+    return (
+      <div className="screen-root bg-canvas-alabaster font-body-default min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-[24px] bg-surface-card border border-surface-container p-8 text-center flex flex-col items-center gap-4 shadow-sm">
+          <Icon name="sports" className="text-[36px] text-deep-olive" />
+          <h1 className="font-section-title text-dark-slate">لا يوجد كباتن موثقون متاحون حالياً</h1>
+          <Link
+            href="/coaches"
+            className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+          >
+            استعراض الكباتن المعتمدين ←
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const pkg = activePackages.find((p) => p.id === selectedPkgId) || activePackages[0];
+  const selectedChild =
+    isMemberAccountRole(currentPersona.role)
+      ? minorAthletes.find((m) => m.id === selectedChildId)
+      : undefined;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const targetNameAr =
+      bookingTargetType === "coach" && coach ? coach.fullNameAr : facility?.nameAr || "";
+    const targetId =
+      bookingTargetType === "coach" && coach ? coach.id : facility?.id || "";
+    const whatsappNumber =
+      bookingTargetType === "coach" && coach
+        ? coach.whatsappNumber
+        : facility?.whatsappNumber;
+    const specialtyLabel = `${pkg?.nameAr || "اشتراك شهري"}${
+      selectedChild ? ` (للابن/الابنة: ${selectedChild.fullNameAr})` : ""
+    }`;
+
     const res = createStructuredWhatsappLead({
-      targetType: "facility",
-      targetId: facility.id,
-      targetNameAr: facility.nameAr,
-      whatsappNumber: facility.whatsappNumber,
+      targetType: bookingTargetType,
+      targetId,
+      targetNameAr,
+      whatsappNumber,
       inquirerNameAr: inquirerName.trim() || currentPersona.fullNameAr,
       inquirerPhone: inquirerPhone.trim(),
-      athleteAge: Number(athleteAge) || 10,
-      requestedSpecialtyAr: pkg?.nameAr || facility.specialtiesAr[0] || "اشتراك شهري",
+      athleteAge: Number(athleteAge) || selectedChild?.age || 10,
+      requestedSpecialtyAr: specialtyLabel,
       preferredScheduleAr: preferredSchedule,
     });
     setGeneratedLead({ referralCode: res.referralCode, whatsappUrl: res.whatsappUrl });
@@ -105,21 +190,71 @@ function Desktop9Inner() {
           onSubmit={handleSubmit}
           className="bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm border border-surface-container flex flex-col gap-5"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-dark-slate">المنشأة / النادي</label>
-              <select
-                value={facility.id}
-                onChange={(e) => setSelectedFacId(e.target.value)}
-                className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+          {(facilities.length > 0 && coaches.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setBookingTargetType("facility")}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                  bookingTargetType === "facility"
+                    ? "bg-dark-slate text-electric-volt"
+                    : "bg-surface-snow text-text-muted border border-surface-container"
+                }`}
               >
-                {facilities.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.nameAr} — {f.city}
-                  </option>
-                ))}
-              </select>
+                حجز منشأة / أكاديمية
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingTargetType("coach")}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                  bookingTargetType === "coach"
+                    ? "bg-dark-slate text-electric-volt"
+                    : "bg-surface-snow text-text-muted border border-surface-container"
+                }`}
+              >
+                حجز باقة تدريب مع كابتن موثق
+              </button>
             </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {bookingTargetType === "coach" && coach ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-dark-slate">الكابتن الموثق</label>
+                <select
+                  value={coach.id}
+                  onChange={(e) => {
+                    setSelectedCoachId(e.target.value);
+                    setSelectedPkgId("");
+                  }}
+                  className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+                >
+                  {coaches.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullNameAr} — {c.city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : facility ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-dark-slate">المنشأة / النادي</label>
+                <select
+                  value={facility.id}
+                  onChange={(e) => {
+                    setSelectedFacId(e.target.value);
+                    setSelectedPkgId("");
+                  }}
+                  className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+                >
+                  {facilities.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nameAr} — {f.city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-dark-slate">الباقة المطلوبة</label>
@@ -128,13 +263,38 @@ function Desktop9Inner() {
                 onChange={(e) => setSelectedPkgId(e.target.value)}
                 className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
               >
-                {facility.pricePackages.map((p) => (
+                {activePackages.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.nameAr} ({p.baseMonthlyEgp} ج.م)
                   </option>
                 ))}
               </select>
             </div>
+
+            {isMemberAccountRole(currentPersona.role) && minorAthletes.length > 0 && (
+              <div className="md:col-span-2 flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-deep-olive">
+                  الحجز لصالح الابن / الابنة
+                </label>
+                <select
+                  value={selectedChildId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedChildId(id);
+                    const ch = minorAthletes.find((m) => m.id === id);
+                    if (ch?.age) setAthleteAge(String(ch.age));
+                  }}
+                  className="rounded-xl bg-lime-tint/30 px-4 py-3 text-sm font-bold outline-none border border-deep-olive/30"
+                >
+                  {minorAthletes.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.fullNameAr} ({m.age} سنوات — {m.starTitleAr})
+                    </option>
+                  ))}
+                  <option value="">حجز باسمي الشخصي مباشرة</option>
+                </select>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-dark-slate">الاسم *</label>

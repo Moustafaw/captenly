@@ -7,12 +7,13 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
+import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
 
 function Desktop10Inner() {
   const pathname = usePathname() || "/auth/login";
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { registerMemberUser, restoreProfileByLogin, userLocation } = useCaptenly();
+  const { registerMemberWithCredentials, restoreProfileByLogin, userLocation } = useCaptenly();
 
   const initialTab =
     pathname.includes("/register") || searchParams?.get("mode") === "register"
@@ -20,21 +21,29 @@ function Desktop10Inner() {
       : "login";
 
   const [tab, setTab] = useState<"login" | "register">(initialTab);
-  const [role, setRole] = useState<"adult_athlete" | "parent" | "coach" | "facility_manager">(
-    (searchParams?.get("role") as "adult_athlete" | "parent" | "coach" | "facility_manager") ||
-      "adult_athlete"
+  const rawRoleParam = searchParams?.get("role");
+  const normalizedInitialRole: "adult_athlete" | "coach" | "facility_manager" =
+    rawRoleParam === "coach" || rawRoleParam === "facility_manager"
+      ? rawRoleParam
+      : "adult_athlete";
+  const [role, setRole] = useState<"adult_athlete" | "coach" | "facility_manager">(
+    normalizedInitialRole
   );
 
   // Register fields
   const [fullNameAr, setFullNameAr] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [city, setCity] = useState(
-    userLocation.isSpecified && userLocation.city ? userLocation.city : "القاهرة"
+    userLocation.isSpecified && userLocation.city ? userLocation.city : "كل مصر"
   );
-  const [hasParentSup, setHasParentSup] = useState(false);
+  const [registerFeedback, setRegisterFeedback] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
 
   // Login fields
   const [loginPhone, setLoginPhone] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginFeedback, setLoginFeedback] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -42,20 +51,43 @@ function Desktop10Inner() {
     setTab(pathname.includes("/register") ? "register" : "login");
   }, [pathname]);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const matchedPreset = EGYPT_CITY_PRESETS.find((c) => c.city === city);
-    const res = registerMemberUser({
-      fullNameAr: fullNameAr.trim(),
-      phone: phone.trim(),
-      city,
-      governorate: matchedPreset?.governorate || "القاهرة",
-      sportPreference: "swimming",
-      hasParentSupervision: role === "parent" ? true : hasParentSup,
-      role,
-    });
-    if (res.ok) {
-      router.push(`/auth/otp?code=${encodeURIComponent(res.memberCode)}&role=${role}`);
+    setRegisterFeedback(null);
+    const digitsOnly = phone.replace(/\D/g, "");
+    const normalizedPhone = digitsOnly.startsWith("20") && digitsOnly.length === 12 ? `0${digitsOnly.slice(2)}` : digitsOnly;
+    if (!/^01[0125]\d{8}$/.test(normalizedPhone)) {
+      setRegisterFeedback("يرجى إدخال رقم موبايل مصري صحيح (11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015).");
+      return;
+    }
+    setRegistering(true);
+    try {
+      const governorate =
+        city === "كل مصر" ? "مصر" : resolveGovernorateFromCity(city, "مصر");
+      const res = await registerMemberWithCredentials({
+        fullNameAr: fullNameAr.trim(),
+        phone: normalizedPhone,
+        email: email.trim() || undefined,
+        password,
+        city,
+        governorate,
+        sportPreference: "swimming",
+        hasParentSupervision: false,
+        role,
+      });
+      if (!res.ok) {
+        setRegisterFeedback(res.messageAr || "تعذّر إنشاء الحساب. تأكد من البيانات.");
+        return;
+      }
+      if (role === "coach") {
+        router.push("/claim?mode=coach");
+      } else if (role === "facility_manager") {
+        router.push("/claim");
+      } else {
+        router.push("/dashboard/athlete");
+      }
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -66,16 +98,21 @@ function Desktop10Inner() {
     setLoggingIn(true);
     setLoginFeedback(null);
     try {
-      const res = await restoreProfileByLogin(clean);
+      const res = await restoreProfileByLogin(clean, loginPassword);
       if (res.ok && res.persona) {
-        router.push(
-          `/auth/otp?code=${encodeURIComponent(res.persona.memberCode || "")}&role=${res.persona.role}&flow=login`
-        );
+        const targetRole = res.persona.role;
+        if (targetRole === "facility_manager") {
+          router.push("/dashboard/facility");
+        } else if (targetRole === "coach") {
+          router.push("/dashboard/coach");
+        } else {
+          router.push("/dashboard/athlete");
+        }
         return;
       }
       setLoginFeedback(
         res.messageAr ||
-          "لم نعثر على حساب مسجّل بهذا الرقم أو الكود. يمكنك إنشاء حساب جديد خلال 30 ثانية."
+          "بيانات الدخول غير صحيحة أو الحساب غير مسجّل. يمكنك إنشاء حساب جديد أو استخدام Google."
       );
     } finally {
       setLoggingIn(false);
@@ -118,7 +155,10 @@ function Desktop10Inner() {
           <div className="flex items-center gap-2 bg-surface-snow p-1 rounded-full w-fit">
             <button
               type="button"
-              onClick={() => setTab("register")}
+              onClick={() => {
+                setTab("register");
+                router.replace("/auth/register");
+              }}
               className={`px-5 py-2 rounded-full text-xs font-bold transition-colors ${
                 tab === "register" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
               }`}
@@ -127,7 +167,10 @@ function Desktop10Inner() {
             </button>
             <button
               type="button"
-              onClick={() => setTab("login")}
+              onClick={() => {
+                setTab("login");
+                router.replace("/auth/login");
+              }}
               className={`px-5 py-2 rounded-full text-xs font-bold transition-colors ${
                 tab === "login" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
               }`}
@@ -190,6 +233,7 @@ function Desktop10Inner() {
                     onChange={(e) => setCity(e.target.value)}
                     className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                   >
+                    <option value="كل مصر">كل مصر (بدون تحديد مدينة)</option>
                     {EGYPT_CITY_PRESETS.map((c) => (
                       <option key={c.city} value={c.city}>
                         {c.city} ({c.governorate})
@@ -199,66 +243,99 @@ function Desktop10Inner() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-dark-slate">البريد الإلكتروني (اختياري للاستعادة)</label>
+                  <input
+                    type="email"
+                    dir="ltr"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-sm text-right outline-none border border-surface-container"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-dark-slate">كلمة المرور * (6 أحرف فأكثر)</label>
+                  <input
+                    required
+                    minLength={6}
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+                  />
+                </div>
+              </div>
+
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-dark-slate">نوع الحساب</label>
                 <select
                   value={role}
                   onChange={(e) =>
                     setRole(
-                      e.target.value as "adult_athlete" | "parent" | "coach" | "facility_manager"
+                      e.target.value as "adult_athlete" | "coach" | "facility_manager"
                     )
                   }
                   className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                 >
-                  <option value="adult_athlete">عضو / سبّاح (مع خيار متابعة الأبناء)</option>
+                  <option value="adult_athlete">سبّاح / متدرب وولي أمر (حساب موحد)</option>
                   <option value="coach">كابتن سباحة (للتوثيق والاعتماد)</option>
                   <option value="facility_manager">إدارة أكاديمية أو مسبح</option>
                 </select>
               </div>
 
-              {role === "adult_athlete" && (
-                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-surface-snow cursor-pointer text-xs text-dark-slate">
-                  <input
-                    type="checkbox"
-                    checked={hasParentSup}
-                    onChange={(e) => setHasParentSup(e.target.checked)}
-                    className="accent-deep-olive w-4 h-4"
-                  />
-                  <span>(اختياري) تفعيل قسم إشراف ولي الأمر لمتابعة أطفال تحت 14 سنة لاحقاً</span>
-                </label>
+              {registerFeedback && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                  {registerFeedback}
+                </div>
               )}
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title hover:opacity-95 shadow-md"
+                disabled={registering}
+                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title hover:opacity-95 shadow-md disabled:opacity-60"
               >
-                تسجيل وتوليد كود العضوية الفريد الآن ←
+                {registering ? "جاري تأمين الحساب..." : "إنشاء الحساب وتوليد كود العضوية الآن ←"}
               </button>
             </form>
           ) : (
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-dark-slate">
-                  رقم الموبايل أو كود العضوية (CAP-M-XXXX)
+                  رقم الموبايل أو البريد الإلكتروني أو كود العضوية (CAP-M-XXXX)
                 </label>
                 <input
                   required
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="010xxxxxxxx أو CAP-M-XXXX"
+                  placeholder="010xxxxxxxx أو البريد أو CAP-M-XXXX"
+                  className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-dark-slate">كلمة المرور *</label>
+                <input
+                  required
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
                   className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                 />
               </div>
 
               {loginFeedback && (
-                <div className="p-3 rounded-xl bg-lime-tint/70 text-deep-olive text-xs font-bold">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
                   {loginFeedback}
                 </div>
               )}
 
               <div className="flex items-center justify-between text-xs">
                 <Link href="/auth/forgot" className="text-deep-olive font-bold hover:underline">
-                  نسيت رمز الدخول؟
+                  نسيت كلمة المرور؟
                 </Link>
               </div>
 
@@ -267,7 +344,7 @@ function Desktop10Inner() {
                 disabled={loggingIn}
                 className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title hover:opacity-95 disabled:opacity-60"
               >
-                {loggingIn ? "جاري استرجاع حسابك..." : "دخول بالرمز المؤكد ←"}
+                {loggingIn ? "جاري التحقق والدخول..." : "تسجيل الدخول ←"}
               </button>
             </form>
           )}

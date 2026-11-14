@@ -15,36 +15,69 @@ function DotpInner() {
   const roleParam = searchParams?.get("role") || currentPersona.role;
   const flowParam = searchParams?.get("flow") || "register";
 
-  const [digits, setDigits] = useState(["1", "2", "3", "4", "5", "6"]);
+  const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   const handleDigit = (idx: number, val: string) => {
     const d = val.replace(/\D/g, "").slice(-1);
     setDigits((prev) => prev.map((x, i) => (i === idx ? d : x)));
   };
 
-  const handleConfirm = (e: React.FormEvent) => {
+  const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (digits.join("").length < 4) {
-      setErrorMsg("يرجى إدخال رمز التحقق المكون من 6 أرقام.");
+    if (verifying) return;
+    const otpCode = digits.join("");
+    if (otpCode.length < 6) {
+      setErrorMsg("يرجى إدخال رمز التحقق المكون من 6 أرقام المرسل إليك، أو الانتقال لتسجيل الدخول بكلمة المرور.");
       return;
     }
-    if (roleParam === "coach") {
+
+    const queryTarget = (searchParams?.get("q") || codeParam || "").trim();
+    if (!queryTarget) {
+      setErrorMsg("يرجى تحديد البريد الإلكتروني أو رقم الموبايل أو كود العضوية المرتبط بالتحقق.");
+      return;
+    }
+
+    setVerifying(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/auth/member-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify_otp",
+          query: queryTarget,
+          otpCode,
+          clearOtp: flowParam === "register" || flowParam === "login",
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setErrorMsg(data?.messageAr || "رمز التحقق غير صحيح أو منتهي الصلاحية.");
+        return;
+      }
+
+      if (flowParam === "register" || flowParam === "login") {
+        if (roleParam === "coach") {
+          router.push(currentPersona.linkedCoachId ? "/dashboard/coach" : "/claim?mode=coach");
+        } else if (roleParam === "facility_manager") {
+          router.push(currentPersona.linkedFacilityId ? "/dashboard/facility" : "/claim");
+        } else {
+          router.push("/dashboard/athlete");
+        }
+        return;
+      }
+
       router.push(
-        currentPersona.linkedCoachId || flowParam === "login"
-          ? "/dashboard/coach"
-          : "/claim?mode=coach"
+        `/auth/reset?otp=${encodeURIComponent(otpCode)}&code=${encodeURIComponent(
+          data.profile?.memberCode || codeParam
+        )}&q=${encodeURIComponent(queryTarget)}`
       );
-    } else if (roleParam === "facility_manager") {
-      router.push(
-        currentPersona.linkedFacilityId || flowParam === "login"
-          ? "/dashboard/facility"
-          : "/claim"
-      );
-    } else if (flowParam === "login" && !currentPersona.needsOnboarding) {
-      router.push("/dashboard/athlete");
-    } else {
-      router.push("/auth/onboarding");
+    } catch {
+      setErrorMsg("تعذر الاتصال بالخادم للتحقق من الرمز.");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -60,7 +93,7 @@ function DotpInner() {
             تأكيد رقم الهاتف وتفعيل كود العضوية
           </h1>
           <p className="font-body-compact text-text-muted mt-1">
-            أدخل رمز التحقق المرسل لرقمك ({currentPersona.phone || "010xxxxxxxx"}) — الكود التجريبي الجاهز: 123456
+            أدخل رمز التحقق المكون من 6 أرقام المرسل إليك ({currentPersona.phone || "بريدك / هاتفك المسجل"}).
           </p>
         </div>
 

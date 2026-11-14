@@ -30,6 +30,7 @@ export default function Phone13() {
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
+    subscribeDemandRadar,
   } = useCaptenly();
 
   const facility = useMemo(
@@ -38,6 +39,7 @@ export default function Phone13() {
   );
 
   const [gplaceLoading, setGplaceLoading] = useState(false);
+  const [demandRequested, setDemandRequested] = useState(false);
 
   useEffect(() => {
     if (facility || !slug || !slug.startsWith("gplace-")) return;
@@ -131,6 +133,22 @@ export default function Phone13() {
       typeof window !== "undefined" ? window.location.href : ""
     }`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleRequestFacilityPricing = () => {
+    if (!isAuthenticated) {
+      openAuthGateModal(`طلب توفير مواعيد وأسعار ${facility.nameAr}`);
+      return;
+    }
+    const res = subscribeDemandRadar({
+      fullNameAr: currentPersona.fullNameAr || "مستخدم كابتنلي",
+      phone: currentPersona.phone || "",
+      city: facility.city || userLocation.city || "مصر",
+      governorate: facility.governorate || "مصر",
+      targetSport: "swimming",
+      notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
+    });
+    if (res.ok) setDemandRequested(true);
   };
 
   return (
@@ -237,6 +255,20 @@ export default function Phone13() {
                   ? "هذه المنشأة غير مسجلة على منصة Captenly بعد — لم تُضف أي باقات أو مواعيد حصص حتى الآن."
                   : "لم تقم إدارة المنشأة بنشر بطاقات المواعيد والأسعار بعد."}
               </p>
+              {isUnclaimed && (
+                <button
+                  type="button"
+                  onClick={handleRequestFacilityPricing}
+                  disabled={demandRequested}
+                  className={`mt-2 px-4 py-2 rounded-full text-[11px] font-bold transition-all ${
+                    demandRequested
+                      ? "bg-lime-tint text-deep-olive border border-deep-olive/30"
+                      : "bg-dark-slate text-electric-volt hover:opacity-95"
+                  }`}
+                >
+                  {demandRequested ? "✓ تم تسجيل طلبك" : "اطلب توفير الأسعار والمواعيد ←"}
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">

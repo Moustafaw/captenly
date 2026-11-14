@@ -20,8 +20,7 @@ const STATIC_NAV_START = [
       p.startsWith("/coaches") ||
       p.startsWith("/compare") ||
       p.startsWith("/c/") ||
-      p.startsWith("/academy") ||
-      p.startsWith("/claim"),
+      p.startsWith("/academy"),
   },
 ];
 
@@ -34,9 +33,9 @@ const STATIC_NAV_END = [
 ];
 
 const ACTIVE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#65A30D] font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-deep-olive font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 const IDLE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-[#65A30D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-deep-olive font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 
 export function SiteHeader() {
   const pathname = usePathname() || "/";
@@ -46,6 +45,7 @@ export function SiteHeader() {
     setLocationModalOpen,
     unreadNotificationsCount,
     savedFavoriteIds,
+    minorAthletes,
     currentPersona,
     isAuthenticated,
     openAuthGateModal,
@@ -144,7 +144,7 @@ export function SiteHeader() {
       window.removeEventListener("resize", updateIndicator);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, currentPersona.role]);
+  }, [pathname, currentPersona.role, isAuthenticated, activeStaffAssignment?.id]);
 
   if (isChromeless(pathname)) return null;
 
@@ -350,7 +350,14 @@ export function SiteHeader() {
                           { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
                         ]
                       : [
-                          { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والعائلة" },
+                          {
+                            href: "/dashboard/athlete",
+                            icon: "person",
+                            label:
+                              minorAthletes.length > 0
+                                ? "ملفي الرياضي والأبناء"
+                                : "ملفي الرياضي وأرقامي",
+                          },
                           { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
                           { href: "/favorites", icon: "bookmark", label: "المفضلة" },
                           { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
@@ -436,12 +443,12 @@ export function SiteHeader() {
               <>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#65A30D]/10 transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-deep-olive/10 transition-all duration-300 ease-out"
                   style={{ left: indicator.left, width: indicator.width }}
                 />
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-[#65A30D] transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-deep-olive transition-all duration-300 ease-out"
                   style={{
                     left: indicator.left + 12,
                     width: Math.max(16, indicator.width - 24),
@@ -470,6 +477,16 @@ export function SiteHeader() {
               className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
             >
               <span>سجّل للحصول على كود عضويتك</span>
+            </Link>
+          ) : activeStaffAssignment ? (
+            <Link
+              href="/dashboard/facility"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+            >
+              <Icon name="badge" className="text-[14px]" />
+              <span>
+                وضع موظف: {activeStaffAssignment.roleTitleAr} ({activeStaffAssignment.facilityNameAr})
+              </span>
             </Link>
           ) : currentPersona.role === "coach" ? (
             <Link
