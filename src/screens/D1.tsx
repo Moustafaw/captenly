@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
-import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 type OnboardRole = "adult_athlete" | "parent" | "coach" | "facility_manager";
 
@@ -51,7 +51,7 @@ const ROLE_OPTIONS: {
 function Desktop1Inner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentPersona, addMinorAthlete, completeGoogleOnboarding } = useCaptenly();
+  const { currentPersona, userLocation, addMinorAthlete, completeGoogleOnboarding } = useCaptenly();
 
   const initialRole: OnboardRole =
     currentPersona.role === "parent" ||
@@ -62,7 +62,9 @@ function Desktop1Inner() {
 
   const [selectedRole, setSelectedRole] = useState<OnboardRole>(initialRole);
   const [phone, setPhone] = useState(currentPersona.phone || "");
-  const [city, setCity] = useState(currentPersona.city || "المحلة الكبرى");
+  const [city, setCity] = useState(
+    (userLocation.isSpecified && userLocation.city) || currentPersona.city || "القاهرة"
+  );
   const [copied, setCopied] = useState(false);
   const [addChildOptional, setAddChildOptional] = useState(false);
   const [childName, setChildName] = useState("");
@@ -149,29 +151,61 @@ function Desktop1Inner() {
           </Link>
         </div>
 
-        {/* Pulled Google Profile + Member Code & QR Banner */}
+        {/* Pulled Google Profile + Role-Specific Identity Banner */}
         <div className="rounded-2xl bg-dark-slate text-surface-card p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-right">
-            <AvatarUploader size="lg" labelAr="تعديل الصورة" darkSurface />
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs text-electric-volt font-bold">كود العضوية الفريد</span>
-              <div className="text-3xl font-mono font-black tracking-wider text-white">
-                {displayMemberCode}
+            {currentPersona.avatarUrl ? (
+              <img
+                src={currentPersona.avatarUrl}
+                alt={currentPersona.fullNameAr}
+                className="w-16 h-16 rounded-full object-cover border-2 border-electric-volt shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-deep-carbon text-electric-volt flex items-center justify-center font-extrabold text-lg shrink-0">
+                {currentPersona.fullNameAr.slice(0, 2)}
               </div>
-              <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
-                عند الاشتراك مع أي كابتن أو أكاديمية موثقة على كابتنلي، سلّمهم هذا الكود لتفعيل باقتك وعمل دفتر الحصص الـ QR أوفلاين فوراً.
-              </p>
-              <button
-                type="button"
-                onClick={copyCode}
-                className="mt-1 px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold w-fit mx-auto sm:mx-0 flex items-center gap-1.5"
-              >
-                <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
-                <span>{copied ? "تم نسخ كود العضوية!" : "نسخ كود العضوية"}</span>
-              </button>
+            )}
+            <div className="flex flex-col gap-1.5">
+              {selectedRole === "facility_manager" ? (
+                <>
+                  <span className="text-xs text-electric-volt font-bold">
+                    حساب إدارة منشأة / أكاديمية سباحة
+                  </span>
+                  <div className="text-xl font-extrabold text-white">
+                    إدارة المشتركين والفرق ومسح أكواد الاشتراك
+                  </div>
+                  <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
+                    حساب المنشأة يمتلك ماسح كاميرا QR وخانة إدخال كود الاشتراك يدوياً لتسجيل حضور السباحين وإدارة الكباتن والموظفين.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs text-electric-volt font-bold">
+                    {selectedRole === "coach" ? "المعرّف المهني للكابتن" : "كود العضوية الفريد"}
+                  </span>
+                  <div className="text-3xl font-mono font-black tracking-wider text-white">
+                    {displayMemberCode}
+                  </div>
+                  <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
+                    {selectedRole === "coach"
+                      ? "يُستخدم هذا المعرّف لربط ملفك مع الأكاديميات والمنشآت المعتمدة على كابتنلي."
+                      : "عند الاشتراك مع أي كابتن أو أكاديمية موثقة على كابتنلي، يصدر لك كود اشتراك خاص بباقتك لتسجيل الحضور بالـ QR أوفلاين."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={copyCode}
+                    className="mt-1 px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold w-fit mx-auto sm:mx-0 flex items-center gap-1.5"
+                  >
+                    <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
+                    <span>{copied ? "تم النسخ!" : "نسخ الكود"}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
-          <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
+          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
+            <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
+          )}
         </div>
 
         <form onSubmit={handleFinish} className="flex flex-col gap-5">
@@ -229,18 +263,17 @@ function Desktop1Inner() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-dark-slate">المدينة</label>
+              <label className="text-xs font-bold text-dark-slate">المدينة (تتزامن تلقائياً مع الموقع بالبار العلوي)</label>
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container focus:border-deep-olive"
               >
-                <option value="المحلة الكبرى">المحلة الكبرى</option>
-                <option value="طنطا">طنطا</option>
-                <option value="زفتى">زفتى</option>
-                <option value="سمنود">سمنود</option>
-                <option value="القاهرة">القاهرة</option>
-                <option value="الإسكندرية">الإسكندرية</option>
+                {EGYPT_CITY_PRESETS.map((c) => (
+                  <option key={c.city} value={c.city}>
+                    {c.city} ({c.governorate})
+                  </option>
+                ))}
               </select>
             </div>
           </div>

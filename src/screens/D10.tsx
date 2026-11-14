@@ -6,12 +6,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
 function Desktop10Inner() {
   const pathname = usePathname() || "/auth/login";
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { registerMemberUser, allPersonas, switchPersona } = useCaptenly();
+  const { registerMemberUser, restoreProfileByLogin, userLocation } = useCaptenly();
 
   const initialTab =
     pathname.includes("/register") || searchParams?.get("mode") === "register"
@@ -27,12 +28,15 @@ function Desktop10Inner() {
   // Register fields
   const [fullNameAr, setFullNameAr] = useState("");
   const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("المحلة الكبرى");
+  const [city, setCity] = useState(
+    userLocation.isSpecified && userLocation.city ? userLocation.city : "القاهرة"
+  );
   const [hasParentSup, setHasParentSup] = useState(false);
 
   // Login fields
   const [loginPhone, setLoginPhone] = useState("");
   const [loginFeedback, setLoginFeedback] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     setTab(pathname.includes("/register") ? "register" : "login");
@@ -40,11 +44,12 @@ function Desktop10Inner() {
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
+    const matchedPreset = EGYPT_CITY_PRESETS.find((c) => c.city === city);
     const res = registerMemberUser({
       fullNameAr: fullNameAr.trim(),
       phone: phone.trim(),
       city,
-      governorate: "الغربية",
+      governorate: matchedPreset?.governorate || "القاهرة",
       sportPreference: "swimming",
       hasParentSupervision: role === "parent" ? true : hasParentSup,
       role,
@@ -54,18 +59,27 @@ function Desktop10Inner() {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = loginPhone.trim();
-    const match = allPersonas.find((p) => p.phone === clean || p.memberCode === clean.toUpperCase());
-    if (match) {
-      switchPersona(match.id);
-      router.push(`/auth/otp?code=${encodeURIComponent(match.memberCode || "")}&role=${match.role}`);
-      return;
+    if (!clean) return;
+    setLoggingIn(true);
+    setLoginFeedback(null);
+    try {
+      const res = await restoreProfileByLogin(clean);
+      if (res.ok && res.persona) {
+        router.push(
+          `/auth/otp?code=${encodeURIComponent(res.persona.memberCode || "")}&role=${res.persona.role}&flow=login`
+        );
+        return;
+      }
+      setLoginFeedback(
+        res.messageAr ||
+          "لم نعثر على حساب مسجّل بهذا الرقم أو الكود. يمكنك إنشاء حساب جديد خلال 30 ثانية."
+      );
+    } finally {
+      setLoggingIn(false);
     }
-    setLoginFeedback(
-      "تم إرسال رمز تحقق تجريبي — استخدم أي حساب جاهز بالأسفل أو سجّل حساباً جديداً خلال 30 ثانية."
-    );
   };
 
   return (
@@ -170,16 +184,17 @@ function Desktop10Inner() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-dark-slate">المدينة</label>
+                  <label className="text-xs font-bold text-dark-slate">المدينة (تتزامن مع موقعك الجغرافي)</label>
                   <select
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                   >
-                    <option value="المحلة الكبرى">المحلة الكبرى</option>
-                    <option value="طنطا">طنطا</option>
-                    <option value="زفتى">زفتى</option>
-                    <option value="سمنود">سمنود</option>
+                    {EGYPT_CITY_PRESETS.map((c) => (
+                      <option key={c.city} value={c.city}>
+                        {c.city} ({c.governorate})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -249,9 +264,10 @@ function Desktop10Inner() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title hover:opacity-95"
+                disabled={loggingIn}
+                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title hover:opacity-95 disabled:opacity-60"
               >
-                دخول بالرمز المؤكد ←
+                {loggingIn ? "جاري استرجاع حسابك..." : "دخول بالرمز المؤكد ←"}
               </button>
             </form>
           )}

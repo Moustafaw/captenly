@@ -17,6 +17,8 @@ export default function Phone5() {
     sessionLedgers,
     enrollSwimmerByMemberCode,
     checkInSession,
+    checkInBySubscriptionCode,
+    renewSwimmerSubscription,
     uploadInstaPayReceipt,
     effectiveOffline,
     isOfflineSimulated,
@@ -24,12 +26,15 @@ export default function Phone5() {
     offlineQueue,
     syncOfflineQueue,
     syncLedgersFromServer,
+    activeStaffAssignment,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
-  const isFacility = currentPersona.role === "facility_manager";
+  const isFacility =
+    currentPersona.role === "facility_manager" || Boolean(activeStaffAssignment);
   const isProvider = isCoach || isFacility;
-  const linkedFacilityId = currentPersona.linkedFacilityId || facilities[0]?.id || "";
+  const linkedFacilityId =
+    activeStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
 
   const [facilityScope, setFacilityScope] = useState<"mine" | "all">("mine");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
@@ -37,6 +42,7 @@ export default function Phone5() {
   const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
+  const [manualSubCodeInput, setManualSubCodeInput] = useState("");
 
   const [newMemberCode, setNewMemberCode] = useState("");
   const [newAthleteName, setNewAthleteName] = useState("");
@@ -67,7 +73,7 @@ export default function Phone5() {
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
-        const hay = `${l.athleteNameAr} ${l.facilityNameAr} ${l.packageTitleAr} ${l.ledgerCode}`.toLowerCase();
+        const hay = `${l.athleteNameAr} ${l.facilityNameAr} ${l.packageTitleAr} ${l.ledgerCode} ${l.subscriptionCode || ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -375,12 +381,47 @@ export default function Phone5() {
 
             {isProvider && (
               <div className="flex flex-col gap-2">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!manualSubCodeInput.trim()) return;
+                    const res = checkInBySubscriptionCode(
+                      manualSubCodeInput.trim(),
+                      "خصم حصة بإدخال كود الاشتراك يدوياً"
+                    );
+                    setMsg({ ok: res.ok, text: res.messageAr });
+                    if (res.ok && res.ledger) {
+                      setSelectedId(res.ledger.id);
+                      setManualSubCodeInput("");
+                    }
+                  }}
+                  className="rounded-xl bg-dark-slate text-white p-3 flex flex-col gap-2"
+                >
+                  <div className="text-[11px] font-bold text-electric-volt">
+                    إدخال كود الاشتراك يدوياً (بدون كاميرا):
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={manualSubCodeInput}
+                      onChange={(e) => setManualSubCodeInput(e.target.value)}
+                      placeholder="SUB-XXXX-XX"
+                      className="flex-1 min-w-0 rounded-xl bg-deep-carbon text-white px-3 py-2 text-xs font-mono border border-white/15 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3.5 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-extrabold shrink-0"
+                    >
+                      خصم حصة ✓
+                    </button>
+                  </div>
+                </form>
+
                 <div className="flex items-center bg-surface-snow rounded-xl px-3 py-2 border border-surface-container">
                   <Icon name="search" className="text-text-muted text-[15px] ml-2 shrink-0" />
                   <input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="ابحث باسم السباح أو المنشأة..."
+                    placeholder="ابحث باسم السباح أو كود الاشتراك..."
                     className="w-full bg-transparent text-xs outline-none"
                   />
                 </div>
@@ -428,13 +469,24 @@ export default function Phone5() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-xs text-dark-slate truncate">
-                        {l.athleteNameAr}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-xs text-dark-slate truncate">
+                          {l.athleteNameAr}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black border shrink-0 ${
+                            l.isCodeExpired || l.status === "completed"
+                              ? "bg-red-50 text-red-700 border-red-200 line-through"
+                              : "bg-lime-tint text-deep-olive border-deep-olive/25"
+                          }`}
+                        >
+                          {l.subscriptionCode || l.ledgerCode}
+                        </span>
+                      </div>
                       <span
                         className={`text-[10px] font-extrabold shrink-0 ${
-                          l.status === "completed"
-                            ? "text-text-muted"
+                          l.status === "completed" || l.isCodeExpired
+                            ? "text-status-danger"
                             : l.status === "renewal_due"
                             ? "text-amber-700"
                             : "text-deep-olive"
@@ -490,17 +542,54 @@ export default function Phone5() {
                   {activeLedger.packageTitleAr} • {activeLedger.facilityNameAr}
                 </p>
 
-                <QrCodeBox
-                  value={`CAP-QR:${activeLedger.ledgerCode}:${activeLedger.pinCode}`}
-                  size={165}
-                  label={`PIN: ${activeLedger.pinCode}`}
-                />
-
-                <p className="text-[11px] text-text-muted max-w-xs">
-                  {isProvider
-                    ? `امسح هذا الباركود عند حضور «${activeLedger.athleteNameAr}» أو أدخل الـ PIN (${activeLedger.pinCode}).`
-                    : "أظهر هذا الباركود للكابتن أو إدارة المدرسة عند النزول للحوض."}
-                </p>
+                {isProvider ? (
+                  <div className="w-full rounded-xl bg-surface-snow p-3.5 border border-surface-container flex flex-col gap-2 text-right">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-text-muted font-bold">كود الاشتراك للسباح</div>
+                        <div
+                          className={`font-mono text-lg font-black ${
+                            activeLedger.isCodeExpired || activeLedger.status === "completed"
+                              ? "text-red-700 line-through"
+                              : "text-deep-olive"
+                          }`}
+                        >
+                          {activeLedger.subscriptionCode || activeLedger.ledgerCode}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = renewSwimmerSubscription({
+                            ledgerId: activeLedger.id,
+                            totalSessions: activeLedger.totalSessions,
+                            packageTitleAr: activeLedger.packageTitleAr,
+                          });
+                          setMsg({ ok: res.ok, text: res.messageAr });
+                        }}
+                        className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+                      >
+                        تجديد بكود جديد ↻
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-text-muted">
+                      {activeLedger.isCodeExpired || activeLedger.status === "completed"
+                        ? "انتهت صلاحية كود هذا الاشتراك بعد اكتمال الحصص. اضغط تجديد لتوليد كود جديد."
+                        : "امسح باركود السباح بالكاميرا أو أدخل كود الاشتراك يدوياً لخصم الحصة."}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <QrCodeBox
+                      value={`CAP-SUB:${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
+                      size={165}
+                      label={`كود الاشتراك: ${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
+                    />
+                    <p className="text-[11px] text-text-muted max-w-xs">
+                      أظهر هذا الباركود أو كود الاشتراك للمسؤول عند النزول للحوض.
+                    </p>
+                  </>
+                )}
 
                 <div className="grid grid-cols-4 gap-2 w-full pt-1">
                   {Array.from({ length: activeLedger.totalSessions }, (_, idx) => {

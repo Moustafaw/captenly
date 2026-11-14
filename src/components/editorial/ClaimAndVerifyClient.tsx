@@ -19,12 +19,20 @@ export function ClaimAndVerifyClient({
 }: ClaimAndVerifyClientProps) {
   const {
     isAuthenticated,
+    currentPersona,
     facilities,
     claimFacilityAndVerify,
     registerAndVerifyCoach,
   } = useCaptenly();
 
   const [mode, setMode] = useState<"facility" | "coach">(initialMode);
+  const lockedRoleMode: "facility" | "coach" | null =
+    isAuthenticated && currentPersona.role === "facility_manager"
+      ? "facility"
+      : isAuthenticated && currentPersona.role === "coach"
+      ? "coach"
+      : null;
+  const effectiveMode: "facility" | "coach" = lockedRoleMode ?? mode;
 
   // Facility claim state
   const preselected = useMemo(
@@ -148,43 +156,53 @@ export function ClaimAndVerifyClient({
               <span>التوثيق والمطالبة المجانية بالصفحات — 0% عمولة على الاشتراكات</span>
             </div>
             <h1 className="font-hero-headline text-[30px] md:text-[34px] text-surface-card leading-tight">
-              طالب بإدارة منشأتك أو وثّق ملفك ككابتن مجاناً في أقل من 3 دقائق
+              {lockedRoleMode === "facility"
+                ? "إدارة وتوثيق منشأتك أو ناديك مجاناً بالشارة الخضراء"
+                : lockedRoleMode === "coach"
+                ? "وثّق ملفك وشهاداتك ككابتن معتمد في أقل من 3 دقائق"
+                : "طالب بإدارة منشأتك أو وثّق ملفك ككابتن مجاناً في أقل من 3 دقائق"}
             </h1>
             <p className="font-body-default text-surface-container-high">
-              تحوّل صفحتك فوراً إلى صفحة موثقة بشارات الأمان الخضراء، وتفتح لك لوحة التحكم لربط السباحين بكود العضوية وتفعيل دفاتر الحصص الأوفلاين.
+              تحوّل صفحتك فوراً إلى صفحة موثقة بشارات الأمان الخضراء، وتفتح لك لوحة التحكم لربط السباحين بكود الاشتراك وتفعيل دفاتر الحصص الأوفلاين.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0 bg-deep-carbon p-1.5 rounded-full">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("facility");
-                setStatusFeedback(null);
-              }}
-              className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
-                mode === "facility"
-                  ? "bg-electric-volt text-dark-slate"
-                  : "text-surface-container-high hover:text-white"
-              }`}
-            >
-              إدارة نادي / أكاديمية
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("coach");
-                setStatusFeedback(null);
-              }}
-              className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
-                mode === "coach"
-                  ? "bg-electric-volt text-dark-slate"
-                  : "text-surface-container-high hover:text-white"
-              }`}
-            >
-              تسجيل وتوثيق كابتن
-            </button>
-          </div>
+          {!lockedRoleMode ? (
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0 bg-deep-carbon p-1.5 rounded-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("facility");
+                  setStatusFeedback(null);
+                }}
+                className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
+                  effectiveMode === "facility"
+                    ? "bg-electric-volt text-dark-slate"
+                    : "text-surface-container-high hover:text-white"
+                }`}
+              >
+                إدارة نادي / أكاديمية
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("coach");
+                  setStatusFeedback(null);
+                }}
+                className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
+                  effectiveMode === "coach"
+                    ? "bg-electric-volt text-dark-slate"
+                    : "text-surface-container-high hover:text-white"
+                }`}
+              >
+                تسجيل وتوثيق كابتن
+              </button>
+            </div>
+          ) : (
+            <div className="px-4 py-2 rounded-full bg-deep-carbon text-electric-volt font-badge-label text-badge-label shrink-0">
+              {lockedRoleMode === "facility" ? "صلاحية حساب منشأة / أكاديمية ✓" : "صلاحية حساب كابتن ✓"}
+            </div>
+          )}
         </section>
 
         {statusFeedback && (
@@ -210,7 +228,7 @@ export function ClaimAndVerifyClient({
               </div>
             </div>
 
-            {statusFeedback.ok && mode === "facility" && claimSuccessFacSlug && (
+            {statusFeedback.ok && effectiveMode === "facility" && claimSuccessFacSlug && (
               <div className="flex items-center gap-2 shrink-0">
                 <Link
                   href={`/academy/${claimSuccessFacSlug}`}
@@ -227,7 +245,7 @@ export function ClaimAndVerifyClient({
               </div>
             )}
 
-            {statusFeedback.ok && mode === "coach" && verifiedCoachSlug && (
+            {statusFeedback.ok && effectiveMode === "coach" && verifiedCoachSlug && (
               <div className="flex items-center gap-2 shrink-0">
                 <Link
                   href={`/c/${verifiedCoachSlug}`}
@@ -246,7 +264,7 @@ export function ClaimAndVerifyClient({
           </div>
         )}
 
-        {mode === "facility" ? (
+        {effectiveMode === "facility" ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
             <form
               onSubmit={handleFacilityClaimSubmit}
@@ -426,7 +444,7 @@ export function ClaimAndVerifyClient({
                     سجّل ووثّق ملفك ككابتن للحصول على الشارات الخضراء
                   </h2>
                   <p className="font-body-compact text-text-muted mt-1">
-                    لا ننشر أي مدرب غير مسجل بنفسه. أكمل بياناتك المهنية ليظهر بروفايلك للسباحين والأهالي فوراً بعد اجتياز فحص المعايير والقانون 3/1985.
+                    لا ننشر أي مدرب غير مسجل بنفسه. أكمل بياناتك المهنية ليظهر بروفايلك للسباحين والأهالي فوراً بعد استيفاء معايير التوثيق الرياضي المعتمدة.
                   </p>
                 </div>
                 <AvatarUploader
@@ -603,7 +621,7 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="md:col-span-2 flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">النبذة المهنية (تخضع لفحص القانون 3/1985)</label>
+                  <label className="font-badge-label text-dark-slate">النبذة والخبرة التدريبية</label>
                   <textarea
                     rows={3}
                     required

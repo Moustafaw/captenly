@@ -4,13 +4,18 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 
 export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
-  const { coaches, createStructuredWhatsappLead, currentPersona } = useCaptenly();
+  const { coaches, articles, createStructuredWhatsappLead, currentPersona, isAuthenticated } = useCaptenly();
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const coach = coaches.find((c) => c.slug === params.slug || c.id === params.slug);
+  const coachArticles = coach
+    ? articles.filter(
+        (a) => a.authorEntityId === coach.id || a.authorNameAr.trim() === coach.fullNameAr.trim()
+      )
+    : [];
 
   const [leadCode, setLeadCode] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<8 | 12>(8);
@@ -30,12 +35,21 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
             تظهر ملفات الكباتن المستقلة فقط بعد قيام الكابتن بتسجيل حسابه بنفسه واعتماد شهاداته للشارات الخضراء.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
-            <Link
-              href="/claim?mode=coach"
-              className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
-            >
-              سجّل ووثّق ككابتن الآن
-            </Link>
+            {isFacilityManager ? (
+              <Link
+                href="/dashboard/facility"
+                className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
+              >
+                إدارة كباتن منشأتك
+              </Link>
+            ) : (
+              <Link
+                href="/claim?mode=coach"
+                className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
+              >
+                سجّل ووثّق ككابتن الآن
+              </Link>
+            )}
             <Link
               href="/coaches"
               className="px-6 py-2.5 rounded-full bg-surface-snow text-dark-slate font-badge-label"
@@ -207,6 +221,28 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                 </div>
               </section>
             )}
+
+            {coachArticles.length > 0 && (
+              <section className="bg-surface-card rounded-[16px] p-6 shadow-sm flex flex-col gap-3">
+                <h2 className="font-section-title text-section-title text-dark-slate flex items-center gap-2">
+                  <Icon name="article" className="text-[20px] text-deep-olive" />
+                  <span>مقالات ونصائح الكابتن ({coachArticles.length})</span>
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {coachArticles.map((art) => (
+                    <Link
+                      key={art.id}
+                      href={`/magazine/${art.slug}`}
+                      className="rounded-xl bg-surface-snow p-4 border border-surface-container hover:border-deep-olive/40 flex flex-col gap-1.5"
+                    >
+                      <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
+                      <div className="font-bold text-sm text-dark-slate line-clamp-1">{art.titleAr}</div>
+                      <p className="text-xs text-text-muted line-clamp-2">{art.excerptAr}</p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
 
           <aside className="lg:col-span-4 flex flex-col gap-4">
@@ -276,13 +312,15 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                 </div>
               )}
 
-              <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-2 mt-2">
+              <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-2 mt-2 border border-surface-container">
                 <span className="text-xs font-bold text-dark-slate">
-                  بطاقة التعريف الرقمية للكابتن (QR)
+                  المعرّف الموحد للكابتن للربط مع الأكاديميات
                 </span>
-                <QrCodeBox value={coach.qrCodeToken} size={132} label={coach.SingleCoachId} />
-                <p className="text-[11px] text-text-muted">
-                  هذه بطاقة مشاركة سريعة لملف الكابتن، بينما التوثيق المهني يتم عبر الشارات الخضراء، ودفتر الحصص الـ QR يُفعّل للسباح عبر كود عضويته الخاص.
+                <div className="px-4 py-2 rounded-xl bg-surface-card border border-surface-container font-mono font-black text-base text-deep-olive">
+                  {coach.SingleCoachId}
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  التوثيق المهني للكابتن يتم عبر الشارات الخضراء، بينما كود الاشتراك والـ QR يُصدر للسباح عند تفعيل باقته.
                 </p>
               </div>
             </div>

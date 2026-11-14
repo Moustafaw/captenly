@@ -23,7 +23,12 @@ export default function Phone21() {
     setFilterModalOpen,
     userLocation,
     placesHydrating,
+    currentPersona,
+    isAuthenticated,
   } = useCaptenly();
+
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isCoachRole = isAuthenticated && currentPersona.role === "coach";
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<MobileCat>("all");
@@ -190,10 +195,20 @@ export default function Phone21() {
               <Icon name="arrow_back" className="text-[15px]" />
             </Link>
             <Link
-              href="/claim"
+              href={
+                isFacilityManager
+                  ? "/dashboard/facility"
+                  : isCoachRole
+                  ? "/dashboard/coach"
+                  : "/claim"
+              }
               className="px-4 py-2.5 rounded-full bg-white/15 text-surface-card text-xs font-bold"
             >
-              وثّق ناديك أو سجّل ككابتن
+              {isFacilityManager
+                ? "لوحة إدارة منشأتك"
+                : isCoachRole
+                ? "لوحة الكابتن والشهادات"
+                : "وثّق ناديك أو سجّل ككابتن"}
             </Link>
           </div>
         </div>
@@ -215,14 +230,6 @@ export default function Phone21() {
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setRotationSeed((s) => s + 1)}
-              className="px-2.5 py-1.5 rounded-full bg-surface-card border border-surface-container text-[11px] font-bold text-dark-slate flex items-center gap-1"
-            >
-              <Icon name="autorenew" className="text-[14px] text-deep-olive" />
-              <span>تبديل</span>
-            </button>
             {compareFacilityIds.length > 0 && (
               <Link
                 href="/compare"
@@ -338,16 +345,22 @@ export default function Phone21() {
           <div className="bg-surface-card rounded-2xl p-5 shadow-sm border border-surface-container flex flex-col gap-2.5">
             <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
               <Icon name="verified" className="text-[18px]" />
-              <span>لا نعرض أي كابتن دون توثيق فعلي</span>
+              <span>
+                {isFacilityManager
+                  ? "أضف كباتن منشأتك مباشرة"
+                  : "لا نعرض أي كابتن دون توثيق فعلي"}
+              </span>
             </div>
             <p className="text-xs text-text-muted leading-relaxed">
-              لا ننشر بروفايلات كباتن من الفراغ؛ يظهر الكابتن هنا فور تسجيله بنفسه برقم موبايله وتوثيق شهاداته للشارات الخضراء.
+              {isFacilityManager
+                ? "يمكنك من تبويب كباتن الأكاديمية في لوحة منشأتك إضافة مدربي السباحة والإنقاذ وشهاداتهم."
+                : "لا ننشر بروفايلات كباتن من الفراغ؛ يظهر الكابتن هنا فور تسجيله بنفسه برقم موبايله وتوثيق شهاداته للشارات الخضراء."}
             </p>
             <Link
-              href="/claim?mode=coach"
+              href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
               className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold w-fit"
             >
-              سجّل ووثّق ملفك ككابتن الآن
+              {isFacilityManager ? "إدارة كباتن المنشأة" : isCoachRole ? "لوحة الكابتن" : "سجّل ووثّق ملفك ككابتن الآن"}
             </Link>
           </div>
         )}
@@ -416,20 +429,37 @@ export default function Phone21() {
                 className="w-[276px] shrink-0 snap-start bg-surface-card rounded-2xl overflow-hidden shadow-sm border border-surface-container flex flex-col justify-between"
               >
                 <div>
-                  <div className="relative h-32">
-                    <Link href={`/magazine/${art.slug}`}>
-                      <img src={art.imageUrl} alt={art.titleAr} className="w-full h-full object-cover" />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => toggleFavorite(art.id)}
-                      className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center shadow ${
-                        fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
-                      }`}
-                    >
-                      <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
-                    </button>
-                  </div>
+                  {art.imageUrl ? (
+                    <div className="relative h-32">
+                      <Link href={`/magazine/${art.slug}`}>
+                        <img src={art.imageUrl} alt={art.titleAr} className="w-full h-full object-cover" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(art.id)}
+                        className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center shadow ${
+                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
+                        }`}
+                      >
+                        <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-3.5 pt-3.5 flex items-center justify-between">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive">
+                        {art.categoryAr}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(art.id)}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center border border-surface-container ${
+                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-snow text-dark-slate"
+                        }`}
+                      >
+                        <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
+                      </button>
+                    </div>
+                  )}
                   <div className="p-3.5 flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
                     <Link href={`/magazine/${art.slug}`} className="font-card-title-sm text-xs text-dark-slate line-clamp-2">
@@ -448,13 +478,20 @@ export default function Phone21() {
 
       {/* Bottom Mobile Claim Banner */}
       <section className="rounded-2xl bg-surface-card p-5 shadow-sm border border-surface-container flex flex-col gap-2">
-        <h3 className="font-card-title-sm text-dark-slate">هل أنت كابتن أو صاحب أكاديمية؟</h3>
+        <h3 className="font-card-title-sm text-dark-slate">
+          {isFacilityManager ? "أدر منشأتك وفريق الكباتن والمشتركين" : "هل أنت كابتن أو صاحب أكاديمية؟"}
+        </h3>
         <p className="text-xs text-text-muted">
-          طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك.
+          {isFacilityManager
+            ? "تابع مواعيد المدارس، فعّل اشتراكات الـ QR، ومنح صلاحيات الموظفين من لوحة المنشأة."
+            : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك."}
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Link href="/claim" className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold">
-            طالب بصفحتك مجاناً
+          <Link
+            href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+            className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+          >
+            {isFacilityManager ? "افتح لوحة المنشأة" : isCoachRole ? "افتح لوحة الكابتن" : "طالب بصفحتك مجاناً"}
           </Link>
           <Link href="/about" className="px-4 py-2 rounded-full bg-surface-snow text-dark-slate text-xs font-bold">
             عن المنصة

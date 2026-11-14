@@ -13,6 +13,7 @@ function DotpInner() {
 
   const codeParam = searchParams?.get("code") || currentPersona.memberCode || "";
   const roleParam = searchParams?.get("role") || currentPersona.role;
+  const flowParam = searchParams?.get("flow") || "register";
 
   const [digits, setDigits] = useState(["1", "2", "3", "4", "5", "6"]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -29,9 +30,19 @@ function DotpInner() {
       return;
     }
     if (roleParam === "coach") {
-      router.push("/claim?mode=coach");
+      router.push(
+        currentPersona.linkedCoachId || flowParam === "login"
+          ? "/dashboard/coach"
+          : "/claim?mode=coach"
+      );
     } else if (roleParam === "facility_manager") {
-      router.push("/claim");
+      router.push(
+        currentPersona.linkedFacilityId || flowParam === "login"
+          ? "/dashboard/facility"
+          : "/claim"
+      );
+    } else if (flowParam === "login" && !currentPersona.needsOnboarding) {
+      router.push("/dashboard/athlete");
     } else {
       router.push("/auth/onboarding");
     }

@@ -11,7 +11,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 export default function GoogleCompletePage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { loginOrCreateWithGoogle } = useCaptenly();
+  const { restoreOrLoginWithGoogle } = useCaptenly();
   const [handled, setHandled] = useState(false);
 
   useEffect(() => {
@@ -19,24 +19,33 @@ export default function GoogleCompletePage() {
     const email = session?.user?.email;
     if (!email) return;
 
+    let cancelled = false;
     setHandled(true);
-    const res = loginOrCreateWithGoogle({
-      name: session.user?.name || email.split("@")[0] || "عضو كابتنلي",
-      email,
-      image: session.user?.image || null,
-      isSimulatedPreview: false,
-    });
 
-    if (res.isNewUser || res.persona.needsOnboarding) {
-      router.replace("/auth/onboarding?source=google");
-    } else if (res.persona.role === "coach") {
-      router.replace("/dashboard/coach");
-    } else if (res.persona.role === "facility_manager") {
-      router.replace("/dashboard/facility");
-    } else {
-      router.replace("/dashboard/ledger");
-    }
-  }, [handled, status, session, loginOrCreateWithGoogle, router]);
+    (async () => {
+      const res = await restoreOrLoginWithGoogle({
+        name: session.user?.name || email.split("@")[0] || "عضو كابتنلي",
+        email,
+        image: session.user?.image || null,
+        isSimulatedPreview: false,
+      });
+      if (cancelled) return;
+
+      if (res.isNewUser || res.persona.needsOnboarding) {
+        router.replace("/auth/onboarding?source=google");
+      } else if (res.persona.role === "coach") {
+        router.replace("/dashboard/coach");
+      } else if (res.persona.role === "facility_manager") {
+        router.replace("/dashboard/facility");
+      } else {
+        router.replace("/dashboard/ledger");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [handled, status, session, restoreOrLoginWithGoogle, router]);
 
   return (
     <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-6" dir="rtl">

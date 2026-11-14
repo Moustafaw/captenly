@@ -76,9 +76,9 @@ export default function FounderAdminPage() {
     {
       id: "req-103",
       coachName: "بلاغ طارئ (SLA 12 ساعة) — حساب مدرب غير مرخص",
-      badgeTitle: "مخالفة قانون 3/1985: محاولة ادعاء علاج غضروف وتأهيل طبي",
+      badgeTitle: "مخالفة معايير التوثيق: ادعاء توصيفات طبية غير مرخصة",
       submittedAgo: "منذ ساعتين (أولوية قصوى < 12h)",
-      docRef: "تم الإيقاف التلقائي بالفلتر القانوني",
+      docRef: "تم الإيقاف التلقائي بمراجعة الاعتماد",
       status: "suspended",
     },
   ]);
@@ -234,71 +234,76 @@ export default function FounderAdminPage() {
                 </button>
               </div>
 
-              {/* Scenario 2: 60 / 120-Day Price Freshness Time-Travel */}
+              {/* Scenario 2: Public Data Refresh Simulation */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black bg-captenly-slate text-captenly-volt px-2.5 py-1 rounded-lg">
-                    سيناريو 2 • MVP-03 (حداثة الأسعار 60/120 يوم)
+                    سيناريو 2 • تحديث بيانات المنشآت
                   </span>
                   <Clock className="w-5 h-5 text-captenly-olive" />
                 </div>
                 <h3 className="font-black text-base text-captenly-slate">
-                  اختبار تقديم الزمن لليوم 125 (إخفاء السعر القديم وخفض الترتيب)
+                  محاكاة أولوية المنشآت المحدثة مؤخراً في الدليل
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  ماذا يحدث لو تجاهلت أكاديمية تأكيد أسعارها لمدة 120 يوماً؟ اضغط لتقديم تاريخ «أكاديمية أبطال الدلتا» لليوم 125 وشاهد كيف يختفي السعر القديم وينزل ترتيبها في الدليل.
+                  يختبر إعادة ترتيب وتنشيط تحديث بيانات منشأة مفعّلة في خوارزمية الظهور بالدليل.
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
                       simulateTimeTravelDays("fac-ghazl-mahalla", 125);
                       setSimResultText(
-                        "تم تقديم تاريخ «مجمع سباحة نادي غزل المحلة» إلى 125 يوماً! تم إخفاء السعر القديم تلقائياً وخفض ترتيبها في صفحة /explore."
+                        "تمت محاكاة خفض أولوية المنشأة غير المحدثة لبياناتها منذ مدة طويلة."
                       );
                     }}
                     className="flex-1 bg-red-700 hover:bg-red-800 text-white font-black text-xs py-3 rounded-xl transition"
                   >
-                    محاكاة مرور 125 يوماً بدون تحديث
+                    محاكاة تأخر التحديث
                   </button>
                   <button
                     onClick={() => {
                       simulateTimeTravelDays("fac-ghazl-mahalla", 0);
                       setSimResultText(
-                        "تم تأكيد وتجديد أسعار «مجمع سباحة نادي غزل المحلة» لـ 60 يوماً جديدة باللون الأخضر!"
+                        "تم تنشيط حالة المنشأة وإظهار شارة التحديث الفوري باللون الأخضر!"
                       );
                     }}
                     className="bg-emerald-700 text-white font-black text-xs px-3 py-3 rounded-xl"
                   >
-                    إعادة لليوم 0 ✓
+                    تنشيط التحديث ✓
                   </button>
                 </div>
               </div>
 
-              {/* Scenario 3: Law 3/1985 Medical Guardrail Test */}
+              {/* Scenario 3: Sports Training Scope Validation */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black bg-captenly-slate text-captenly-volt px-2.5 py-1 rounded-lg">
-                    سيناريو 3 • القانون رقم 3 لسنة 1985
+                    سيناريو 3 • التوثيق والالتزام المهني
                   </span>
                   <FileWarning className="w-5 h-5 text-red-600" />
                 </div>
                 <h3 className="font-black text-base text-captenly-slate">
-                  اختبار حظر انتحال صفة العلاج الطبيعي لغير الأطباء
+                  مراجعة نطاق السير المهنية لمدربي السباحة
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  يختبر محاولة مدرب لياقة غير حاصل على الشارة السادسة كتابة «دكتور علاج طبيعي وعلاج الانزلاق الغضروفي» في بروفايله، ويريك كيف يرفضه الفلتر القانوني فوراً.
+                  تتحقق المنصة تلقائياً من مطابقة بيانات المدربين لنطاق التدريب الرياضي والإنقاذ المائي فقط قبل النشر.
                 </p>
                 <button
                   onClick={() => {
+                    const targetCoach = coaches[0];
+                    if (!targetCoach) {
+                      setSimResultText("لا يوجد مدربون مسجلون للمحاكاة حالياً.");
+                      return;
+                    }
                     const res = validateAndSaveCoachBio(
-                      coaches[0].id,
-                      "كابتن متخصص في علاج طبيعي وعلاج الانزلاق الغضروفي وتأهيل إصابات"
+                      targetCoach.id,
+                      "مدرب سباحة وتأسيس أطفال وإنقاذ مائي معتمد من الاتحاد المصري للسباحة."
                     );
                     setSimResultText(res.messageAr);
                   }}
                   className="w-full bg-captenly-slate hover:bg-captenly-carbon text-captenly-volt font-black text-xs py-3 rounded-xl transition"
                 >
-                  تشغيل اختبار الفلتر القانوني الطبي ←
+                  تحقق من سلامة ملف التدريب ←
                 </button>
               </div>
 

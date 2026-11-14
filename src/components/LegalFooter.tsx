@@ -79,7 +79,7 @@ export function LegalFooter() {
               <li className="flex items-start gap-1.5">
                 <Icon name="gavel" className="text-[15px] text-electric-volt shrink-0 mt-0.5" />
                 <span>
-                  <strong>القانون رقم 3 لسنة 1985:</strong> حظر الإدعاءات الطبية غير المرخصة وحصر التدريب في النطاق الرياضي البدني.
+                  <strong>ميثاق التدريب الرياضي:</strong> التزام المدربين والأكاديميات بنطاق الإعداد البدني والإنقاذ المائي المعتمد.
                 </span>
               </li>
               <li className="flex items-start gap-1.5">

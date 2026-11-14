@@ -14,12 +14,55 @@ interface QrCameraScannerModalProps {
 }
 
 type ParsedQrResult =
+  | { kind: "subscription_qr"; subscriptionCode: string }
   | { kind: "ledger_qr"; ledgerCode: string; pinCode: string }
   | { kind: "member_qr"; memberCode: string }
   | { kind: "unknown"; raw: string };
 
 function parseCaptenlyQr(raw: string): ParsedQrResult {
   const clean = raw.trim();
+  if (clean.startsWith("{") && clean.endsWith("}")) {
+    try {
+      const obj = JSON.parse(clean) as {
+        subCode?: string;
+        subscriptionCode?: string;
+        code?: string;
+        ledgerCode?: string;
+        pinCode?: string;
+      };
+      if (obj.subCode || obj.subscriptionCode) {
+        return {
+          kind: "subscription_qr",
+          subscriptionCode: String(obj.subCode || obj.subscriptionCode).trim().toUpperCase(),
+        };
+      }
+      if (obj.ledgerCode) {
+        return {
+          kind: "ledger_qr",
+          ledgerCode: String(obj.ledgerCode).trim().toUpperCase(),
+          pinCode: String(obj.pinCode || "").trim(),
+        };
+      }
+      if (obj.code) {
+        const c = String(obj.code).trim().toUpperCase();
+        if (c.startsWith("SUB-")) {
+          return { kind: "subscription_qr", subscriptionCode: c };
+        }
+        return { kind: "member_qr", memberCode: c };
+      }
+    } catch {
+      // fall through
+    }
+  }
+  if (clean.toUpperCase().startsWith("CAP-SUB:")) {
+    return {
+      kind: "subscription_qr",
+      subscriptionCode: clean.slice("CAP-SUB:".length).trim().toUpperCase(),
+    };
+  }
+  if (/^SUB-[A-Z0-9-]{3,14}$/i.test(clean)) {
+    return { kind: "subscription_qr", subscriptionCode: clean.toUpperCase() };
+  }
   if (clean.toUpperCase().startsWith("CAP-QR:")) {
     const parts = clean.split(":");
     return {
@@ -46,7 +89,12 @@ export function QrCameraScannerModal({
   onMemberDetectedForEnroll,
   onLedgerCheckedIn,
 }: QrCameraScannerModalProps) {
-  const { sessionLedgers, checkInSession, lookupRemoteLedgersOrProfile } = useCaptenly();
+  const {
+    sessionLedgers,
+    checkInSession,
+    checkInBySubscriptionCode,
+    lookupRemoteLedgersOrProfile,
+  } = useCaptenly();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -87,6 +135,30 @@ export function QrCameraScannerModal({
 
       try {
         const parsed = parseCaptenlyQr(rawText);
+
+        if (parsed.kind === "subscription_qr") {
+          const res = checkInBySubscriptionCode(
+            parsed.subscriptionCode,
+            "تم المسح المباشر لكود الاشتراك بالـ QR"
+          );
+          if (res.ok && res.ledger) {
+            stopCamera();
+            setScanStatus({
+              type: "success",
+              titleAr: `تم خصم حصة للسباح ${res.ledger.athleteNameAr} ✓`,
+              detailAr: res.messageAr,
+              matchedLedger: res.ledger,
+            });
+            onLedgerCheckedIn?.(res.ledger.id, res.messageAr);
+          } else {
+            setScanStatus({
+              type: "error",
+              titleAr: "كود الاشتراك منتهي الصلاحية أو غير صالح",
+              detailAr: res.messageAr,
+            });
+          }
+          return;
+        }
 
         if (parsed.kind === "ledger_qr") {
           let targetLedger = sessionLedgers.find(
@@ -189,7 +261,14 @@ export function QrCameraScannerModal({
         }, 700);
       }
     },
-    [sessionLedgers, checkInSession, lookupRemoteLedgersOrProfile, stopCamera, onLedgerCheckedIn]
+    [
+      sessionLedgers,
+      checkInSession,
+      checkInBySubscriptionCode,
+      lookupRemoteLedgersOrProfile,
+      stopCamera,
+      onLedgerCheckedIn,
+    ]
   );
 
   useEffect(() => {
@@ -450,7 +529,7 @@ export function QrCameraScannerModal({
               <input
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                placeholder="أو اكتب CAP-M-XXXX..."
+                placeholder="اكتب كود الاشتراك SUB-XXXX-XX أو CAP-M-XXXX..."
                 className="flex-1 min-w-0 rounded-xl bg-surface-snow px-3 py-2 text-xs font-mono border border-surface-container outline-none"
               />
               <button

@@ -91,3 +91,33 @@ body {
 .bg-captenly-gradient {
   background: linear-gradient(135deg, #1a1f21 0%, #2c3437 55%, #3f6212 90%, #b0fe09 100%);
 }
+
+@keyframes captenlyFadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes captenlyScaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-captenly-enter {
+  animation: captenlyFadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-captenly-scale {
+  animation: captenlyScaleIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

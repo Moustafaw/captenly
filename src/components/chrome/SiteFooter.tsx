@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isChromeless } from "./chromeRoutes";
+import { useCaptenly } from "@/context/CaptenlyContext";
 
 export function SiteFooter() {
   const pathname = usePathname() || "/";
+  const { isAuthenticated, currentPersona } = useCaptenly();
   if (isChromeless(pathname)) return null;
+
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isCoachRole = isAuthenticated && currentPersona.role === "coach";
 
   return (
     <footer className="hidden lg:block w-full bg-deep-carbon text-surface-card mt-space-2xl">
@@ -30,7 +35,7 @@ export function SiteFooter() {
             </p>
             <div className="flex items-center gap-space-xs pt-2">
               <span className="px-2.5 py-1 rounded bg-dark-slate text-electric-volt font-micro-caption text-micro-caption">
-                القانون 3 لسنة 1985 ✓
+                معايير التدريب والإنقاذ المائي ✓
               </span>
               <span className="px-2.5 py-1 rounded bg-dark-slate text-electric-volt font-micro-caption text-micro-caption">
                 القانون 151 لسنة 2020 ✓
@@ -83,8 +88,11 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link className="hover:text-electric-volt transition-colors" href="/claim">
-                  طالب بصفحتك ووثقها مجاناً
+                <Link
+                  className="hover:text-electric-volt transition-colors"
+                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+                >
+                  {isFacilityManager ? "لوحة إدارة منشأتك" : isCoachRole ? "لوحة الكابتن الخاصة بك" : "طالب بصفحتك ووثقها مجاناً"}
                 </Link>
               </li>
               <li>

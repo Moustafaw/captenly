@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionLedger } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { withPgClient } from "@/lib/supabase/pgFallback";
 
 export const dynamic = "force-dynamic";
 
@@ -29,60 +30,7 @@ const CREATE_LEDGER_STATEMENTS = [
   `notify pgrst, 'reload schema'`,
 ];
 
-function sanitizePgConnectionString(raw: string): string {
-  try {
-    const parsed = new URL(raw);
-    parsed.searchParams.delete("sslmode");
-    parsed.searchParams.delete("uselibpqcompat");
-    return parsed.toString();
-  } catch {
-    return raw.replace(/([?&])(sslmode|uselibpqcompat)=[^&]*/gi, "$1").replace(/[?&]$/, "");
-  }
-}
-
-function getPostgresCandidates(): string[] {
-  const raw = [
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_URL_NON_POOLING,
-    process.env.DATABASE_URL,
-  ]
-    .map((v) => (v || "").trim())
-    .filter(Boolean)
-    .map(sanitizePgConnectionString);
-  return Array.from(new Set(raw));
-}
-
 let tableBootstrapped = false;
-
-async function withPgClient<T>(
-  fn: (client: import("pg").Client) => Promise<T>
-): Promise<{ ok: true; value: T } | { ok: false; errorCode: string }> {
-  const candidates = getPostgresCandidates();
-  if (candidates.length === 0) {
-    return { ok: false, errorCode: "missing_postgres_url" };
-  }
-  const { Client } = await import("pg");
-  let lastErrorCode = "pg_connect_failed";
-
-  for (const connStr of candidates) {
-    const client = new Client({
-      connectionString: connStr,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 6000,
-    });
-    try {
-      await client.connect();
-      const value = await fn(client);
-      await client.end().catch(() => {});
-      return { ok: true, value };
-    } catch (err) {
-      await client.end().catch(() => {});
-      const e = err as { code?: string; message?: string };
-      lastErrorCode = e?.code || (e?.message ? e.message.slice(0, 48) : "pg_error");
-    }
-  }
-  return { ok: false, errorCode: lastErrorCode };
-}
 
 async function runBootstrapDdl(client: import("pg").Client): Promise<void> {
   if (tableBootstrapped) return;
@@ -107,9 +55,20 @@ function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null 
   const ledgerCode = String(row.ledger_code || payload.ledgerCode || "");
   if (!id || !ledgerCode) return null;
 
+  const totalSessions = ([8, 12, 24].includes(Number(row.total_sessions || payload.totalSessions))
+    ? Number(row.total_sessions || payload.totalSessions)
+    : 8) as 8 | 12 | 24;
+  const completedSessions = Number(row.completed_sessions ?? payload.completedSessions ?? 0);
+  const status = (
+    completedSessions >= totalSessions
+      ? "completed"
+      : row.status || payload.status || "active"
+  ) as SessionLedger["status"];
+
   return {
     id,
     ledgerCode,
+    subscriptionCode: payload.subscriptionCode || ledgerCode,
     memberCode: (row.member_code as string) || payload.memberCode,
     athleteId: String(row.athlete_id || payload.athleteId || ""),
     athleteNameAr: String(row.athlete_name_ar || payload.athleteNameAr || ""),
@@ -120,13 +79,14 @@ function rowToSessionLedger(row: Record<string, unknown>): SessionLedger | null 
     facilityId: String(row.facility_id || payload.facilityId || ""),
     facilityNameAr: payload.facilityNameAr || "",
     sportSector: payload.sportSector === "fitness" ? "fitness" : "swimming",
+    trackType: payload.trackType,
+    trackLabelAr: payload.trackLabelAr,
     packageTitleAr: payload.packageTitleAr || "باقة سباحة",
-    totalSessions: ([8, 12, 24].includes(Number(row.total_sessions || payload.totalSessions))
-      ? Number(row.total_sessions || payload.totalSessions)
-      : 8) as 8 | 12 | 24,
-    completedSessions: Number(row.completed_sessions ?? payload.completedSessions ?? 0),
+    totalSessions,
+    completedSessions,
     pinCode: String(row.pin_code || payload.pinCode || "0000"),
-    status: (row.status || payload.status || "active") as SessionLedger["status"],
+    status,
+    isCodeExpired: Boolean(payload.isCodeExpired || completedSessions >= totalSessions || status === "completed"),
     startedDateAr: payload.startedDateAr || "مفعل عبر كابتنلي",
     checkins: Array.isArray(payload.checkins) ? payload.checkins : [],
     receipts: Array.isArray(payload.receipts) ? payload.receipts : [],

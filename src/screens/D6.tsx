@@ -86,9 +86,11 @@ export default function Desktop6() {
           </div>
         </header>
 
-        <div className="w-full h-[360px] rounded-[20px] overflow-hidden shadow-md">
-          <img src={article.imageUrl} alt={article.titleAr} className="w-full h-full object-cover" />
-        </div>
+        {article.imageUrl && (
+          <div className="w-full h-[360px] rounded-[20px] overflow-hidden shadow-md">
+            <img src={article.imageUrl} alt={article.titleAr} className="w-full h-full object-cover" />
+          </div>
+        )}
 
         <section className="bg-surface-card rounded-[20px] p-6 md:p-10 shadow-sm flex flex-col gap-4 leading-relaxed">
           <p className="text-lg font-bold text-deep-olive border-r-4 border-electric-volt pr-4">

@@ -2,12 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Phone2() {
+  const router = useRouter();
   const {
     currentPersona,
     isAuthenticated,
@@ -17,15 +19,24 @@ export default function Phone2() {
     addNewPBRecord,
     skillEvaluation,
     sessionLedgers,
+    myStaffAssignments,
+    activeStaffAssignment,
+    switchToStaffMode,
   } = useCaptenly();
 
-  const [tab, setTab] = useState<"analytics" | "family">("analytics");
+  const [tab, setTab] = useState<"analytics" | "ledgers" | "family">("analytics");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("8");
   const [eventTitle, setEventTitle] = useState("");
   const [newVal, setNewVal] = useState("");
+  const [prevVal, setPrevVal] = useState("");
 
-  const myLedgers = sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
+  const myLedgers = sessionLedgers.filter(
+    (l) =>
+      l.athleteId === currentPersona.id ||
+      (currentPersona.memberCode &&
+        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase())
+  );
   const myPBs = useMemo(
     () =>
       pbRecords.filter(
@@ -119,10 +130,38 @@ export default function Phone2() {
         </div>
       </section>
 
+      {/* Staff Role Account Switcher on Mobile */}
+      {myStaffAssignments.length > 0 && (
+        <section className="rounded-2xl bg-lime-tint border border-deep-olive/35 p-4 flex flex-col gap-2.5">
+          <div className="text-xs font-extrabold text-dark-slate flex items-center gap-1.5">
+            <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
+            <span>تبديل الحساب الوظيفي بالمنشأة</span>
+          </div>
+          {myStaffAssignments.map((st) => (
+            <button
+              key={st.id}
+              type="button"
+              onClick={() => {
+                switchToStaffMode(st.id);
+                router.push("/dashboard/facility");
+              }}
+              className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold ${
+                activeStaffAssignment?.id === st.id
+                  ? "bg-deep-olive text-electric-volt"
+                  : "bg-dark-slate text-electric-volt"
+              }`}
+            >
+              تبديل إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
+            </button>
+          ))}
+        </section>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {[
           { key: "analytics", label: "الأرقام والأداء" },
+          { key: "ledgers", label: `حصصي QR (${myLedgers.length})` },
           { key: "family", label: `الأبناء (${minorAthletes.length})` },
         ].map((item) => (
           <button
@@ -167,35 +206,49 @@ export default function Phone2() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!eventTitle.trim() || !Number(newVal)) return;
                 addNewPBRecord({
                   athleteId: currentPersona.id,
                   athleteNameAr: currentPersona.fullNameAr,
                   sportType: "swimming",
-                  eventTitleAr: eventTitle,
-                  currentValue: Number(newVal) || 33,
-                  previousValue: 35,
+                  eventTitleAr: eventTitle.trim(),
+                  currentValue: Number(newVal) || 0,
+                  previousValue: Number(prevVal) || 0,
                   unitAr: "ثانية",
                   verificationSource: "self_entered",
                   verificationLabelAr: "سجل شخصي من الموبايل",
                   coachNameAr: "متابعة ذاتية",
                   facilityNameAr: currentPersona.city,
                 });
+                setEventTitle("");
+                setNewVal("");
+                setPrevVal("");
               }}
-              className="flex gap-2 pt-2 border-t border-surface-container"
+              className="grid grid-cols-3 gap-2 pt-2 border-t border-surface-container"
             >
               <input
                 required
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
-                placeholder="السباق (مثلاً: 50م حرة)"
-                className="flex-1 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                placeholder="السباق (50م حرة)"
+                className="col-span-3 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
               />
               <input
                 required
+                type="number"
+                step="0.1"
                 value={newVal}
                 onChange={(e) => setNewVal(e.target.value)}
-                placeholder="الزمن"
-                className="w-16 rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
+                placeholder="الزمن الجديد"
+                className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                type="number"
+                step="0.1"
+                value={prevVal}
+                onChange={(e) => setPrevVal(e.target.value)}
+                placeholder="الزمن السابق"
+                className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
               />
               <button type="submit" className="px-3.5 py-2 rounded-xl bg-dark-slate text-electric-volt text-xs font-bold">
                 + سجل
@@ -218,6 +271,56 @@ export default function Phone2() {
             ))}
           </section>
         </>
+      )}
+
+      {tab === "ledgers" && (
+        <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3 border border-surface-container">
+          <div className="flex items-center justify-between">
+            <span className="font-card-title-sm text-sm text-dark-slate">دفاتر الحصص وأكواد الاشتراك</span>
+            <Link
+              href="/dashboard/ledger"
+              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+            >
+              شاشة الـ QR ←
+            </Link>
+          </div>
+          {myLedgers.length > 0 ? (
+            myLedgers.map((l) => {
+              const isExpired = Boolean(
+                l.isCodeExpired || l.status === "completed" || l.completedSessions >= l.totalSessions
+              );
+              return (
+                <div key={l.id} className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex justify-between items-center gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-xs text-dark-slate">{l.facilityNameAr}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded font-mono text-[10px] font-black border ${
+                          isExpired
+                            ? "bg-red-50 text-red-700 border-red-200 line-through"
+                            : "bg-lime-tint text-deep-olive border-deep-olive/25"
+                        }`}
+                      >
+                        {l.subscriptionCode || l.ledgerCode}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-0.5">{l.packageTitleAr}</div>
+                  </div>
+                  <div className="text-left shrink-0">
+                    <div className="text-sm font-black text-deep-olive">
+                      {Math.max(0, l.totalSessions - l.completedSessions)} متبقية
+                    </div>
+                    <div className="text-[10px] text-text-muted">من {l.totalSessions} حصة</div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-xs text-text-muted">
+              لا توجد باقات مفعلة حالياً — شارك كود عضويتك <strong className="font-mono">{currentPersona.memberCode}</strong> مع الأكاديمية أو الكابتن.
+            </p>
+          )}
+        </section>
       )}
 
       {tab === "family" && (

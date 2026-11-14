@@ -10,7 +10,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
  */
 export function GoogleSessionBridge() {
   const { data: session, status } = useSession();
-  const { currentPersona, loginOrCreateWithGoogle } = useCaptenly();
+  const { currentPersona, restoreOrLoginWithGoogle } = useCaptenly();
   const syncedEmailRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -22,14 +22,14 @@ export function GoogleSessionBridge() {
     syncedEmailRef.current = email;
 
     if (currentPersona.email?.toLowerCase() !== email) {
-      loginOrCreateWithGoogle({
+      void restoreOrLoginWithGoogle({
         name: session.user?.name || email.split("@")[0] || "عضو كابتنلي",
         email,
         image: session.user?.image || null,
         isSimulatedPreview: false,
       });
     }
-  }, [status, session, currentPersona.email, loginOrCreateWithGoogle]);
+  }, [status, session, currentPersona.email, restoreOrLoginWithGoogle]);
 
   return null;
 }

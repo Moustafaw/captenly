@@ -61,6 +61,42 @@ export interface FacilitySchoolProgram {
   notesAr?: string;
 }
 
+export type FacilityStaffRole =
+  | "subscriptions_manager"
+  | "accounts_manager"
+  | "general_staff";
+
+export interface FacilityStaffMember {
+  id: string;
+  facilityId: string;
+  facilityNameAr: string;
+  fullNameAr: string;
+  role: FacilityStaffRole;
+  roleTitleAr: string;
+  hasAccount: boolean;
+  linkedMemberCode?: string;
+  linkedPersonaId?: string;
+  phone?: string;
+  assignedDateAr: string;
+}
+
+export interface FacilityCoachRosterEntry {
+  id: string;
+  facilityId: string;
+  facilityNameAr?: string;
+  fullNameAr: string;
+  roleTitleAr: string;
+  specialtyAr: string;
+  scheduleAr?: string;
+  certificatesAr: string[];
+  linkedCoachId?: string;
+  linkedCoachSlug?: string;
+  linkedSingleCoachId?: string;
+  avatarUrl?: string;
+  phone?: string;
+  addedDateAr: string;
+}
+
 export interface CoachSessionOffer {
   id: string;
   titleAr: string;
@@ -127,6 +163,8 @@ export interface Facility {
   specialtiesAr: string[];
   pricePackages: PricePackage[];
   schoolPrograms?: FacilitySchoolProgram[];
+  staffMembers?: FacilityStaffMember[];
+  coachRoster?: FacilityCoachRosterEntry[];
   affiliatedCoachIds: string[];
   // Monthly Value Proof (MVP-11/12)
   monthlyMetrics: {
@@ -206,6 +244,7 @@ export interface InstaPayReceipt {
 export interface SessionLedger {
   id: string;
   ledgerCode: string;
+  subscriptionCode?: string;
   memberCode?: string;
   athleteId: string;
   athleteNameAr: string;
@@ -216,11 +255,14 @@ export interface SessionLedger {
   facilityId: string;
   facilityNameAr: string;
   sportSector: "swimming" | "fitness";
+  trackType?: "school" | "buds" | "prep" | "team" | "ladies";
+  trackLabelAr?: string;
   packageTitleAr: string;
   totalSessions: 8 | 12 | 24;
   completedSessions: number;
   pinCode: string;
   status: "active" | "renewal_due" | "completed";
+  isCodeExpired?: boolean;
   startedDateAr: string;
   checkins: SessionCheckin[];
   receipts: InstaPayReceipt[];
@@ -335,7 +377,13 @@ export interface NotificationItem {
   titleAr: string;
   messageAr: string;
   timeAr: string;
-  type: "session_reminder" | "passport_badge" | "school_card" | "editorial" | "system";
+  type:
+    | "session_reminder"
+    | "passport_badge"
+    | "school_card"
+    | "editorial"
+    | "affiliation_update"
+    | "system";
   actionLabelAr?: string;
   actionHref?: string;
   isRead: boolean;
@@ -348,11 +396,18 @@ export interface EditorialArticle {
   excerptAr: string;
   categoryAr: string;
   readingMinutes: number;
+  readTimeMinutes?: number;
   authorNameAr: string;
   authorRoleAr: string;
+  authorPersonaId?: string;
+  authorType?: "editorial" | "coach" | "facility";
+  authorEntityId?: string;
+  authorSlug?: string;
   publishedDateAr: string;
-  imageUrl: string;
+  imageUrl?: string;
   contentMarkdownAr: string;
+  keyTakeawaysAr?: string[];
+  bodyParagraphsAr?: string[];
   recommendedFacilitySlugs: string[];
   recommendedCoachSlugs: string[];
 }
@@ -373,6 +428,7 @@ export interface MemberRegistryEntry {
   athleteId: string;
   fullNameAr: string;
   phone: string;
+  email?: string;
   city: string;
   role: "adult_athlete" | "parent";
   isMinor?: boolean;
@@ -381,6 +437,7 @@ export interface MemberRegistryEntry {
 
 export interface OfflineCheckinQueueItem {
   id: string;
+  kind?: "checkin" | "enrollment";
   ledgerId: string;
   athleteNameAr: string;
   sessionNumber: number;

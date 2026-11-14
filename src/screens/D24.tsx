@@ -20,7 +20,12 @@ export default function Desktop24() {
     toggleFavorite,
     compareFacilityIds,
     placesHydrating,
+    currentPersona,
+    isAuthenticated,
   } = useCaptenly();
+
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isCoachRole = isAuthenticated && currentPersona.role === "coach";
 
   const [selectedCat, setSelectedCat] = useState<HomeCategoryKey>("all");
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
@@ -141,10 +146,22 @@ export default function Desktop24() {
                       <Icon name="arrow_back" className="text-[20px]" />
                     </Link>
                     <Link
-                      href="/claim"
+                      href={
+                        isFacilityManager
+                          ? "/dashboard/facility"
+                          : isCoachRole
+                          ? "/dashboard/coach"
+                          : "/claim"
+                      }
                       className="inline-flex items-center justify-center gap-2 px-5 h-12 rounded-full bg-white/10 text-surface-card font-card-title-sm hover:bg-white/20 transition-all"
                     >
-                      <span>وثّق ناديك أو سجّل ككابتن</span>
+                      <span>
+                        {isFacilityManager
+                          ? "إدارة منشأتك والمشتركين"
+                          : isCoachRole
+                          ? "لوحة الكابتن والشهادات"
+                          : "وثّق ناديك أو سجّل ككابتن"}
+                      </span>
                     </Link>
                   </div>
                 </div>
@@ -220,14 +237,6 @@ export default function Desktop24() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRotationSeed((s) => s + 1)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate border border-surface-container font-badge-label text-xs transition-colors"
-                  >
-                    <Icon name="autorenew" className="text-[15px] text-deep-olive" />
-                    <span>تدوير المقترحات</span>
-                  </button>
                   {compareFacilityIds.length > 0 && (
                     <Link
                       href="/compare"
@@ -354,10 +363,10 @@ export default function Desktop24() {
                   </p>
                 </div>
                 <Link
-                  href="/claim?mode=coach"
+                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
                   className="px-4 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label hover:brightness-95"
                 >
-                  + سجّل ووثّق ككابتن الآن
+                  {isFacilityManager ? "إدارة كباتن منشأتك" : isCoachRole ? "ملفك في لوحة الكابتن" : "+ سجّل ووثّق ككابتن الآن"}
                 </Link>
               </div>
 
@@ -375,18 +384,22 @@ export default function Desktop24() {
                     </div>
                     <div className="flex flex-col gap-1">
                       <h3 className="font-card-title text-dark-slate">
-                        مساحة الكباتن الموثقين مفتوحة للانضمام المباشر
+                        {isFacilityManager
+                          ? "يمكنك إضافة وتوثيق كباتن منشأتك مباشرة"
+                          : "مساحة الكباتن الموثقين مفتوحة للانضمام المباشر"}
                       </h3>
                       <p className="font-body-compact text-text-muted max-w-2xl">
-                        سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو إنقاذ مائي، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً.
+                        {isFacilityManager
+                          ? "من داخل تبويب «كباتن الأكاديمية والشهادات» في لوحة منشأتك يمكنك إدراج مدربي السباحة والإنقاذ المعتمدين وتحديد التخصصات والشهادات ليظهروا للمشتركين."
+                          : "سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو إنقاذ مائي، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً."}
                       </p>
                     </div>
                   </div>
                   <Link
-                    href="/claim?mode=coach"
+                    href={isFacilityManager ? "/dashboard/facility" : "/claim?mode=coach"}
                     className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm shrink-0 hover:opacity-95 shadow-sm"
                   >
-                    وثّق ملفك ككابتن الآن
+                    {isFacilityManager ? "أضف كباتن المنشأة الآن" : "وثّق ملفك ككابتن الآن"}
                   </Link>
                 </div>
               )}
@@ -440,8 +453,8 @@ export default function Desktop24() {
                   },
                   {
                     icon: "medical_services",
-                    title: "6. الالتزام المهني (القانون 3/1985)",
-                    desc: "فلترة آلية تحظر المسميات الطبية وتضمن جودة الإنقاذ والإسعافات الأولية.",
+                    title: "6. السلامة المهنية ومعايير الإنقاذ",
+                    desc: "التزام مهني واضح بنطاق التدريب الرياضي والإنقاذ المائي والإسعافات الأولية.",
                   },
                 ].map((item) => (
                   <div key={item.title} className="flex gap-space-sm items-start p-space-md rounded-xl bg-surface-snow">
@@ -485,30 +498,50 @@ export default function Desktop24() {
                       className="bg-surface-card rounded-[16px] overflow-hidden shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow"
                     >
                       <div>
-                        <div className="relative w-full h-44 overflow-hidden bg-surface-container">
-                          <Link href={`/magazine/${art.slug}`}>
-                            <img
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              alt={art.titleAr}
-                              src={art.imageUrl}
-                            />
-                          </Link>
-                          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label">
-                            {art.categoryAr}
+                        {art.imageUrl ? (
+                          <div className="relative w-full h-44 overflow-hidden bg-surface-container">
+                            <Link href={`/magazine/${art.slug}`}>
+                              <img
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                alt={art.titleAr}
+                                src={art.imageUrl}
+                              />
+                            </Link>
+                            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label">
+                              {art.categoryAr}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleFavorite(art.id)}
+                              aria-label="حفظ المقال"
+                              className={`absolute top-3 left-3 w-8 h-8 rounded-full backdrop-blur flex items-center justify-center transition-colors shadow-sm ${
+                                saved
+                                  ? "bg-electric-volt text-dark-slate"
+                                  : "bg-surface-card/90 text-dark-slate hover:text-deep-olive"
+                              }`}
+                            >
+                              <Icon name={saved ? "bookmark" : "bookmark_border"} className="text-[18px]" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleFavorite(art.id)}
-                            aria-label="حفظ المقال"
-                            className={`absolute top-3 left-3 w-8 h-8 rounded-full backdrop-blur flex items-center justify-center transition-colors shadow-sm ${
-                              saved
-                                ? "bg-electric-volt text-dark-slate"
-                                : "bg-surface-card/90 text-dark-slate hover:text-deep-olive"
-                            }`}
-                          >
-                            <Icon name={saved ? "bookmark" : "bookmark_border"} className="text-[18px]" />
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="px-space-md pt-space-md flex items-center justify-between gap-2">
+                            <div className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label">
+                              {art.categoryAr}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleFavorite(art.id)}
+                              aria-label="حفظ المقال"
+                              className={`w-8 h-8 rounded-full border border-surface-container flex items-center justify-center transition-colors ${
+                                saved
+                                  ? "bg-electric-volt text-dark-slate"
+                                  : "bg-surface-snow text-dark-slate hover:text-deep-olive"
+                              }`}
+                            >
+                              <Icon name={saved ? "bookmark" : "bookmark_border"} className="text-[18px]" />
+                            </button>
+                          </div>
+                        )}
                         <div className="p-space-md flex flex-col gap-2">
                           <div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption">
                             <span>{art.authorNameAr}</span>
@@ -543,23 +576,31 @@ export default function Desktop24() {
             <section className="rounded-[20px] bg-surface-snow p-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md">
               <div className="flex items-center gap-space-md">
                 <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0">
-                  <Icon name="sports_score" className="text-[24px]" />
+                  <Icon name={isFacilityManager ? "stadium" : "sports_score"} className="text-[24px]" />
                 </div>
                 <div className="flex flex-col">
                   <h3 className="font-card-title text-card-title text-dark-slate">
-                    هل أنت كابتن أو صاحب نادي / أكاديمية رياضية؟
+                    {isFacilityManager
+                      ? "أدر منشأتك ومواعيد مدارس السباحة والمشتركين"
+                      : "هل أنت كابتن أو صاحب نادي / أكاديمية رياضية؟"}
                   </h3>
                   <p className="font-body-compact text-body-compact text-text-muted">
-                    طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً، واربط السباحين بكود العضوية لتفعيل دفاتر الـ QR بدون عمولة.
+                    {isFacilityManager
+                      ? "حدّث كروت المواعيد، أضف طاقم الكباتن وموظفي الاشتراكات، وامسح رموز QR الحصص بـ 0% عمولة."
+                      : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً، واربط السباحين بكود العضوية لتفعيل دفاتر الـ QR بدون عمولة."}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-space-sm shrink-0">
                 <Link
                   className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-card-title-sm hover:opacity-90 transition-opacity"
-                  href="/claim"
+                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
                 >
-                  طالب بصفحتك ووثّقها مجاناً
+                  {isFacilityManager
+                    ? "افتح لوحة المنشأة الآن"
+                    : isCoachRole
+                    ? "افتح لوحة الكابتن"
+                    : "طالب بصفحتك ووثّقها مجاناً"}
                 </Link>
               </div>
             </section>

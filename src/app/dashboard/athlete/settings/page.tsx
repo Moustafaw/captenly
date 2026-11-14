@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
@@ -10,7 +10,17 @@ import { AthleteProfileSocialEditor } from "@/components/editorial/AthleteProfil
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function SettingsHubPage() {
-  const { currentPersona, userLocation, setLocationModalOpen, minorAthletes, isAuthenticated } = useCaptenly();
+  const router = useRouter();
+  const {
+    currentPersona,
+    userLocation,
+    setLocationModalOpen,
+    minorAthletes,
+    isAuthenticated,
+    myStaffAssignments,
+    activeStaffAssignment,
+    switchToStaffMode,
+  } = useCaptenly();
 
   if (!isAuthenticated) {
     return (
@@ -21,15 +31,32 @@ export default function SettingsHubPage() {
     );
   }
 
+  const isFacility = currentPersona.role === "facility_manager";
+  const isCoach = currentPersona.role === "coach";
+  const dashboardHref = isFacility
+    ? "/dashboard/facility"
+    : isCoach
+    ? "/dashboard/coach"
+    : "/dashboard/athlete";
+  const dashboardLabel = isFacility
+    ? "لوحة إدارة المنشأة"
+    : isCoach
+    ? "لوحة الكابتن"
+    : "ملفي الرياضي والجواز";
+
   const settingsLinks = [
-    {
-      href: "/dashboard/athlete/settings/family",
-      titleAr: "إدارة العائلة والأبناء",
-      descAr: "بيانات الأبناء، موافقة ولي الأمر الرسمية، وحماية خصوصية القُصّر (قانون 151)",
-      icon: "family_restroom",
-      badgeAr: `${minorAthletes.length} مسجلين`,
-      badgeColor: "bg-lime-tint text-deep-olive",
-    },
+    ...(!isFacility && !isCoach
+      ? [
+          {
+            href: "/dashboard/athlete/settings/family",
+            titleAr: "إدارة العائلة والأبناء",
+            descAr: "بيانات الأبناء، موافقة ولي الأمر الرسمية، وحماية خصوصية القُصّر (قانون 151)",
+            icon: "family_restroom",
+            badgeAr: `${minorAthletes.length} مسجلين`,
+            badgeColor: "bg-lime-tint text-deep-olive",
+          },
+        ]
+      : []),
     {
       href: "/dashboard/athlete/settings/notifications",
       titleAr: "تفضيلات الإشعارات ورسائل واتساب",
@@ -109,10 +136,10 @@ export default function SettingsHubPage() {
 
         <div className="flex sm:flex-col gap-2 w-full sm:w-auto">
           <Link
-            href="/dashboard/athlete"
+            href={dashboardHref}
             className="flex-1 sm:flex-none px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-bold text-body-compact text-center hover:bg-deep-carbon transition-colors"
           >
-            دفتر الحصص والجواز
+            {dashboardLabel}
           </Link>
           <Link
             href="/auth"
@@ -122,6 +149,48 @@ export default function SettingsHubPage() {
           </Link>
         </div>
       </div>
+
+      {/* Staff Role Account Switcher inside Settings */}
+      {(myStaffAssignments.length > 0 || activeStaffAssignment) && (
+        <div className="w-full bg-lime-tint rounded-2xl p-5 border border-deep-olive/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-cairo font-bold text-sm text-dark-slate flex items-center gap-2">
+              <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
+              <span>تبديل الحساب الوظيفي بالمنشأة</span>
+            </h3>
+            <p className="text-xs text-deep-olive mt-0.5">
+              {activeStaffAssignment
+                ? `أنت تعمل حالياً بصلاحية «${activeStaffAssignment.roleTitleAr}» في ${activeStaffAssignment.facilityNameAr}.`
+                : "يمكنك التبديل لواجهة المنشأة لأداء مهامك الوظيفية بصلاحياتك المحددة."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {activeStaffAssignment ? (
+              <button
+                type="button"
+                onClick={() => switchToStaffMode(null)}
+                className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+              >
+                العودة لحسابي الشخصي ↩
+              </button>
+            ) : (
+              myStaffAssignments.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => {
+                    switchToStaffMode(st.id);
+                    router.push("/dashboard/facility");
+                  }}
+                  className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                >
+                  التبديل لوظيفة: {st.roleTitleAr} ({st.facilityNameAr}) ←
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 3. Settings Navigation Sub-Pages Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

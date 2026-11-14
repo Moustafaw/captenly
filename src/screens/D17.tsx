@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
-import { PROHIBITED_MEDICAL_KEYWORDS } from "@/data/seedData";
+import { useCaptenly } from "@/context/CaptenlyContext";
 
 export default function Desktop17() {
-  const [sampleBio, setSampleBio] = useState(
-    "مدرب سباحة تأسيس أطفال وإنقاذ مائي معتمد، حاصل على كارنيه نقابة المهن الرياضية."
-  );
-
-  const detectedKeyword = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => sampleBio.includes(kw));
+  const { isAuthenticated, currentPersona } = useCaptenly();
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isCoach = isAuthenticated && currentPersona.role === "coach";
 
   const badges = [
     {
@@ -45,9 +43,9 @@ export default function Desktop17() {
     },
     {
       code: "06",
-      title: "الشارة 06: الالتزام المهني (القانون 3/1985)",
-      authority: "الامتثال التنظيمي والقانوني المصري",
-      desc: "تخصيص المصطلحات العلاجية والطبية فقط للأطباء وأخصائيي العلاج الطبيعي المرخصين.",
+      title: "الشارة 06: الالتزام المهني ومعايير السلامة",
+      authority: "ميثاق العمل الرياضي والإنقاذ المائي",
+      desc: "تخصيص ملفات التدريب للنطاق الرياضي وتأسيس السباحة والإنقاذ دون توصيفات طبية غير مرخصة.",
     },
   ];
 
@@ -63,14 +61,14 @@ export default function Desktop17() {
               كيف توثّق كابتنلي الكباتن والمنشآت قبل ظهور الشارة الخضراء؟
             </h1>
             <p className="font-body-default text-surface-container-high">
-              لا تُنشر أي ملفات كباتن دون مراجعة المستندات وتوثيق رقم الهاتف. اختبر هنا فاحص المعايير الآلي وقدّم لتوثيق ملفك مجاناً.
+              لا تُنشر أي ملفات كباتن دون مراجعة المستندات وتوثيق رقم الهاتف لضمان موثوقية التدريب والسلامة داخل المسابح.
             </p>
           </div>
           <Link
-            href="/claim?mode=coach"
+            href={isFacilityManager ? "/dashboard/facility" : isCoach ? "/dashboard/coach" : "/claim"}
             className="px-6 py-3 rounded-full bg-electric-volt text-dark-slate font-card-title-sm shrink-0 text-center"
           >
-            وثّق ملفك واحصل على الشارات
+            {isFacilityManager ? "لوحة إدارة منشأتك" : isCoach ? "إدارة ملفك وشهاداتك" : "وثّق منشأتك أو ملفك الآن"}
           </Link>
         </section>
 
@@ -89,38 +87,6 @@ export default function Desktop17() {
               <p className="font-body-compact text-text-muted">{b.desc}</p>
             </div>
           ))}
-        </section>
-
-        {/* Interactive Law 3/1985 Checker */}
-        <section className="bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm flex flex-col gap-4 border border-surface-container">
-          <div>
-            <h2 className="font-section-title text-dark-slate">
-              اختبر فاحص الامتثال القانوني الفوري (القانون 3 لسنة 1985)
-            </h2>
-            <p className="font-body-compact text-text-muted mt-0.5">
-              جرّب كتابة كلمة مثل «علاج طبيعي» أو «تشخيص طبي» داخل النبذة المهنية وشاهد كيف تحمي المنصة المتدربين والكباتن من المخالفة القانونية.
-            </p>
-          </div>
-
-          <textarea
-            rows={3}
-            value={sampleBio}
-            onChange={(e) => setSampleBio(e.target.value)}
-            className="w-full rounded-xl bg-surface-snow p-4 text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
-          />
-
-          <div
-            className={`p-4 rounded-xl flex items-center gap-3 text-sm font-bold ${
-              detectedKeyword ? "bg-red-50 text-red-900 border border-red-200" : "bg-lime-tint/70 text-deep-olive"
-            }`}
-          >
-            <Icon name={detectedKeyword ? "warning" : "check_circle"} className="text-[20px]" />
-            <span>
-              {detectedKeyword
-                ? `تم رصد مصطلح محظور لغير الأطباء: «${detectedKeyword}» — استبدله بمصطلح إعداد بدني أو لياقة رياضية.`
-                : "النص متوافق 100% مع القانون رقم 3 لسنة 1985 ومعايير كابتنلي."}
-            </span>
-          </div>
         </section>
       </div>
     </div>

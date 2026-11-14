@@ -62,6 +62,8 @@ export function DynamicScheduleCardsBuilder({
   } = useCaptenly();
 
   const [drafts, setDrafts] = useState<DraftCardItem[]>([makeEmptyDraft()]);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(0);
 
   const updateDraft = (tempId: string, patch: Partial<DraftCardItem>) => {
     setDrafts((prev) => prev.map((d) => (d.tempId === tempId ? { ...d, ...patch } : d)));
@@ -77,6 +79,7 @@ export function DynamicScheduleCardsBuilder({
 
   const handlePublishAll = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPublishing) return;
     if (!targetId) {
       onFeedback?.({
         ok: false,
@@ -100,43 +103,58 @@ export function DynamicScheduleCardsBuilder({
       return;
     }
 
-    let createdCount = 0;
-    for (const d of validDrafts) {
-      const duration = Math.max(15, Number(d.durationMinutes) || 60);
-      const price = Math.max(0, Number(d.priceEgp) || 0);
-      const sessions = Math.max(1, Number(d.sessionsCount) || 8);
+    setIsPublishing(true);
+    setPublishProgress(20);
+    const step1 = setTimeout(() => setPublishProgress(58), 550);
+    const step2 = setTimeout(() => setPublishProgress(88), 1150);
 
-      if (mode === "facility") {
-        addFacilitySchoolProgram(targetId, {
-          trackType: d.trackType,
-          trackLabelAr: TRACK_LABELS[d.trackType],
-          titleAr: d.titleAr.trim(),
-          ageRangeAr: d.ageRangeAr.trim() || undefined,
-          sessionsPerMonth: sessions,
-          sessionTimeAr: d.sessionTimeAr.trim(),
-          durationMinutes: duration,
-          priceEgp: price,
-          scheduleAr: d.sessionTimeAr.trim(),
-          notesAr: d.notesAr.trim() || undefined,
-        });
-      } else {
-        addCoachSessionOffer(targetId, {
-          titleAr: d.titleAr.trim(),
-          sessionsCount: sessions,
-          priceEgp: price,
-          sessionTimeAr: d.sessionTimeAr.trim(),
-          durationMinutes: duration,
-          notesAr: d.notesAr.trim() || undefined,
-        });
+    setTimeout(() => {
+      clearTimeout(step1);
+      clearTimeout(step2);
+      setPublishProgress(100);
+
+      let createdCount = 0;
+      for (const d of validDrafts) {
+        const duration = Math.max(15, Number(d.durationMinutes) || 60);
+        const price = Math.max(0, Number(d.priceEgp) || 0);
+        const sessions = Math.max(1, Number(d.sessionsCount) || 8);
+
+        if (mode === "facility") {
+          addFacilitySchoolProgram(targetId, {
+            trackType: d.trackType,
+            trackLabelAr: TRACK_LABELS[d.trackType],
+            titleAr: d.titleAr.trim(),
+            ageRangeAr: d.ageRangeAr.trim() || undefined,
+            sessionsPerMonth: sessions,
+            sessionTimeAr: d.sessionTimeAr.trim(),
+            durationMinutes: duration,
+            priceEgp: price,
+            scheduleAr: d.sessionTimeAr.trim(),
+            notesAr: d.notesAr.trim() || undefined,
+          });
+        } else {
+          addCoachSessionOffer(targetId, {
+            titleAr: d.titleAr.trim(),
+            sessionsCount: sessions,
+            priceEgp: price,
+            sessionTimeAr: d.sessionTimeAr.trim(),
+            durationMinutes: duration,
+            notesAr: d.notesAr.trim() || undefined,
+          });
+        }
+        createdCount += 1;
       }
-      createdCount += 1;
-    }
 
-    setDrafts([makeEmptyDraft()]);
-    onFeedback?.({
-      ok: true,
-      msg: `تم نشر ${createdCount} ${createdCount === 1 ? "بطاقة" : "بطاقات"} مواعيد وأسعار بنجاح — ويمكنك إضافة أي عدد آخر بلا قيود!`,
-    });
+      setTimeout(() => {
+        setIsPublishing(false);
+        setPublishProgress(0);
+        setDrafts([makeEmptyDraft()]);
+        onFeedback?.({
+          ok: true,
+          msg: `تم نشر ${createdCount} ${createdCount === 1 ? "بطاقة" : "بطاقات"} مواعيد وأسعار بنجاح — ويمكنك إضافة أي عدد آخر بلا قيود!`,
+        });
+      }, 220);
+    }, 1700);
   };
 
   const existingCount = mode === "facility" ? facilityPrograms.length : coachOffers.length;
@@ -404,17 +422,44 @@ export function DynamicScheduleCardsBuilder({
           ))}
         </div>
 
+        {isPublishing && (
+          <div className="rounded-2xl bg-lime-tint/70 border border-electric-volt p-3.5 flex flex-col gap-2 animate-captenly-enter">
+            <div className="flex items-center justify-between text-xs font-extrabold text-deep-olive">
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-deep-olive border-t-transparent animate-spin" />
+                جاري حفظ البطاقات وتحديث الصفحة العامة...
+              </span>
+              <span dir="ltr">{publishProgress}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-surface-card overflow-hidden">
+              <div
+                className="h-full bg-deep-olive rounded-full transition-all duration-300"
+                style={{ width: `${publishProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="submit"
-            className="flex-1 sm:flex-none px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95"
+            disabled={isPublishing}
+            className="flex-1 sm:flex-none px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95 disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            نشر {drafts.length > 1 ? `البطاقات (${drafts.length})` : "البطاقة"} في الصفحة العامة ✓
+            {isPublishing ? (
+              <>
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
+                <span>جاري النشر ({publishProgress}%)...</span>
+              </>
+            ) : (
+              <span>نشر {drafts.length > 1 ? `البطاقات (${drafts.length})` : "البطاقة"} في الصفحة العامة ✓</span>
+            )}
           </button>
           <button
             type="button"
+            disabled={isPublishing}
             onClick={addAnotherDraftRow}
-            className="px-4 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold hover:bg-lime-tint"
+            className="px-4 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold hover:bg-lime-tint disabled:opacity-50"
           >
             + توليد بطاقة إضافية
           </button>

@@ -260,21 +260,26 @@ export async function GET(request: Request) {
     }
 
     const cleanCityForText =
-      rawCity !== "الكل" && rawCity !== "كل مصر" && rawCity !== "موقعك الحالي"
+      scopeParam === "egypt"
+        ? ""
+        : rawCity !== "الكل" && rawCity !== "كل مصر" && rawCity !== "موقعك الحالي"
         ? rawCity.replace(/\s*\(GPS\)/g, "").trim()
         : "";
 
     const textQuery = rawQuery
-      ? `حمام سباحة ونادي سباحة ${rawQuery} ${cleanCityForText}`.trim()
+      ? cleanCityForText
+        ? `حمام سباحة ونادي سباحة ${rawQuery} ${cleanCityForText}`.trim()
+        : `حمام سباحة ونادي سباحة وأكاديمية سباحة ${rawQuery} مصر`.trim()
       : cleanCityForText
       ? `حمامات سباحة وأكاديميات سباحة ونوادي في ${cleanCityForText}`
       : "حمامات سباحة وأكاديميات سباحة قريبة في مصر";
 
-    const result = await fetchGoogleSearchText(
-      textQuery,
-      hasCoords ? { lat: parsedLat, lng: parsedLng } : undefined,
-      15
-    );
+    const useBiasCoords =
+      hasCoords && scopeParam !== "egypt" && !rawQuery
+        ? { lat: parsedLat, lng: parsedLng }
+        : undefined;
+
+    const result = await fetchGoogleSearchText(textQuery, useBiasCoords, 18);
     if (!result.ok) {
       return NextResponse.json({ ok: false, places: [], reason: `google_http_${result.status}` });
     }

@@ -40,7 +40,10 @@ function Phone6Inner() {
     const ladies = searchParams?.get("ladies");
     const city = searchParams?.get("city");
     const patch: Partial<typeof smartFilters> = {};
-    if (q !== null) patch.searchQuery = q;
+    if (q !== null) {
+      patch.searchQuery = q;
+      if (q.trim() && !city) patch.city = "الكل";
+    }
     if (sport === "swimming" || sport === "fitness" || sport === "all") patch.sportCategory = sport;
     if (isPoolsRoute && !sport) patch.sportCategory = "swimming";
     if (city) patch.city = city;
@@ -63,8 +66,10 @@ function Phone6Inner() {
     setPlacesLoading(true);
     const timer = setTimeout(() => {
       const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (city && city !== "الكل") {
+      if (q) {
+        params.set("q", q);
+        params.set("scope", "egypt");
+      } else if (city && city !== "الكل") {
         params.set("city", city);
         if (city === userLocation.city) {
           params.set("lat", String(userLocation.lat));
@@ -112,10 +117,9 @@ function Phone6Inner() {
     const q = smartFilters.searchQuery.trim().toLowerCase();
     const list = facilities.filter((f) => {
       if (q) {
-        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
+        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.governorate} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
-      }
-      if (smartFilters.city !== "الكل") {
+      } else if (smartFilters.city !== "الكل") {
         const cityNorm = smartFilters.city.trim();
         const matchesCity =
           f.city === cityNorm ||

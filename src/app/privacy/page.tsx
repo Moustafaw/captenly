@@ -37,7 +37,7 @@ export default function PrivacyPage() {
 
           <div className="pt-4 border-t border-surface-container flex items-center justify-between flex-wrap gap-3">
             <Link href="/terms" className="text-deep-olive font-badge-label hover:underline">
-              الاطلاع على شروط الاستخدام والقانون 3/1985 ←
+              الاطلاع على شروط الاستخدام وميثاق التوثيق ←
             </Link>
             <Link
               href="/dashboard/athlete/settings/security"

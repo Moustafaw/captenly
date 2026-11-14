@@ -40,7 +40,10 @@ function Desktop23Inner() {
     const filtersOpen = searchParams?.get("filters");
 
     const patch: Partial<typeof smartFilters> = {};
-    if (q !== null) patch.searchQuery = q;
+    if (q !== null) {
+      patch.searchQuery = q;
+      if (q.trim() && !city) patch.city = "الكل";
+    }
     if (sport === "swimming" || sport === "fitness" || sport === "all") patch.sportCategory = sport;
     if (city) patch.city = city;
     if (ladies === "1") patch.ladiesOnly = true;
@@ -63,8 +66,11 @@ function Desktop23Inner() {
     setPlacesLoading(true);
     const timer = setTimeout(() => {
       const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (city && city !== "الكل") {
+      if (q) {
+        params.set("q", q);
+        // Searching by text query searches across all of Egypt regardless of user's current city
+        params.set("scope", "egypt");
+      } else if (city && city !== "الكل") {
         params.set("city", city);
         if (city === userLocation.city) {
           params.set("lat", String(userLocation.lat));
@@ -112,10 +118,9 @@ function Desktop23Inner() {
     const q = smartFilters.searchQuery.trim().toLowerCase();
     const list = facilities.filter((f) => {
       if (q) {
-        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
+        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.governorate} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
-      }
-      if (smartFilters.city !== "الكل") {
+      } else if (smartFilters.city !== "الكل") {
         const cityNorm = smartFilters.city.trim();
         const matchesCity =
           f.city === cityNorm ||

@@ -7,7 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 
 export default function Desktop21() {
-  const { articles, facilities, isFavorite, toggleFavorite, subscribeNewsletter } = useCaptenly();
+  const { articles, facilities, isFavorite, toggleFavorite, subscribeNewsletter, currentPersona } = useCaptenly();
   const [selectedCat, setSelectedCat] = useState("الكل");
   const [searchQ, setSearchQ] = useState("");
   const [email, setEmail] = useState("");
@@ -55,8 +55,17 @@ export default function Desktop21() {
               </p>
             </div>
 
-            <div className="w-full md:w-80 shrink-0">
-              <div className="relative flex items-center bg-surface-card rounded-full shadow-sm px-4 py-2.5 border border-surface-container">
+            <div className="w-full md:w-auto shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              {(currentPersona.role === "coach" || currentPersona.role === "facility_manager") && (
+                <Link
+                  href={currentPersona.role === "coach" ? "/dashboard/coach" : "/dashboard/facility"}
+                  className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:opacity-95 shrink-0"
+                >
+                  <Icon name="edit_note" className="text-[17px]" />
+                  <span>+ كتابة أو تعديل مقالاتي</span>
+                </Link>
+              )}
+              <div className="relative flex items-center bg-surface-card rounded-full shadow-sm px-4 py-2.5 border border-surface-container w-full sm:w-72">
                 <Icon name="search" className="text-text-muted ml-2 text-[18px]" />
                 <input
                   value={searchQ}
@@ -88,8 +97,8 @@ export default function Desktop21() {
 
         {/* Featured Article */}
         {featured && selectedCat === "الكل" && !searchQ.trim() && (
-          <article className="relative w-full rounded-2xl bg-dark-slate text-surface-card overflow-hidden shadow-xl grid grid-cols-1 lg:grid-cols-12 min-h-[380px]">
-            <div className="lg:col-span-7 p-8 md:p-10 flex flex-col justify-between">
+          <article className="relative w-full rounded-2xl bg-dark-slate text-surface-card overflow-hidden shadow-xl grid grid-cols-1 lg:grid-cols-12 min-h-[300px]">
+            <div className={`${featured.imageUrl ? "lg:col-span-7" : "lg:col-span-12"} p-8 md:p-10 flex flex-col justify-between`}>
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-3 py-1 rounded-full bg-deep-carbon text-electric-volt font-badge-label text-xs">
@@ -123,9 +132,11 @@ export default function Desktop21() {
                 </Link>
               </div>
             </div>
-            <div className="lg:col-span-5 relative min-h-[240px]">
-              <img src={featured.imageUrl} alt={featured.titleAr} className="w-full h-full object-cover" />
-            </div>
+            {featured.imageUrl && (
+              <div className="lg:col-span-5 relative min-h-[240px]">
+                <img src={featured.imageUrl} alt={featured.titleAr} className="w-full h-full object-cover" />
+              </div>
+            )}
           </article>
         )}
 
@@ -139,27 +150,44 @@ export default function Desktop21() {
                 className="bg-surface-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group"
               >
                 <div>
-                  <div className="relative h-48 w-full overflow-hidden">
-                    <Link href={`/magazine/${art.slug}`}>
-                      <img
-                        src={art.imageUrl}
-                        alt={art.titleAr}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </Link>
-                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs">
-                      {art.categoryAr}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => toggleFavorite(art.id)}
-                      className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center shadow ${
-                        fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
-                      }`}
-                    >
-                      <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[17px]" />
-                    </button>
-                  </div>
+                  {art.imageUrl ? (
+                    <div className="relative h-48 w-full overflow-hidden">
+                      <Link href={`/magazine/${art.slug}`}>
+                        <img
+                          src={art.imageUrl}
+                          alt={art.titleAr}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </Link>
+                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs">
+                        {art.categoryAr}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(art.id)}
+                        className={`absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center shadow ${
+                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
+                        }`}
+                      >
+                        <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[17px]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-5 pt-5 flex items-center justify-between gap-2">
+                      <span className="px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs">
+                        {art.categoryAr}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(art.id)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center border border-surface-container ${
+                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-snow text-dark-slate"
+                        }`}
+                      >
+                        <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[17px]" />
+                      </button>
+                    </div>
+                  )}
                   <div className="p-5 flex flex-col gap-2">
                     <div className="flex items-center justify-between text-xs text-text-muted">
                       <span>{art.authorNameAr}</span>

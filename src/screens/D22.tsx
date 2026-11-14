@@ -18,6 +18,7 @@ export default function Desktop22() {
   const {
     facilities,
     coaches,
+    articles,
     isFavorite,
     toggleFavorite,
     compareFacilityIds,
@@ -61,7 +62,6 @@ export default function Desktop22() {
   }, [facility, slug, mergeExternalPlacesFacilities]);
 
   const [activeTab, setActiveTab] = useState<"packages" | "specs" | "coaches" | "safety">("packages");
-  const [selectedPkgId, setSelectedPkgId] = useState<string>(facility?.pricePackages[0]?.id || "");
 
   if (!facility) {
     return (
@@ -95,24 +95,19 @@ export default function Desktop22() {
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
-  const selectedPkg =
-    facility.pricePackages.find((p) => p.id === selectedPkgId) || facility.pricePackages[0];
   const schoolPrograms = facility.schoolPrograms || [];
-  const hasRealScheduleOrPricing =
-    !isUnclaimed && (facility.pricePackages.length > 0 || schoolPrograms.length > 0);
+  const hasRealScheduleOrPricing = !isUnclaimed && schoolPrograms.length > 0;
   const affiliatedCoaches = coaches.filter(
     (c) =>
       c.isVerifiedCoach &&
       (facility.affiliatedCoachIds.includes(c.id) ||
         c.affiliations.some((a) => a.facilityId === facility.id && a.status === "active_mutual"))
   );
-
-  const totalFirstMonth = selectedPkg
-    ? selectedPkg.baseMonthlyEgp +
-      selectedPkg.assessmentFeeEgp +
-      selectedPkg.membershipCardFeeEgp +
-      selectedPkg.mandatoryKitFeeEgp
-    : null;
+  const rosterCoaches = facility.coachRoster || [];
+  const totalCoachesCount =
+    rosterCoaches.length +
+    affiliatedCoaches.filter((c) => !rosterCoaches.some((r) => r.linkedCoachId === c.id)).length;
+  const facilityArticles = articles.filter((a) => a.authorEntityId === facility.id);
 
   const handleDirectWhatsapp = () => {
     const { whatsappUrl } = createStructuredWhatsappLead({
@@ -123,7 +118,7 @@ export default function Desktop22() {
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
       athleteAge: 10,
-      requestedSpecialtyAr: selectedPkg?.nameAr || facility.specialtiesAr[0] || "اشتراك شهري",
+      requestedSpecialtyAr: schoolPrograms[0]?.titleAr || facility.specialtiesAr[0] || "اشتراك شهري",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
     if (whatsappUrl) {
@@ -132,9 +127,9 @@ export default function Desktop22() {
   };
 
   const handleShareWhatsapp = () => {
-    const text = `باقة ${facility.nameAr} (${facility.city}) على كابتنلي — ${
-      selectedPkg ? `${selectedPkg.nameAr} بسعر ${selectedPkg.baseMonthlyEgp} ج.م` : ""
-    }: ${typeof window !== "undefined" ? window.location.href : ""}`;
+    const text = `صفحة ${facility.nameAr} (${facility.city}) على كابتنلي: ${
+      typeof window !== "undefined" ? window.location.href : ""
+    }`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
@@ -227,7 +222,7 @@ export default function Desktop22() {
 
               {!isUnclaimed && (
                 <Link
-                  href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
+                  href={`/booking?facility=${facility.slug}`}
                   className="px-5 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95"
                 >
                   تجهيز الحجز والانضمام
@@ -271,9 +266,9 @@ export default function Desktop22() {
         {/* Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {[
-            { key: "packages", label: `الباقات والأسعار (${facility.pricePackages.length})` },
+            { key: "packages", label: `المدارس والمواعيد (${schoolPrograms.length})` },
             { key: "specs", label: "المواصفات الهندسية والمواعيد" },
-            { key: "coaches", label: `الكباتن الموثقون (${affiliatedCoaches.length})` },
+            { key: "coaches", label: `الكباتن الموثقون (${totalCoachesCount})` },
             { key: "safety", label: "معايير الأمان ودليل الحصص" },
           ].map((t) => (
             <button
@@ -349,47 +344,6 @@ export default function Desktop22() {
                         </div>
                       </div>
                     )}
-
-                    {facility.pricePackages.map((pkg) => {
-                      const selected = selectedPkg?.id === pkg.id;
-                      return (
-                        <div
-                          key={pkg.id}
-                          onClick={() => setSelectedPkgId(pkg.id)}
-                          className={`cursor-pointer rounded-2xl p-5 bg-surface-card border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                            selected ? "border-deep-olive shadow-md" : "border-transparent shadow-sm"
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-card-title text-dark-slate">{pkg.nameAr}</h3>
-                            </div>
-                            <div className="text-xs text-text-muted mt-1 flex flex-wrap items-center gap-3">
-                              <span className="inline-flex items-center gap-1">
-                                <Icon name="calendar_month" className="text-[14px] text-deep-olive" />
-                                <span>{pkg.sessionsCount} حصة</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <Icon name="schedule" className="text-[14px] text-deep-olive" />
-                                <span>{pkg.durationMinutes} دقيقة/حصة</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <Icon name="sync" className="text-[14px] text-deep-olive" />
-                                <span>{pkg.sessionsPerWeek} حصص أسبوعياً</span>
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-left shrink-0">
-                            <div className="text-2xl font-black text-deep-olive">
-                              {pkg.baseMonthlyEgp} <span className="text-xs">ج.م</span>
-                            </div>
-                            <div className="text-[11px] text-text-muted">
-                              مرافق: {pkg.companionFeeEgp ? `${pkg.companionFeeEgp} ج.م` : "مشمول / غير مطلوب"}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
                   </>
                 )}
               </div>
@@ -429,30 +383,101 @@ export default function Desktop22() {
             )}
 
             {activeTab === "coaches" && (
-              <div className="bg-surface-card rounded-2xl p-6 shadow-sm">
-                {affiliatedCoaches.length > 0 ? (
+              <div className="bg-surface-card rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                {totalCoachesCount > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {affiliatedCoaches.map((c) => (
-                      <VerifiedCoachCard key={c.id} coach={c} />
+                    {rosterCoaches.map((rc) => (
+                      <div
+                        key={rc.id}
+                        className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col justify-between gap-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-card-title text-dark-slate">{rc.fullNameAr}</h3>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive text-[11px] font-extrabold">
+                                <Icon name="verified" className="text-[13px]" />
+                                <span>معتمد بالمنشأة</span>
+                              </span>
+                            </div>
+                            <div className="text-xs font-bold text-deep-olive mt-1">
+                              {rc.roleTitleAr} • {rc.specialtyAr}
+                            </div>
+                            {rc.scheduleAr && (
+                              <div className="text-xs text-text-muted mt-1 flex items-center gap-1">
+                                <Icon name="schedule" className="text-[14px] text-deep-olive" />
+                                <span>{rc.scheduleAr}</span>
+                              </div>
+                            )}
+                          </div>
+                          {rc.linkedCoachSlug && (
+                            <Link
+                              href={`/c/${rc.linkedCoachSlug}`}
+                              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
+                            >
+                              ملف الكابتن ←
+                            </Link>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 pt-2 border-t border-surface-container/70">
+                          <span className="text-[11px] font-extrabold text-dark-slate">
+                            الشهادات والاعتمادات المسجلة:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {rc.certificatesAr.map((cert, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-card border border-surface-container text-[11px] font-bold text-deep-olive"
+                              >
+                                <Icon name="workspace_premium" className="text-[14px]" />
+                                <span>{cert}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     ))}
+
+                    {affiliatedCoaches
+                      .filter((c) => !rosterCoaches.some((r) => r.linkedCoachId === c.id))
+                      .map((c) => (
+                        <VerifiedCoachCard key={c.id} coach={c} />
+                      ))}
                   </div>
                 ) : (
                   <div className="text-center py-6 flex flex-col items-center gap-3">
                     <Icon name="verified" className="text-[28px] text-deep-olive" />
                     <h3 className="font-card-title text-dark-slate">
-                      لم يسجل كباتن مستقلون مرتبطون بهذه المنشأة بعد
+                      لم تُضف قائمة كباتن لهذه المنشأة بعد
                     </h3>
                     <p className="text-xs text-text-muted max-w-md">
-                      لا نعرض أسماء كباتن غير مسجلين. إذا كنت مدرباً معتمداً داخل {facility.nameAr} يمكنك توثيق ملفك مجاناً وربطه بالمكان.
+                      يمكن لإدارة المنشأة إضافة الكباتن وشهاداتهم مباشرة من لوحة تحكم المنشأة ليظهروا هنا تلقائياً.
                     </p>
-                    <Link
-                      href="/claim?mode=coach"
-                      className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
-                    >
-                      تسجيل وتوثيق كابتن في هذا المكان
-                    </Link>
                   </div>
                 )}
+              </div>
+            )}
+
+            {facilityArticles.length > 0 && (
+              <div className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-3">
+                <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                  <Icon name="article" className="text-[18px] text-deep-olive" />
+                  <span>مقالات ومنشورات {facility.nameAr} ({facilityArticles.length})</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {facilityArticles.map((art) => (
+                    <Link
+                      key={art.id}
+                      href={`/magazine/${art.slug}`}
+                      className="rounded-xl bg-surface-snow p-4 border border-surface-container hover:border-deep-olive/40 flex flex-col gap-1.5"
+                    >
+                      <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
+                      <div className="font-bold text-sm text-dark-slate line-clamp-1">{art.titleAr}</div>
+                      <p className="text-xs text-text-muted line-clamp-2">{art.excerptAr}</p>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -519,29 +544,6 @@ export default function Desktop22() {
                     )}
                   </div>
                 ))}
-
-                {selectedPkg && totalFirstMonth !== null && (
-                  <div className="rounded-xl bg-surface-snow p-4 flex flex-col gap-2 text-sm border border-surface-container">
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">الباقة</span>
-                      <span className="font-bold text-dark-slate">{selectedPkg.nameAr}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">الاشتراك الأساسي</span>
-                      <span className="font-bold">{selectedPkg.baseMonthlyEgp} ج.م</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">رسوم إضافية معلنة</span>
-                      <span className="font-bold">
-                        {selectedPkg.assessmentFeeEgp + selectedPkg.membershipCardFeeEgp} ج.م
-                      </span>
-                    </div>
-                    <div className="border-t border-surface-container pt-2 mt-1 flex justify-between items-center">
-                      <span className="font-bold text-dark-slate">الإجمالي المعلن</span>
-                      <span className="text-xl font-black text-deep-olive">{totalFirstMonth} ج.م</span>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -556,7 +558,7 @@ export default function Desktop22() {
                   fullWidthPrimary
                 />
                 <Link
-                  href={`/booking?facility=${facility.slug}&pkg=${selectedPkg?.id || ""}`}
+                  href={`/booking?facility=${facility.slug}`}
                   onClick={(e) => {
                     if (!isAuthenticated) {
                       e.preventDefault();

@@ -18,6 +18,7 @@ export default function Phone13() {
   const {
     facilities,
     coaches,
+    articles,
     isFavorite,
     toggleFavorite,
     compareFacilityIds,
@@ -60,7 +61,7 @@ export default function Phone13() {
     };
   }, [facility, slug, mergeExternalPlacesFacilities]);
 
-  const [tab, setTab] = useState<"packages" | "specs" | "coaches">("packages");
+  const [tab, setTab] = useState<"packages" | "specs" | "coaches" | "safety">("packages");
 
   if (!facility) {
     return (
@@ -94,16 +95,19 @@ export default function Phone13() {
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
-  const pkg = facility.pricePackages[0];
   const schoolPrograms = facility.schoolPrograms || [];
-  const hasRealScheduleOrPricing =
-    !isUnclaimed && (facility.pricePackages.length > 0 || schoolPrograms.length > 0);
+  const hasRealScheduleOrPricing = !isUnclaimed && schoolPrograms.length > 0;
   const affiliatedCoaches = coaches.filter(
     (c) =>
       c.isVerifiedCoach &&
       (facility.affiliatedCoachIds.includes(c.id) ||
         c.affiliations.some((a) => a.facilityId === facility.id))
   );
+  const rosterCoaches = facility.coachRoster || [];
+  const totalCoachesCount =
+    rosterCoaches.length +
+    affiliatedCoaches.filter((c) => !rosterCoaches.some((r) => r.linkedCoachId === c.id)).length;
+  const facilityArticles = articles.filter((a) => a.authorEntityId === facility.id);
 
   const handleWhatsapp = () => {
     const { whatsappUrl } = createStructuredWhatsappLead({
@@ -114,12 +118,19 @@ export default function Phone13() {
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
       athleteAge: 10,
-      requestedSpecialtyAr: pkg?.nameAr || facility.specialtiesAr[0] || "اشتراك",
+      requestedSpecialtyAr: schoolPrograms[0]?.titleAr || facility.specialtiesAr[0] || "اشتراك",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
     if (whatsappUrl) {
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
     }
+  };
+
+  const handleShareWhatsapp = () => {
+    const text = `صفحة ${facility.nameAr} (${facility.city}) على كابتنلي: ${
+      typeof window !== "undefined" ? window.location.href : ""
+    }`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -160,6 +171,14 @@ export default function Phone13() {
           >
             <Icon name="compare_arrows" className="text-[16px]" />
           </button>
+          <button
+            type="button"
+            onClick={handleShareWhatsapp}
+            aria-label="مشاركة المنشأة"
+            className="w-9 h-9 rounded-full bg-surface-card/90 text-dark-slate flex items-center justify-center shadow"
+          >
+            <Icon name="share" className="text-[15px]" />
+          </button>
         </div>
       </div>
 
@@ -187,17 +206,18 @@ export default function Phone13() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {[
-          { key: "packages", label: `الباقات (${facility.pricePackages.length})` },
+          { key: "packages", label: `المدارس (${schoolPrograms.length})` },
           { key: "specs", label: "المواصفات" },
-          { key: "coaches", label: `الكباتن (${affiliatedCoaches.length})` },
+          { key: "coaches", label: `الكباتن (${totalCoachesCount})` },
+          { key: "safety", label: "الأمان والحصص" },
         ].map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key as typeof tab)}
-            className={`flex-1 py-2 rounded-full text-xs font-bold ${
+            className={`px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap ${
               tab === t.key ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-text-muted"
             }`}
           >
@@ -219,52 +239,37 @@ export default function Phone13() {
               </p>
             </div>
           ) : (
-            <>
-              {facility.pricePackages.map((p) => (
-                <div key={p.id} className="bg-surface-card rounded-2xl p-4 shadow-sm flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-card-title-sm text-sm text-dark-slate leading-snug">{p.nameAr}</div>
-                    <div className="text-[11px] text-text-muted mt-0.5">
-                      {p.sessionsCount} حصة • {p.durationMinutes} دقيقة
+            <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+              <div className="font-card-title-sm text-sm text-dark-slate">
+                بطاقات المواعيد والمدارس ({schoolPrograms.length})
+              </div>
+              {schoolPrograms.map((prog) => (
+                <div key={prog.id} className="rounded-xl bg-surface-snow p-3.5 border border-surface-container/70 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-bold text-deep-olive">
+                        {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
+                      </div>
+                      <div className="font-bold text-xs text-dark-slate">{prog.titleAr}</div>
                     </div>
+                    <div className="text-base font-black text-deep-olive shrink-0">{prog.priceEgp} ج.م</div>
                   </div>
-                  <div className="text-lg font-black text-deep-olive shrink-0">{p.baseMonthlyEgp} ج.م</div>
+                  <div className="text-[11px] text-dark-slate/85 flex items-center gap-1">
+                    <Icon name="schedule" className="text-[13px] text-deep-olive" />
+                    <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    مدة الحصة: {prog.durationMinutes || 60} دقيقة
+                    {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
+                  </div>
+                  {prog.notesAr && (
+                    <p className="text-[11px] text-text-muted bg-surface-card p-2 rounded-lg leading-relaxed">
+                      {prog.notesAr}
+                    </p>
+                  )}
                 </div>
               ))}
-              {schoolPrograms.length > 0 && (
-                <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
-                  <div className="font-card-title-sm text-sm text-dark-slate">
-                    بطاقات المواعيد والمدارس ({schoolPrograms.length})
-                  </div>
-                  {schoolPrograms.map((prog) => (
-                    <div key={prog.id} className="rounded-xl bg-surface-snow p-3.5 border border-surface-container/70 flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="text-[10px] font-bold text-deep-olive">
-                            {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
-                          </div>
-                          <div className="font-bold text-xs text-dark-slate">{prog.titleAr}</div>
-                        </div>
-                        <div className="text-base font-black text-deep-olive shrink-0">{prog.priceEgp} ج.م</div>
-                      </div>
-                      <div className="text-[11px] text-dark-slate/85 flex items-center gap-1">
-                        <Icon name="schedule" className="text-[13px] text-deep-olive" />
-                        <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
-                      </div>
-                      <div className="text-[10px] text-text-muted">
-                        مدة الحصة: {prog.durationMinutes || 60} دقيقة
-                        {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
-                      </div>
-                      {prog.notesAr && (
-                        <p className="text-[11px] text-text-muted bg-surface-card p-2 rounded-lg leading-relaxed">
-                          {prog.notesAr}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
       )}
@@ -296,23 +301,88 @@ export default function Phone13() {
 
       {tab === "coaches" && (
         <div className="bg-surface-card rounded-2xl p-4 shadow-sm">
-          {affiliatedCoaches.length > 0 ? (
+          {totalCoachesCount > 0 ? (
             <div className="flex flex-col gap-3">
-              {affiliatedCoaches.map((c) => (
-                <VerifiedCoachCard key={c.id} coach={c} />
+              {rosterCoaches.map((rc) => (
+                <div
+                  key={rc.id}
+                  className="rounded-xl bg-surface-snow p-4 border border-surface-container flex flex-col gap-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-xs text-dark-slate">{rc.fullNameAr}</div>
+                      <div className="text-[11px] text-deep-olive font-bold">
+                        {rc.roleTitleAr} • {rc.specialtyAr}
+                      </div>
+                    </div>
+                    {rc.linkedCoachSlug && (
+                      <Link
+                        href={`/c/${rc.linkedCoachSlug}`}
+                        className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold"
+                      >
+                        ملف الكابتن ←
+                      </Link>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-1 border-t border-surface-container/60">
+                    {rc.certificatesAr.map((cert, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-card border border-surface-container text-[10px] font-bold text-deep-olive"
+                      >
+                        <Icon name="workspace_premium" className="text-[12px]" />
+                        <span>{cert}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
+              {affiliatedCoaches
+                .filter((c) => !rosterCoaches.some((r) => r.linkedCoachId === c.id))
+                .map((c) => (
+                  <VerifiedCoachCard key={c.id} coach={c} />
+                ))}
             </div>
           ) : (
             <div className="text-center py-3 flex flex-col items-center gap-2">
-              <p className="text-xs text-text-muted">لا يوجد كباتن مسجلون وموثقون في هذه الصفحة بعد.</p>
-              <Link
-                href="/claim?mode=coach"
-                className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
-              >
-                وثّق ملفك ككابتن هنا
-              </Link>
+              <p className="text-xs text-text-muted">لم تُضف قائمة كباتن لهذه المنشأة بعد.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "safety" && (
+        <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+          <h3 className="font-card-title-sm text-sm text-dark-slate">
+            كيف تفعّل دفتر الحصص وكود الاشتراك هنا؟
+          </h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            عند اشتراكك مع الإدارة أو الكابتن، يصدر لك كود اشتراك خاص بالباقة (مثل SUB-XXXX-XX) يعمل بالـ QR أو بالإدخال اليدوي حتى بدون إنترنت.
+          </p>
+          <Link
+            href="/dashboard/ledger"
+            className="w-fit px-4 py-2 rounded-full bg-lime-tint text-deep-olive text-xs font-bold"
+          >
+            فتح دفتر الحصص ←
+          </Link>
+        </div>
+      )}
+
+      {facilityArticles.length > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 shadow-sm border border-surface-container flex flex-col gap-2">
+          <div className="font-card-title-sm text-sm text-dark-slate">
+            مقالات ومنشورات المنشأة ({facilityArticles.length})
+          </div>
+          {facilityArticles.map((art) => (
+            <Link
+              key={art.id}
+              href={`/magazine/${art.slug}`}
+              className="rounded-xl bg-surface-snow p-3 border border-surface-container flex flex-col gap-1"
+            >
+              <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
+              <span className="font-bold text-xs text-dark-slate line-clamp-1">{art.titleAr}</span>
+            </Link>
+          ))}
         </div>
       )}
 
@@ -346,7 +416,7 @@ export default function Phone13() {
             fullWidthPrimary
           />
           <Link
-            href={`/booking?facility=${facility.slug}&pkg=${pkg?.id || ""}`}
+            href={`/booking?facility=${facility.slug}`}
             onClick={(e) => {
               if (!isAuthenticated) {
                 e.preventDefault();

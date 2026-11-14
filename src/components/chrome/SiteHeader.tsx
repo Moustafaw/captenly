@@ -51,6 +51,9 @@ export function SiteHeader() {
     openAuthGateModal,
     effectiveOffline,
     signOutToGuest,
+    myStaffAssignments,
+    activeStaffAssignment,
+    switchToStaffMode,
   } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,6 +84,14 @@ export function SiteHeader() {
           href: "/coaches",
           label: "الكباتن الموثقون",
           match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
+        },
+      ]
+    : activeStaffAssignment
+    ? [
+        {
+          href: "/dashboard/facility",
+          label: `لوحة ${activeStaffAssignment.facilityNameAr} (${activeStaffAssignment.roleTitleAr})`,
+          match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
         },
       ]
     : currentPersona.role === "coach"
@@ -272,7 +283,7 @@ export function SiteHeader() {
                             <span className="truncate">{currentPersona.email}</span>
                           </div>
                         )}
-                        {currentPersona.memberCode && (
+                        {currentPersona.memberCode && currentPersona.role !== "facility_manager" && (
                           <div className="flex items-center justify-between text-[11px] text-text-muted mt-0.5">
                             <span>كود:</span>
                             <span className="font-mono font-bold text-deep-olive">
@@ -282,6 +293,45 @@ export function SiteHeader() {
                         )}
                       </div>
                     </div>
+
+                    {myStaffAssignments.length > 0 && (
+                      <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-lime-tint/60 border border-deep-olive/20 flex flex-col gap-1.5">
+                        <div className="text-[10px] font-bold text-deep-olive flex items-center gap-1">
+                          <Icon name="swap_horiz" className="text-[14px]" />
+                          <span>تبديل الحساب الوظيفي بالمنشأة:</span>
+                        </div>
+                        {myStaffAssignments.map((assign) => {
+                          const isCurrent = activeStaffAssignment?.id === assign.id;
+                          return (
+                            <button
+                              key={assign.id}
+                              type="button"
+                              onClick={() => {
+                                if (isCurrent) {
+                                  switchToStaffMode(null);
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/athlete");
+                                } else {
+                                  switchToStaffMode(assign.id);
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/facility");
+                                }
+                              }}
+                              className={`w-full px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition-all ${
+                                isCurrent
+                                  ? "bg-dark-slate text-electric-volt"
+                                  : "bg-surface-card text-dark-slate hover:bg-surface-snow border border-surface-container"
+                              }`}
+                            >
+                              <span className="truncate">{assign.facilityNameAr} ({assign.roleTitleAr})</span>
+                              <span className="text-[10px] shrink-0 mr-1">
+                                {isCurrent ? "العودة لحسابي ↩" : "تفعيل ➔"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {(currentPersona.role === "coach"
                       ? [

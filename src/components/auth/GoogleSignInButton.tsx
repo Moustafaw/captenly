@@ -75,7 +75,7 @@ export function GoogleSignInButton({
   onSuccessNavigate,
 }: GoogleSignInButtonProps) {
   const router = useRouter();
-  const { loginOrCreateWithGoogle } = useCaptenly();
+  const { restoreOrLoginWithGoogle } = useCaptenly();
 
   const [statusInfo, setStatusInfo] = useState<GoogleStatusResponse | null>(null);
   const [loadingClick, setLoadingClick] = useState(false);
@@ -136,7 +136,7 @@ export function GoogleSignInButton({
     }
   };
 
-  const handlePreviewSubmit = (e: React.FormEvent) => {
+  const handlePreviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = customName.trim();
     const cleanEmail = customEmail.trim();
@@ -145,32 +145,37 @@ export function GoogleSignInButton({
     const firstChar = cleanName.charAt(0) || "ك";
     const avatarUrl = selectedAvatar || makeGoogleAvatarDataUrl(firstChar, "#166534");
 
-    const res = loginOrCreateWithGoogle({
-      name: cleanName,
-      email: cleanEmail,
-      image: avatarUrl,
-      isSimulatedPreview: true,
-    });
+    setLoadingClick(true);
+    try {
+      const res = await restoreOrLoginWithGoogle({
+        name: cleanName,
+        email: cleanEmail,
+        image: avatarUrl,
+        isSimulatedPreview: true,
+      });
 
-    const targetPath =
-      res.isNewUser || res.persona.needsOnboarding
-        ? "/auth/onboarding?source=google&preview=1"
-        : res.persona.role === "coach"
-          ? "/dashboard/coach"
-          : res.persona.role === "facility_manager"
-            ? "/dashboard/facility"
-            : "/dashboard/ledger";
+      const targetPath =
+        res.isNewUser || res.persona.needsOnboarding
+          ? "/auth/onboarding?source=google&preview=1"
+          : res.persona.role === "coach"
+            ? "/dashboard/coach"
+            : res.persona.role === "facility_manager"
+              ? "/dashboard/facility"
+              : "/dashboard/ledger";
 
-    setPreviewOpen(false);
-    if (onSuccessNavigate) onSuccessNavigate();
-    router.push(targetPath);
-    if (typeof window !== "undefined") {
-      window.setTimeout(() => {
-        const expectedPath = targetPath.split("?")[0];
-        if (window.location.pathname !== expectedPath) {
-          window.location.assign(targetPath);
-        }
-      }, 200);
+      setPreviewOpen(false);
+      if (onSuccessNavigate) onSuccessNavigate();
+      router.push(targetPath);
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          const expectedPath = targetPath.split("?")[0];
+          if (window.location.pathname !== expectedPath) {
+            window.location.assign(targetPath);
+          }
+        }, 200);
+      }
+    } finally {
+      setLoadingClick(false);
     }
   };
 

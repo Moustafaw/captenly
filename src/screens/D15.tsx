@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
@@ -15,6 +16,7 @@ function calcImprovementPct(previousValue: number, currentValue: number): number
 }
 
 export default function Desktop15() {
+  const router = useRouter();
   const {
     currentPersona,
     isAuthenticated,
@@ -24,6 +26,9 @@ export default function Desktop15() {
     addNewPBRecord,
     skillEvaluation,
     sessionLedgers,
+    myStaffAssignments,
+    activeStaffAssignment,
+    switchToStaffMode,
   } = useCaptenly();
 
   const [activeTab, setActiveTab] = useState<"analytics" | "ledgers" | "family">("analytics");
@@ -38,7 +43,12 @@ export default function Desktop15() {
   const [newVal, setNewVal] = useState("");
   const [prevVal, setPrevVal] = useState("");
 
-  const myLedgers = sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
+  const myLedgers = sessionLedgers.filter(
+    (l) =>
+      l.athleteId === currentPersona.id ||
+      (currentPersona.memberCode &&
+        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase())
+  );
   const myPBs = useMemo(
     () =>
       pbRecords.filter(
@@ -180,6 +190,44 @@ export default function Desktop15() {
           </div>
         </section>
 
+        {/* Staff Role Account Switcher Card (when user has been granted a staff role at a facility) */}
+        {myStaffAssignments.length > 0 && (
+          <section className="rounded-2xl bg-lime-tint border border-deep-olive/35 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-captenly-enter">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-deep-olive text-electric-volt flex items-center justify-center shrink-0">
+                <Icon name="swap_horiz" className="text-[22px]" />
+              </div>
+              <div>
+                <h2 className="font-card-title-sm text-dark-slate">
+                  تبديل الحساب الوظيفي (صلاحيات موظف منشأة مفعّلة لحسابك)
+                </h2>
+                <p className="text-xs text-deep-olive mt-0.5">
+                  لديك صلاحية عمل داخل المنشأة؛ يمكنك تبديل حسابك الآن لفتح واجهة المنشأة المخصصة لدورك الوظيفي فقط.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {myStaffAssignments.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => {
+                    switchToStaffMode(st.id);
+                    router.push("/dashboard/facility");
+                  }}
+                  className={`px-4 py-2.5 rounded-full text-xs font-extrabold transition-all ${
+                    activeStaffAssignment?.id === st.id
+                      ? "bg-deep-olive text-electric-volt"
+                      : "bg-dark-slate text-electric-volt hover:opacity-95"
+                  }`}
+                >
+                  تبديل الحساب إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Clean Modern Profile Navigation Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-surface-container">
           {[
@@ -266,18 +314,28 @@ export default function Desktop15() {
 
               <form
                 onSubmit={handleAddPB}
-                className="pt-3 border-t border-surface-container grid grid-cols-2 sm:grid-cols-4 gap-2"
+                className="pt-3 border-t border-surface-container grid grid-cols-1 sm:grid-cols-4 gap-2"
               >
                 <input
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
                   placeholder="السباق (مثلاً: 50م حرة)"
-                  className="col-span-2 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                  className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
                 <input
+                  type="number"
+                  step="0.1"
                   value={newVal}
                   onChange={(e) => setNewVal(e.target.value)}
-                  placeholder="الرقم الجديد (ث)"
+                  placeholder="الزمن الجديد (ث)"
+                  className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={prevVal}
+                  onChange={(e) => setPrevVal(e.target.value)}
+                  placeholder="الزمن السابق (اختياري)"
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
                 <button
@@ -332,20 +390,42 @@ export default function Desktop15() {
             </div>
             {myLedgers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {myLedgers.map((l) => (
-                  <div key={l.id} className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex justify-between items-center">
-                    <div>
-                      <div className="font-card-title-sm text-dark-slate">{l.facilityNameAr}</div>
-                      <div className="text-xs text-text-muted mt-0.5">{l.packageTitleAr}</div>
-                    </div>
-                    <div className="text-left">
-                      <div className="text-lg font-black text-deep-olive">
-                        {Math.max(0, l.totalSessions - l.completedSessions)} متبقية
+                {myLedgers.map((l) => {
+                  const isExpired = Boolean(
+                    l.isCodeExpired || l.status === "completed" || l.completedSessions >= l.totalSessions
+                  );
+                  return (
+                    <div
+                      key={l.id}
+                      className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex justify-between items-center gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-card-title-sm text-dark-slate">{l.facilityNameAr}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded font-mono text-xs font-black border ${
+                              isExpired
+                                ? "bg-red-50 text-red-700 border-red-200 line-through"
+                                : "bg-lime-tint text-deep-olive border-deep-olive/30"
+                            }`}
+                          >
+                            {l.subscriptionCode || l.ledgerCode}
+                          </span>
+                        </div>
+                        <div className="text-xs text-text-muted mt-0.5">
+                          {l.packageTitleAr} •{" "}
+                          {isExpired ? "كود الاشتراك منتهي الصلاحية" : "كود الاشتراك ساري ✓"}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-text-muted">من {l.totalSessions} حصة</div>
+                      <div className="text-left shrink-0">
+                        <div className="text-lg font-black text-deep-olive">
+                          {Math.max(0, l.totalSessions - l.completedSessions)} متبقية
+                        </div>
+                        <div className="text-[11px] text-text-muted">من {l.totalSessions} حصة</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-text-muted">

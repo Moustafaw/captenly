@@ -17,6 +17,8 @@ export default function Desktop8() {
     sessionLedgers,
     enrollSwimmerByMemberCode,
     checkInSession,
+    checkInBySubscriptionCode,
+    renewSwimmerSubscription,
     uploadInstaPayReceipt,
     effectiveOffline,
     isOfflineSimulated,
@@ -24,12 +26,15 @@ export default function Desktop8() {
     offlineQueue,
     syncOfflineQueue,
     syncLedgersFromServer,
+    activeStaffAssignment,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
-  const isFacility = currentPersona.role === "facility_manager";
+  const isFacility =
+    currentPersona.role === "facility_manager" || Boolean(activeStaffAssignment);
   const isProvider = isCoach || isFacility;
-  const linkedFacilityId = currentPersona.linkedFacilityId || facilities[0]?.id || "";
+  const linkedFacilityId =
+    activeStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
 
   const [facilityScope, setFacilityScope] = useState<"mine" | "all">("mine");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
@@ -37,6 +42,8 @@ export default function Desktop8() {
   const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
+  const [manualSubCodeInput, setManualSubCodeInput] = useState("");
+  const [manualSubCodeNote, setManualSubCodeNote] = useState("");
 
   // Quick enroll form inside ledger for coaches / facilities
   const [newMemberCode, setNewMemberCode] = useState("");
@@ -70,7 +77,7 @@ export default function Desktop8() {
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
-        const hay = `${l.athleteNameAr} ${l.facilityNameAr} ${l.packageTitleAr} ${l.ledgerCode} ${l.coachNameAr}`.toLowerCase();
+        const hay = `${l.athleteNameAr} ${l.facilityNameAr} ${l.packageTitleAr} ${l.ledgerCode} ${l.subscriptionCode || ""} ${l.coachNameAr}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -391,6 +398,62 @@ export default function Desktop8() {
                 </div>
               )}
 
+              {/* Manual Subscription Code Entry Bar for Facility / Coach / Staff */}
+              {isProvider && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!manualSubCodeInput.trim()) return;
+                    const res = checkInBySubscriptionCode(
+                      manualSubCodeInput.trim(),
+                      manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً"
+                    );
+                    setEnrollMsg({ ok: res.ok, msg: res.messageAr });
+                    setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                    if (res.ok && res.ledger) {
+                      setSelectedLedgerId(res.ledger.id);
+                      setManualSubCodeInput("");
+                      setManualSubCodeNote("");
+                    }
+                  }}
+                  className="rounded-2xl bg-dark-slate text-surface-card p-4 border border-electric-volt/25 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-electric-volt text-dark-slate flex items-center justify-center shrink-0">
+                      <Icon name="keyboard" className="text-[19px]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-extrabold text-electric-volt">
+                        إدخال كود الاشتراك يدوياً (بدون كاميرا) أو المسح بالـ QR
+                      </div>
+                      <div className="text-[11px] text-white/80">
+                        اكتب كود الاشتراك المتجدد للسباح (مثل <span className="font-mono text-electric-volt">SUB-4821-08</span>) لخصم حصة فورية؛ ينتهي الكود تلقائياً بانتهاء حصص الاشتراك.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <input
+                      value={manualSubCodeInput}
+                      onChange={(e) => setManualSubCodeInput(e.target.value)}
+                      placeholder="كود الاشتراك: SUB-XXXX-XX"
+                      className="rounded-xl bg-deep-carbon text-white px-3.5 py-2 text-xs font-mono border border-white/15 outline-none w-full sm:w-44"
+                    />
+                    <input
+                      value={manualSubCodeNote}
+                      onChange={(e) => setManualSubCodeNote(e.target.value)}
+                      placeholder="ملاحظة الحصة (اختياري)"
+                      className="rounded-xl bg-deep-carbon text-white px-3 py-2 text-xs border border-white/15 outline-none w-full sm:w-40"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-extrabold hover:brightness-105 shrink-0"
+                    >
+                      خصم حصة بالكود ✓
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {/* Enroll Feedback */}
               {enrollMsg && (
                 <div
@@ -569,27 +632,38 @@ export default function Desktop8() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="font-card-title-sm text-dark-slate truncate">
-                              {l.athleteNameAr}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-card-title-sm text-dark-slate truncate">
+                                {l.athleteNameAr}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-black border ${
+                                  l.isCodeExpired || l.status === "completed"
+                                    ? "bg-red-50 text-red-700 border-red-200 line-through"
+                                    : "bg-lime-tint text-deep-olive border-deep-olive/25"
+                                }`}
+                              >
+                                {l.subscriptionCode || l.ledgerCode}
+                              </span>
                             </div>
                             <div className="text-[11px] text-text-muted truncate mt-0.5">
-                              {l.facilityNameAr}
+                              {l.facilityNameAr} {l.trackLabelAr ? `• ${l.trackLabelAr}` : ""}
                             </div>
                           </div>
                           <span
                             className={`text-[11px] font-extrabold shrink-0 ${
-                              l.status === "completed"
-                                ? "text-text-muted"
+                              l.status === "completed" || l.isCodeExpired
+                                ? "text-status-danger"
                                 : l.status === "renewal_due"
                                 ? "text-amber-700"
                                 : "text-deep-olive"
                             }`}
                           >
-                            {l.status === "completed"
-                              ? "مكتملة"
+                            {l.status === "completed" || l.isCodeExpired
+                              ? "منتهي الصلاحية"
                               : l.status === "renewal_due"
                               ? "قارب الانتهاء"
-                              : "نشط ✓"}
+                              : "كود ساري ✓"}
                           </span>
                         </div>
 
@@ -771,25 +845,93 @@ export default function Desktop8() {
                   </section>
                 </div>
 
-                {/* Right Sidebar: Live Scannable QR & InstaPay Archive */}
+                {/* Right Sidebar: Subscription Code / QR & InstaPay Archive */}
                 <aside className="lg:col-span-5 flex flex-col gap-5">
-                  <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col items-center text-center gap-3">
-                    <h3 className="font-card-title text-dark-slate">
-                      {isProvider
-                        ? `باركود المتدرب: ${activeLedger.athleteNameAr}`
-                        : "كارت الـ QR السريع داخل صالة المسبح"}
-                    </h3>
-                    <QrCodeBox
-                      value={`CAP-QR:${activeLedger.ledgerCode}:${activeLedger.pinCode}`}
-                      size={180}
-                      label={`PIN: ${activeLedger.pinCode}`}
-                    />
-                    <p className="text-xs text-text-muted max-w-xs">
-                      {isProvider
-                        ? `امسح هذا الباركود من هاتف «${activeLedger.athleteNameAr}» أو استخدم كود الـ PIN (${activeLedger.pinCode}) لتأكيد الحضور أوفلاين.`
-                        : "أظهر هذا الباركود للكابتن أو إدارة المدرسة عند النزول للحوض لخصم الحصة فورياً (يعمل بدون إنترنت)."}
-                    </p>
-                  </div>
+                  {isProvider ? (
+                    <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-card-title text-dark-slate">
+                          بيانات اشتراك المتدرب: {activeLedger.athleteNameAr}
+                        </h3>
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                            activeLedger.isCodeExpired || activeLedger.status === "completed"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-lime-tint text-deep-olive"
+                          }`}
+                        >
+                          {activeLedger.isCodeExpired || activeLedger.status === "completed"
+                            ? "منتهي الصلاحية"
+                            : "الاشتراك ساري ✓"}
+                        </span>
+                      </div>
+
+                      <div className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] text-text-muted font-bold">
+                            كود الاشتراك الحالي (صالح لـ {activeLedger.totalSessions} حصص)
+                          </div>
+                          <div
+                            className={`font-mono text-2xl font-black mt-0.5 ${
+                              activeLedger.isCodeExpired || activeLedger.status === "completed"
+                                ? "text-red-700 line-through"
+                                : "text-deep-olive"
+                            }`}
+                          >
+                            {activeLedger.subscriptionCode || activeLedger.ledgerCode}
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[11px] text-text-muted">الحصص المتبقية</div>
+                          <div className="text-xl font-black text-dark-slate">
+                            {Math.max(0, activeLedger.totalSessions - activeLedger.completedSessions)} من{" "}
+                            {activeLedger.totalSessions}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-text-muted leading-relaxed">
+                        {activeLedger.isCodeExpired || activeLedger.status === "completed"
+                          ? "انتهت صلاحية كود هذا الاشتراك لإتمام كافة الحصص. يمكنك تجديد اشتراك السباح بالأسفل لتوليد كود اشتراك جديد فوري."
+                          : "يمكنك مسح الـ QR من هاتف السباح بالكاميرا أو إدخال كود الاشتراك أعلاه يدوياً لخصم الحصة."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = renewSwimmerSubscription({
+                            ledgerId: activeLedger.id,
+                            totalSessions: activeLedger.totalSessions,
+                            packageTitleAr: activeLedger.packageTitleAr,
+                          });
+                          setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                        }}
+                        className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95"
+                      >
+                        تجديد الاشتراك وتوليد كود اشتراك جديد ({activeLedger.totalSessions} حصص) ↻
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col items-center text-center gap-3">
+                      <h3 className="font-card-title text-dark-slate">
+                        كارت الـ QR وكود اشتراكك الحالي داخل صالة المسبح
+                      </h3>
+                      <QrCodeBox
+                        value={`CAP-SUB:${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
+                        size={180}
+                        label={
+                          activeLedger.isCodeExpired || activeLedger.status === "completed"
+                            ? `${activeLedger.subscriptionCode || activeLedger.ledgerCode} (منتهي)`
+                            : `كود الاشتراك: ${activeLedger.subscriptionCode || activeLedger.ledgerCode}`
+                        }
+                      />
+                      <p className="text-xs text-text-muted max-w-xs">
+                        {activeLedger.isCodeExpired || activeLedger.status === "completed"
+                          ? "انتهت صلاحية هذا الكود بعد إتمام جميع حصص الباقة. عند التجديد سيصدر لك كود اشتراك جديد تلقائياً."
+                          : "أظهر هذا الباركود أو أملِ كود الاشتراك للمسؤول عند البوابة لخصم الحصة فورياً (يعمل بدون إنترنت)."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
                     <h3 className="font-card-title text-dark-slate">

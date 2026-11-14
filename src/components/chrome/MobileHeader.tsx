@@ -21,6 +21,9 @@ export function MobileHeader() {
     openAuthGateModal,
     effectiveOffline,
     signOutToGuest,
+    myStaffAssignments,
+    activeStaffAssignment,
+    switchToStaffMode,
   } = useCaptenly();
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -184,7 +187,7 @@ export function MobileHeader() {
                       <span className="truncate">{currentPersona.email}</span>
                     </div>
                   )}
-                  {currentPersona.memberCode && (
+                  {currentPersona.memberCode && currentPersona.role !== "facility_manager" && (
                     <div className="text-[11px] font-mono text-electric-volt mt-0.5">
                       {currentPersona.memberCode}
                     </div>
@@ -213,6 +216,38 @@ export function MobileHeader() {
                     إنشاء حساب
                   </Link>
                 </div>
+              </div>
+            )}
+
+            {isAuthenticated && myStaffAssignments.length > 0 && (
+              <div className="rounded-2xl bg-lime-tint/60 border border-deep-olive/25 p-3 flex flex-col gap-2">
+                <div className="text-[11px] font-bold text-deep-olive flex items-center gap-1.5">
+                  <Icon name="swap_horiz" className="text-[16px]" />
+                  <span>تبديل الحساب الوظيفي بالمنشأة</span>
+                </div>
+                {myStaffAssignments.map((assign) => {
+                  const isCurrent = activeStaffAssignment?.id === assign.id;
+                  return (
+                    <Link
+                      key={assign.id}
+                      href={isCurrent ? "/dashboard/athlete" : "/dashboard/facility"}
+                      onClick={() => {
+                        switchToStaffMode(isCurrent ? null : assign.id);
+                        setSheetOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between ${
+                        isCurrent
+                          ? "bg-dark-slate text-electric-volt"
+                          : "bg-surface-card text-dark-slate border border-surface-container"
+                      }`}
+                    >
+                      <span className="truncate">{assign.facilityNameAr} ({assign.roleTitleAr})</span>
+                      <span className="text-[10px] shrink-0 mr-1">
+                        {isCurrent ? "العودة لحسابي ↩" : "تفعيل ➔"}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             )}
 
