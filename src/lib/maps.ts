@@ -1,4 +1,4 @@
-import type { Facility } from "@/types/captenly";
+import type { Facility, FacilityLocation } from "@/types/captenly";
 
 export interface GeoCityPreset {
   city: string;
@@ -102,16 +102,97 @@ export function buildGoogleMapsEmbedUrl(
   return `https://www.google.com/maps/embed?origin=mfe&pb=!1m3!2m1!1s${encodeURIComponent(target)}!6i${zoom}!3m1!1sar!5m1!1sar`;
 }
 
-export function getFacilityDistanceKm(
-  facility: Pick<Facility, "coordinates">,
+export function getFacilityAllLocations(
+  facility: Partial<
+    Pick<
+      Facility,
+      "id" | "nameAr" | "city" | "governorate" | "district" | "addressAr" | "coordinates" | "locations" | "googlePlaceId"
+    >
+  >
+): FacilityLocation[] {
+  if (Array.isArray(facility.locations) && facility.locations.length > 0) {
+    return facility.locations;
+  }
+  return [
+    {
+      id: `${facility.id || "loc"}-primary`,
+      labelAr: facility.nameAr,
+      governorate: facility.governorate || "مصر",
+      city: facility.city || "مصر",
+      district: facility.district || "",
+      addressAr: facility.addressAr || "",
+      coordinates: facility.coordinates || { lat: 30.0444, lng: 31.2357 },
+      googlePlaceId: facility.googlePlaceId,
+    },
+  ];
+}
+
+export function getNearestFacilityLocation(
+  facility: Parameters<typeof getFacilityAllLocations>[0],
   userCoords: { lat: number; lng: number }
-): number {
-  return calculateDistanceKm(
+): { location: FacilityLocation; distanceKm: number } {
+  const locs = getFacilityAllLocations(facility);
+  let bestLoc = locs[0];
+  let bestDist = calculateDistanceKm(
     userCoords.lat,
     userCoords.lng,
-    facility.coordinates.lat,
-    facility.coordinates.lng
+    bestLoc.coordinates.lat,
+    bestLoc.coordinates.lng
   );
+  for (let i = 1; i < locs.length; i++) {
+    const d = calculateDistanceKm(
+      userCoords.lat,
+      userCoords.lng,
+      locs[i].coordinates.lat,
+      locs[i].coordinates.lng
+    );
+    if (d < bestDist) {
+      bestDist = d;
+      bestLoc = locs[i];
+    }
+  }
+  return { location: bestLoc, distanceKm: bestDist };
+}
+
+export function getFacilityDistanceKm(
+  facility: Parameters<typeof getFacilityAllLocations>[0],
+  userCoords: { lat: number; lng: number }
+): number {
+  return getNearestFacilityLocation(facility, userCoords).distanceKm;
+}
+
+export function facilityMatchesCity(
+  facility: Parameters<typeof getFacilityAllLocations>[0],
+  cityQuery: string
+): boolean {
+  const norm = cityQuery.trim();
+  if (!norm || norm === "الكل" || norm === "كل مصر") return true;
+  const hayTop = `${facility.city || ""} ${facility.governorate || ""} ${facility.district || ""} ${facility.addressAr || ""}`;
+  if (hayTop.includes(norm)) return true;
+  return getFacilityAllLocations(facility).some((loc) =>
+    `${loc.labelAr || ""} ${loc.city || ""} ${loc.governorate || ""} ${loc.district || ""} ${loc.streetAr || ""} ${loc.addressAr || ""}`.includes(
+      norm
+    )
+  );
+}
+
+export function facilityMatchesSearch(
+  facility: Pick<
+    Facility,
+    "id" | "nameAr" | "nameEn" | "city" | "governorate" | "district" | "addressAr" | "coordinates" | "locations" | "googlePlaceId" | "specialtiesAr"
+  >,
+  queryLower: string
+): boolean {
+  const q = queryLower.trim().toLowerCase();
+  if (!q) return true;
+  const locText = getFacilityAllLocations(facility)
+    .map(
+      (loc) =>
+        `${loc.labelAr || ""} ${loc.city} ${loc.governorate} ${loc.district} ${loc.streetAr || ""} ${loc.addressAr}`
+    )
+    .join(" ");
+  const hay = `${facility.nameAr} ${facility.nameEn} ${facility.city} ${facility.governorate} ${facility.district} ${facility.addressAr || ""} ${locText} ${(facility.specialtiesAr || []).join(" ")}`.toLowerCase();
+  return hay.includes(q);
 }
 
 let googleMapsLoaderPromise: Promise<any> | null = null;

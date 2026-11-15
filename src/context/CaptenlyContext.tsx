@@ -11,6 +11,7 @@ import {
   EditorialArticle,
   Facility,
   FacilityCoachRosterEntry,
+  FacilityLocation,
   FacilitySchoolProgram,
   FacilityStaffMember,
   FacilityStaffRole,
@@ -150,6 +151,29 @@ interface CaptenlyContextType {
     decision: "approve" | "reject" | "withdraw",
     reviewerNoteAr?: string
   ) => Promise<{ ok: boolean; claim?: MemberRoleClaim; messageAr: string }>;
+  registerAndPublishFacility: (payload: {
+    nameAr: string;
+    publicDescriptionAr?: string;
+    isAcademyInHostClubs: boolean;
+    locations: FacilityLocation[];
+    managerName: string;
+    roleTitleAr: string;
+    phone: string;
+    whatsappNumber?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    instapayHandle?: string;
+    heroImage?: string;
+    updatedBasePriceEgp?: number;
+    commercialRegRef?: string;
+    proofDocumentUrl?: string;
+    proofNotesAr?: string;
+  }) => Promise<{
+    ok: boolean;
+    facility?: Facility;
+    verificationClaimSubmitted?: boolean;
+    messageAr: string;
+  }>;
 
   // Member Codes Registry & Auth Registration
   memberRegistry: MemberRegistryEntry[];
@@ -3999,6 +4023,85 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const registerAndPublishFacility: CaptenlyContextType["registerAndPublishFacility"] = async (
+    payload
+  ) => {
+    if (!isAuthenticated || currentPersona.role === "guest" || currentPersona.id === "persona-guest") {
+      return {
+        ok: false,
+        messageAr: "يجب تسجيل الدخول أولاً لنشر صفحة المنشأة أو الأكاديمية.",
+      };
+    }
+
+    try {
+      const res = await fetch("/api/supabase/register-facility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok || !data?.facility) {
+        return {
+          ok: false,
+          messageAr:
+            data?.messageAr ||
+            "تعذّر حفظ ونشر صفحة المنشأة حالياً، تأكد من إدخال الاسم والموقع الجغرافي ثم أعد المحاولة.",
+        };
+      }
+
+      const savedFac = data.facility as Facility;
+      setFacilities((prev) => {
+        const exists = prev.some((f) => f.id === savedFac.id);
+        return exists
+          ? prev.map((f) => (f.id === savedFac.id ? savedFac : f))
+          : [savedFac, ...prev];
+      });
+
+      const nextRole =
+        currentPersona.role === "super_admin" ? "super_admin" : ("facility_manager" as const);
+      setCurrentPersona((prev) => ({
+        ...prev,
+        role: nextRole,
+        linkedFacilityId: savedFac.id,
+        needsOnboarding: false,
+      }));
+      setAllPersonas((prev) =>
+        prev.map((p) =>
+          p.id === currentPersona.id
+            ? { ...p, role: nextRole, linkedFacilityId: savedFac.id, needsOnboarding: false }
+            : p
+        )
+      );
+
+      if (data.optionalClaim) {
+        const claim = data.optionalClaim as MemberRoleClaim;
+        setRoleClaims((prev) => [claim, ...prev.filter((c) => c.id !== claim.id)]);
+      }
+
+      pushNotification({
+        titleAr: `تم نشر صفحة «${savedFac.nameAr}» فوراً`,
+        messageAr: data.optionalClaim
+          ? "صفحتك ظاهرة الآن للسبّاحين في البحث، وتم استلام مستندات التوثيق لمراجعة الشارة الخضراء."
+          : "صفحتك ظاهرة الآن للسبّاحين في البحث وتقدر تضيف أوراق التوثيق للشارة الخضراء في أي وقت.",
+        type: "passport_badge",
+        actionLabelAr: "فتح لوحة المنشأة",
+        actionHref: "/dashboard/facility",
+      });
+
+      return {
+        ok: true,
+        facility: savedFac,
+        verificationClaimSubmitted: Boolean(data.optionalClaim),
+        messageAr: data.messageAr,
+      };
+    } catch {
+      return {
+        ok: false,
+        messageAr: "تعذّر الاتصال بالخادم لنشر المنشأة حالياً، حاول مرة أخرى.",
+      };
+    }
+  };
+
   const reviewRoleClaim: CaptenlyContextType["reviewRoleClaim"] = async (
     claimId,
     decision,
@@ -5084,6 +5187,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         refreshRoleClaims,
         submitRoleClaimApplication,
         reviewRoleClaim,
+        registerAndPublishFacility,
         authGateModalOpen,
         authGateFeatureNameAr,
         openAuthGateModal,

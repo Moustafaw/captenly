@@ -62,6 +62,7 @@ export default function Phone13() {
   }, [facility, slug, mergeExternalPlacesFacilities]);
 
   const [tab, setTab] = useState<"packages" | "specs" | "coaches" | "safety">("packages");
+  const [selectedLocIndex, setSelectedLocIndex] = useState(0);
 
   if (!facility) {
     return (
@@ -93,6 +94,23 @@ export default function Phone13() {
   }
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
+  const isVerifiedOfficial = facility.supplyStatus === "verified_active";
+  const branchLocations =
+    Array.isArray(facility.locations) && facility.locations.length > 0
+      ? facility.locations
+      : [];
+  const activeBranch = branchLocations[selectedLocIndex] || branchLocations[0];
+  const mapTargetFacility = activeBranch
+    ? {
+        ...facility,
+        nameAr: activeBranch.labelAr ? `${facility.nameAr} — ${activeBranch.labelAr}` : facility.nameAr,
+        city: activeBranch.city,
+        district: activeBranch.district,
+        governorate: activeBranch.governorate,
+        addressAr: activeBranch.addressAr,
+        coordinates: activeBranch.coordinates,
+      }
+    : facility;
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
   const schoolPrograms = facility.schoolPrograms || [];
@@ -137,9 +155,13 @@ export default function Phone13() {
     <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin py-4 flex flex-col gap-4 pb-24">
       {/* Verified text status only (zero unclaimed amber banner) */}
       {!isUnclaimed && (
-        <div className="text-deep-olive text-xs font-extrabold flex items-center gap-2">
-          <Icon name="verified" className="text-[17px]" />
-          <span>صفحة منشأة موثقة وتُدار رسمياً</span>
+        <div className={`text-xs font-extrabold flex items-center gap-2 ${isVerifiedOfficial ? "text-deep-olive" : "text-dark-slate"}`}>
+          <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[17px] text-deep-olive" />
+          <span>
+            {isVerifiedOfficial
+              ? "صفحة منشأة موثقة وتُدار رسمياً"
+              : "صفحة مُسجَّلة وتُدار عبر مسؤوليها على كابتنلي"}
+          </span>
         </div>
       )}
 
@@ -200,7 +222,30 @@ export default function Phone13() {
           ) : null}
         </div>
         <h1 className="font-section-title-mobile text-dark-slate leading-snug">{facility.nameAr}</h1>
-        <p className="text-xs text-text-muted">{facility.addressAr}</p>
+        <p className="text-xs text-text-muted">
+          {activeBranch ? activeBranch.addressAr : facility.addressAr}
+        </p>
+        {branchLocations.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {branchLocations.map((loc, idx) => {
+              const active = idx === selectedLocIndex;
+              return (
+                <button
+                  key={loc.id || idx}
+                  type="button"
+                  onClick={() => setSelectedLocIndex(idx)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                    active
+                      ? "bg-dark-slate text-electric-volt border-dark-slate"
+                      : "bg-surface-snow text-dark-slate border-surface-container"
+                  }`}
+                >
+                  {loc.labelAr || `${loc.city}${loc.district ? ` — ${loc.district}` : ""}`}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {(facility.publicDescriptionAr || facility.scheduleSummaryAr) && (
           <div className="text-[11px] bg-surface-snow p-2.5 rounded-xl text-dark-slate font-semibold flex items-start gap-1.5">
             <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[14px] text-deep-olive shrink-0 mt-0.5" />
@@ -399,8 +444,8 @@ export default function Phone13() {
           </span>
         </div>
         <CaptenlyGoogleMap
-          facilities={[facility]}
-          selectedFacilityId={facility.id}
+          facilities={[mapTargetFacility]}
+          selectedFacilityId={mapTargetFacility.id}
           userCoordinates={{ lat: userLocation.lat, lng: userLocation.lng }}
           heightClass="h-44"
           compact

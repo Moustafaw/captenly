@@ -9,6 +9,8 @@ import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { FacilityLocationsField } from "@/components/maps/FacilityLocationsField";
+import type { FacilityLocation } from "@/types/captenly";
 
 interface ClaimAndVerifyClientProps {
   initialSlug?: string;
@@ -27,6 +29,7 @@ export function ClaimAndVerifyClient({
     refreshRoleClaims,
     submitRoleClaimApplication,
     reviewRoleClaim,
+    registerAndPublishFacility,
   } = useCaptenly();
 
   const [mode, setMode] = useState<"facility" | "coach">(initialMode);
@@ -47,34 +50,73 @@ export function ClaimAndVerifyClient({
     }
   };
 
-  // Facility claim state
-  const claimableFacilities = useMemo(
-    () => facilities.filter((f) => f.supplyStatus !== "verified_active"),
-    [facilities]
-  );
-  const preselected = useMemo(
+  // Existing facility if user already created/linked one
+  const linkedExistingFacility = useMemo(
     () =>
-      facilities.find((f) => f.slug === initialSlug) ||
-      claimableFacilities[0] ||
-      facilities[0],
-    [facilities, claimableFacilities, initialSlug]
+      currentPersona.linkedFacilityId
+        ? facilities.find((f) => f.id === currentPersona.linkedFacilityId)
+        : undefined,
+    [facilities, currentPersona.linkedFacilityId]
   );
-  const [selectedFacilityId, setSelectedFacilityId] = useState<string>(preselected?.id || "");
+
+  // Facility / Academy open registration + mandatory location state
+  const [facilityNameAr, setFacilityNameAr] = useState(
+    linkedExistingFacility?.nameAr || ""
+  );
+  const [facilityDescAr, setFacilityDescAr] = useState(
+    linkedExistingFacility?.publicDescriptionAr || ""
+  );
+  const [facilityHeroImage, setFacilityHeroImage] = useState(
+    linkedExistingFacility?.heroImage || ""
+  );
+  const [isAcademyMode, setIsAcademyMode] = useState<boolean>(
+    Boolean(linkedExistingFacility?.isAcademyInHostClubs)
+  );
+  const [facilityLocations, setFacilityLocations] = useState<FacilityLocation[]>(() => {
+    if (linkedExistingFacility?.locations && linkedExistingFacility.locations.length > 0) {
+      return linkedExistingFacility.locations;
+    }
+    if (linkedExistingFacility?.coordinates) {
+      return [
+        {
+          id: "loc-existing",
+          governorate: linkedExistingFacility.governorate,
+          city: linkedExistingFacility.city,
+          district: linkedExistingFacility.district,
+          addressAr: linkedExistingFacility.addressAr,
+          coordinates: linkedExistingFacility.coordinates,
+          googlePlaceId: linkedExistingFacility.googlePlaceId,
+        },
+      ];
+    }
+    return [];
+  });
   const [managerName, setManagerName] = useState(currentPersona.fullNameAr || "");
   const [roleTitleAr, setRoleTitleAr] = useState("");
   const [facPhone, setFacPhone] = useState(currentPersona.phone || "");
-  const [facWhatsapp, setFacWhatsapp] = useState("");
-  const [facFacebook, setFacFacebook] = useState("");
-  const [facInstagram, setFacInstagram] = useState("");
-  const [instapayHandle, setInstapayHandle] = useState("");
+  const [facWhatsapp, setFacWhatsapp] = useState(
+    linkedExistingFacility?.whatsappNumber || ""
+  );
+  const [facFacebook, setFacFacebook] = useState(
+    linkedExistingFacility?.facebookUrl || ""
+  );
+  const [facInstagram, setFacInstagram] = useState(
+    linkedExistingFacility?.instagramUrl || ""
+  );
+  const [instapayHandle, setInstapayHandle] = useState(
+    linkedExistingFacility?.instapayHandle || ""
+  );
   const [updatedPrice, setUpdatedPrice] = useState<string>(
-    preselected?.pricePackages[0]?.baseMonthlyEgp
-      ? String(preselected.pricePackages[0].baseMonthlyEgp)
+    linkedExistingFacility?.pricePackages[0]?.baseMonthlyEgp
+      ? String(linkedExistingFacility.pricePackages[0].baseMonthlyEgp)
       : ""
   );
   const [commercialRef, setCommercialRef] = useState("");
   const [facProofDocUrl, setFacProofDocUrl] = useState("");
   const [facProofNotes, setFacProofNotes] = useState("");
+  const [publishedFacilitySlug, setPublishedFacilitySlug] = useState<string>(
+    linkedExistingFacility?.slug || ""
+  );
   const [submitting, setSubmitting] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -97,10 +139,12 @@ export function ClaimAndVerifyClient({
   const [syndicateRef, setSyndicateRef] = useState("");
   const [edlfRef, setEdlfRef] = useState("");
   const [coachProofDocUrl, setCoachProofDocUrl] = useState("");
-  const [affiliatedFacId, setAffiliatedFacId] = useState<string>(preselected?.id || "");
+  const claimedFacilityFallback = useMemo(
+    () => facilities.find((f) => f.slug === initialSlug) || facilities[0],
+    [facilities, initialSlug]
+  );
+  const [affiliatedFacId, setAffiliatedFacId] = useState<string>(claimedFacilityFallback?.id || "");
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
-
-  const selectedFacility = facilities.find((f) => f.id === selectedFacilityId) || preselected;
 
   if (!isAuthenticated) {
     return (
@@ -141,33 +185,48 @@ export function ClaimAndVerifyClient({
 
   const handleFacilityClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFacility || submitting) return;
+    if (submitting) return;
+    if (!facilityNameAr.trim() || facilityNameAr.trim().length < 2) {
+      setStatusFeedback({
+        ok: false,
+        msg: "يرجى إدخال اسم المنشأة أو الأكاديمية أولاً.",
+      });
+      return;
+    }
+    if (facilityLocations.length === 0) {
+      setStatusFeedback({
+        ok: false,
+        msg: "تحديد الموقع الجغرافي إجباري — استخدم شريط البحث أو الخريطة التفاعلية لتثبيت الدبوس.",
+      });
+      return;
+    }
     setSubmitting(true);
     setStatusFeedback(null);
     try {
-      const res = await submitRoleClaimApplication({
-        claimType: "facility",
-        targetFacilityId: selectedFacility.id,
-        fullNameAr: managerName.trim() || currentPersona.fullNameAr,
-        managerName: managerName.trim(),
-        roleTitleAr,
+      const res = await registerAndPublishFacility({
+        nameAr: facilityNameAr.trim(),
+        publicDescriptionAr: facilityDescAr.trim() || undefined,
+        isAcademyInHostClubs: isAcademyMode,
+        locations: facilityLocations,
+        managerName: managerName.trim() || currentPersona.fullNameAr,
+        roleTitleAr: roleTitleAr.trim() || "إدارة المنشأة",
         phone: facPhone.trim(),
-        city: selectedFacility.city,
-        governorate: selectedFacility.governorate,
         whatsappNumber: facWhatsapp.trim() || undefined,
         facebookUrl: facFacebook.trim() || undefined,
         instagramUrl: facInstagram.trim() || undefined,
         instapayHandle: instapayHandle.trim() || undefined,
+        heroImage: facilityHeroImage || undefined,
         updatedBasePriceEgp: Number(updatedPrice) || undefined,
         commercialRegRef: commercialRef.trim() || undefined,
         proofDocumentUrl: facProofDocUrl.trim() || undefined,
-        proofNotesAr:
-          facProofNotes.trim() ||
-          `مطالبة إدارة ${selectedFacility.nameAr}${commercialRef.trim() ? ` — مرجع: ${commercialRef.trim()}` : ""}`,
+        proofNotesAr: facProofNotes.trim() || undefined,
       });
       setStatusFeedback({ ok: res.ok, msg: res.messageAr });
       if (res.ok) {
-        await refreshRoleClaims(false).catch(() => undefined);
+        if (res.facility?.slug) setPublishedFacilitySlug(res.facility.slug);
+        if (res.verificationClaimSubmitted) {
+          await refreshRoleClaims(false).catch(() => undefined);
+        }
       }
     } finally {
       setSubmitting(false);
@@ -228,13 +287,13 @@ export function ClaimAndVerifyClient({
             </div>
             <h1 className="font-hero-headline text-[30px] md:text-[34px] text-surface-card leading-tight">
               {lockedRoleMode === "facility"
-                ? "إدارة وتوثيق منشأتك أو ناديك مجاناً بالشارة الخضراء"
+                ? "أضف منشأتك أو أكاديميتك وحدد موقعها على الخريطة مجاناً"
                 : lockedRoleMode === "coach"
                 ? "وثّق ملفك وشهاداتك ككابتن معتمد في أقل من 3 دقائق"
-                : "طالب بإدارة منشأتك أو وثّق ملفك ككابتن للمراجعة الإدارية"}
+                : "سجّل منشأتك أو أكاديميتك مجاناً أو وثّق ملفك ككابتن"}
             </h1>
             <p className="font-body-default text-surface-container-high">
-              تُراجع طلبات المنشآت والكباتن عبر فريق كابتنلي قبل تفعيل الشارات الخضراء ولوحة الإدارة، ويبقى حسابك الحالي مفعلاً بالكامل لحين صدور الاعتماد.
+              تظهر المنشأة أو الأكاديمية للسبّاحين فوراً فور حفظ بياناتها وتحديد موقعها على الخريطة، بينما تبقى أوراق التوثيق بالشارة الخضراء خطوة اختيارية لتعزيز الثقة والأفضلية في الظهور.
             </p>
           </div>
 
@@ -346,24 +405,42 @@ export function ClaimAndVerifyClient({
           >
             <div className="flex items-start gap-3">
               <Icon
-                name={statusFeedback.ok ? "schedule_send" : "warning"}
+                name={statusFeedback.ok ? "check_circle" : "warning"}
                 className={`text-[22px] mt-0.5 ${statusFeedback.ok ? "text-deep-olive" : "text-red-600"}`}
               />
               <div>
                 <p className="font-card-title-sm text-card-title-sm">{statusFeedback.msg}</p>
-                {statusFeedback.ok && (
+                {statusFeedback.ok && effectiveMode === "coach" && (
                   <p className="text-xs text-deep-olive mt-1 font-bold">
                     حالة الطلب: ⏳ قيد المراجعة — حساب السبّاح/ولي الأمر ({currentPersona.memberCode}) مستمر بالعمل دون انقطاع.
                   </p>
                 )}
               </div>
             </div>
-            <Link
-              href="/dashboard/athlete"
-              className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm shrink-0"
-            >
-              العودة لمساحتي
-            </Link>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {statusFeedback.ok && effectiveMode === "facility" && publishedFacilitySlug && (
+                <>
+                  <Link
+                    href={`/academy/${publishedFacilitySlug}`}
+                    className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label shadow-sm"
+                  >
+                    عرض الصفحة العامة ←
+                  </Link>
+                  <Link
+                    href="/dashboard/facility"
+                    className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm border border-surface-container"
+                  >
+                    فتح لوحة المنشأة
+                  </Link>
+                </>
+              )}
+              <Link
+                href="/dashboard/athlete"
+                className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm shrink-0"
+              >
+                العودة لمساحتي
+              </Link>
+            </div>
           </div>
         )}
 
@@ -373,40 +450,59 @@ export function ClaimAndVerifyClient({
               onSubmit={handleFacilityClaimSubmit}
               className="lg:col-span-8 bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm flex flex-col gap-5"
             >
-              <div>
-                <h2 className="font-section-title text-section-title text-dark-slate">
-                  استلام وإدارة صفحة المنشأة / النادي مجاناً
-                </h2>
-                <p className="font-body-compact text-text-muted mt-1">
-                  بمجرد تأكيد بيانات المسؤول، يتم تفعيل الشارة الخضراء وفتح لوحة تفعيل دفاتر الحصص للمشتركين.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-section-title text-section-title text-dark-slate">
+                    {linkedExistingFacility
+                      ? `تحديث بيانات ومواقع «${linkedExistingFacility.nameAr}»`
+                      : "إنشاء ونشر صفحة المنشأة / الأكاديمية مجاناً"}
+                  </h2>
+                  <p className="font-body-compact text-text-muted mt-1">
+                    اكتب اسم المنشأة وحدد موقعها الدقيق عبر البحث أو الخريطة التفاعلية — وتظهر صفحتك للسبّاحين فوراً بعد الحفظ.
+                  </p>
+                </div>
+                <AvatarUploader
+                  size="lg"
+                  initialUrl={facilityHeroImage}
+                  onLocalSelect={setFacilityHeroImage}
+                  labelAr="شعار أو صورة المنشأة (اختياري)"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2 flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">اختر المنشأة المطلوب استلامها</label>
-                  <select
-                    value={selectedFacilityId}
-                    onChange={(e) => setSelectedFacilityId(e.target.value)}
+                  <label className="font-badge-label text-dark-slate">
+                    اسم المنشأة أو الأكاديمية *
+                  </label>
+                  <input
+                    required
+                    value={facilityNameAr}
+                    onChange={(e) => setFacilityNameAr(e.target.value)}
+                    placeholder="مثال: أكاديمية الدلفين للسباحة أو نادي الشرطة"
                     className="w-full rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
-                  >
-                    {facilities.map((f) => (
-                      <option
-                        key={f.id}
-                        value={f.id}
-                        disabled={f.supplyStatus === "verified_active"}
-                      >
-                        {f.nameAr} — {f.city} (
-                        {f.supplyStatus === "seeded_unclaimed" ? "بانتظار التفعيل" : "موثقة بالفعل — لا يمكن إعادة الاستلام"})
-                      </option>
-                    ))}
-                  </select>
-                  {facilities.find((f) => f.id === selectedFacilityId)?.supplyStatus === "verified_active" && (
-                    <p className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
-                      هذه المنشأة موثقة ومفعلة بالفعل ولا يمكن إعادة المطالبة بها. اختر منشأة بانتظار التفعيل من القائمة.
-                    </p>
-                  )}
+                  />
                 </div>
+
+                <div className="md:col-span-2 flex flex-col gap-1.5">
+                  <label className="font-badge-label text-dark-slate">
+                    وصف مختصر للبرامج أو المسابح (اختياري)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={facilityDescAr}
+                    onChange={(e) => setFacilityDescAr(e.target.value)}
+                    placeholder="مثال: تعليم السباحة للأطفال والكبار، إعداد فرق، ومواعيد مستقلة للسيدات..."
+                    className="w-full rounded-xl bg-surface-snow px-4 py-2.5 text-sm text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
+                  />
+                </div>
+
+                {/* Delivery-App Style Location Picker + Unlimited Academy Club Slots */}
+                <FacilityLocationsField
+                  isAcademy={isAcademyMode}
+                  onToggleAcademy={setIsAcademyMode}
+                  locations={facilityLocations}
+                  onChangeLocations={setFacilityLocations}
+                />
 
                 <div className="flex flex-col gap-1.5">
                   <label className="font-badge-label text-dark-slate">الاسم الثلاثي للمسؤول *</label>
@@ -425,13 +521,13 @@ export function ClaimAndVerifyClient({
                     required
                     value={roleTitleAr}
                     onChange={(e) => setRoleTitleAr(e.target.value)}
-                    placeholder="مثال: مدير المنشأة / المسؤول الرسمي"
+                    placeholder="مثال: مدير المنشأة / مؤسس الأكاديمية"
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">رقم الموبايل للتوثيق *</label>
+                  <label className="font-badge-label text-dark-slate">رقم الموبايل للتواصل *</label>
                   <input
                     required
                     type="tel"
@@ -479,16 +575,13 @@ export function ClaimAndVerifyClient({
                   />
                 </div>
 
-                <div className="md:col-span-2 text-[11px] font-semibold text-deep-olive bg-lime-tint/40 rounded-xl px-3.5 py-2">
-                  مطلوب وسيلة تواصل عامة واحدة على الأقل (واتساب أو فيسبوك أو إنستاجرام) ليتمكن السباحون من الوصول إليكم مباشرة.
-                </div>
-
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">تأكيد أو تحديث السعر الأساسي (ج.م)</label>
+                  <label className="font-badge-label text-dark-slate">السعر الشهري المبدئي (ج.م — اختياري)</label>
                   <input
                     type="number"
                     value={updatedPrice}
                     onChange={(e) => setUpdatedPrice(e.target.value)}
+                    placeholder="مثال: 650"
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
                 </div>
@@ -504,24 +597,30 @@ export function ClaimAndVerifyClient({
                   />
                 </div>
 
-                <div className="md:col-span-2 flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">
-                    مرجع السجل التجاري / ترخيص النشاط الرياضي (اختياري)
-                  </label>
+                {/* Optional Green Verification Docs */}
+                <div className="md:col-span-2 rounded-2xl bg-surface-snow border border-surface-container p-4 flex flex-col gap-3 mt-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-badge-label text-dark-slate flex items-center gap-1.5">
+                      <Icon name="verified" className="text-[17px] text-deep-olive" />
+                      <span>أوراق التوثيق للشارة الخضراء (اختياري — ليس إجبارياً للنشر)</span>
+                    </span>
+                    <span className="text-[11px] font-bold text-deep-olive bg-lime-tint px-2.5 py-0.5 rounded-full">
+                      يرفع أولوية ظهورك
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-text-muted leading-relaxed">
+                    ستظهر صفحتك فوراً للسبّاحين حتى لو تركت هذا القسم فارغاً. وإذا أرفقت السجل أو خطاب التفويض الآن سنراجعه لمنحك الشارة الخضراء وأولوية الظهور.
+                  </p>
+
                   <input
                     value={commercialRef}
                     onChange={(e) => setCommercialRef(e.target.value)}
-                    placeholder="رقم السجل أو خطاب التفويض من النادي"
-                    className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
+                    placeholder="رقم السجل التجاري أو خطاب التفويض من النادي (اختياري)"
+                    className="rounded-xl bg-surface-card px-4 py-2.5 text-xs text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
-                </div>
 
-                <div className="md:col-span-2 flex flex-col gap-2 pt-1">
-                  <label className="font-badge-label text-dark-slate">
-                    إثبات الإدارة أو التفويض (صورة كارنيه / سجل / تفويض رسمي)
-                  </label>
                   <div className="flex flex-wrap items-center gap-3">
-                    <label className="px-4 py-2 rounded-xl bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate cursor-pointer hover:border-deep-olive">
+                    <label className="px-4 py-2 rounded-xl bg-surface-card border border-surface-container text-xs font-bold text-dark-slate cursor-pointer hover:border-deep-olive">
                       <input
                         type="file"
                         accept="image/*"
@@ -530,14 +629,14 @@ export function ClaimAndVerifyClient({
                           handleProofFileUpload(e.target.files?.[0] || null, setFacProofDocUrl)
                         }
                       />
-                      {facProofDocUrl ? "تغيير صورة المستند ✓" : "رفع صورة المستند (PNG/JPG)"}
+                      {facProofDocUrl ? "تغيير صورة المستند ✓" : "رفع صورة مستند (اختياري)"}
                     </label>
                     <input
                       dir="ltr"
                       value={facProofDocUrl.startsWith("data:") ? "" : facProofDocUrl}
                       onChange={(e) => setFacProofDocUrl(e.target.value)}
-                      placeholder="أو ضع رابط المستند https://..."
-                      className="flex-1 min-w-[200px] rounded-xl bg-surface-snow px-3.5 py-2 text-xs text-dark-slate outline-none border border-surface-container text-left"
+                      placeholder="أو رابط المستند https://..."
+                      className="flex-1 min-w-[200px] rounded-xl bg-surface-card px-3.5 py-2 text-xs text-dark-slate outline-none border border-surface-container text-left"
                     />
                   </div>
                   {facProofDocUrl && facProofDocUrl.startsWith("data:") && (
@@ -551,35 +650,43 @@ export function ClaimAndVerifyClient({
                     value={facProofNotes}
                     onChange={(e) => setFacProofNotes(e.target.value)}
                     placeholder="ملاحظات إضافية لفريق المراجعة (اختياري)"
-                    className="rounded-xl bg-surface-snow px-4 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
+                    className="rounded-xl bg-surface-card px-4 py-2 text-xs text-dark-slate outline-none border border-surface-container"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={submitting || selectedFacility?.supplyStatus === "verified_active"}
+                disabled={submitting}
                 className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title text-card-title hover:opacity-95 transition-opacity shadow-md disabled:opacity-60"
               >
-                {submitting ? "جاري إرسال الطلب..." : "إرسال طلب توثيق المنشأة للمراجعة الإدارية ←"}
+                {submitting
+                  ? "جاري النشر والحفظ..."
+                  : linkedExistingFacility
+                  ? "حفظ التعديلات والمواقع فوراً ←"
+                  : "نشر المنشأة / الأكاديمية فوراً على كابتنلي ←"}
               </button>
             </form>
 
             <aside className="lg:col-span-4 flex flex-col gap-4">
               <div className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3">
-                <h3 className="font-card-title text-dark-slate">مسار مراجعة واعتماد المنشآت</h3>
+                <h3 className="font-card-title text-dark-slate">كيف يعمل نظام النشر والمواقع؟</h3>
                 <ul className="flex flex-col gap-2.5 font-body-compact text-text-muted">
                   <li className="flex items-start gap-2">
-                    <Icon name="pending_actions" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>يراجع فريق كابتنلي مستندات الإدارة خلال 24–48 ساعة لمنع انتحال الصفحات.</span>
+                    <Icon name="bolt" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>تظهر صفحتك في البحث والرئيسية فوراً دون انتظار بمجرد تحديد الموقع والحفظ.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Icon name="check_circle" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>فور الاعتماد تظهر شارات التوثيق الخضراء وتُفتح لوحة المنشأة والـ QR.</span>
+                    <Icon name="pin_drop" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>تحديد الموقع الدقيق يميّز فروعك (مثل المحلة vs طنطا) حتى لو تشابهت الأسماء.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Icon name="payments" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>تحصيل اشتراكاتك مباشرة بدون أي عمولة (0%) من كابتنلي.</span>
+                    <Icon name="add_location_alt" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>للأكاديميات: فعّل خيار «أكاديمية تعمل داخل نادي» لإضافة كل فروعك بعدد غير محدود.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Icon name="verified" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>توثيق الشارة الخضراء اختياري لكنه يمنحك أفضلية في الترتيب وثقة أعلى لدى السباحين.</span>
                   </li>
                 </ul>
               </div>

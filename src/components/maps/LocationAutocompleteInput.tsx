@@ -15,9 +15,15 @@ export interface SelectedLocationPayload {
 
 interface PredictionItem {
   placeId: string;
+  source?: "google" | "osm";
   mainText: string;
   secondaryText: string;
   fullText: string;
+  lat?: number;
+  lng?: number;
+  city?: string;
+  governorate?: string;
+  addressLabel?: string;
 }
 
 interface LocationAutocompleteInputProps {
@@ -84,6 +90,20 @@ export function LocationAutocompleteInput({
   }, [query]);
 
   const handlePickPrediction = async (item: PredictionItem) => {
+    if (typeof item.lat === "number" && typeof item.lng === "number") {
+      const payload: SelectedLocationPayload = {
+        city: item.city || item.mainText,
+        governorate: item.governorate || "مصر",
+        lat: item.lat,
+        lng: item.lng,
+        addressLabel: item.addressLabel || item.fullText || item.mainText,
+      };
+      setQuery(payload.addressLabel);
+      setPredictions([]);
+      onSelectLocation(payload);
+      return;
+    }
+
     setResolvingId(item.placeId);
     setErrorMsg("");
     try {
@@ -96,7 +116,7 @@ export function LocationAutocompleteInput({
         setPredictions([]);
         onSelectLocation(data.location as SelectedLocationPayload);
       } else {
-        setErrorMsg("تعذر جلب إحداثيات هذا الموقع من خرائط Google، جرب اختياراً آخر.");
+        setErrorMsg("تعذر جلب إحداثيات هذا الموقع من الخريطة، جرب اختياراً آخر.");
       }
     } catch {
       setErrorMsg("حدث خطأ أثناء الاتصال بخدمة المواقع.");

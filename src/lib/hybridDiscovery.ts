@@ -1,4 +1,4 @@
-import { calculateDistanceKm } from "@/lib/maps";
+import { facilityMatchesCity, getFacilityDistanceKm } from "@/lib/maps";
 import { Facility } from "@/types/captenly";
 
 export interface HybridPartitionedFacilities {
@@ -52,18 +52,15 @@ export function partitionFacilities3Tier(
 ): HybridPartitionedFacilities {
   const swimmingOnly = facilities.filter((f) => f.sportSector !== "fitness");
 
-  const registeredPlaceIds = new Set(
-    swimmingOnly
-      .filter((f) => f.supplyStatus !== "seeded_unclaimed" && f.googlePlaceId)
-      .map((f) => f.googlePlaceId as string)
-  );
-
-  const deduped = swimmingOnly.filter((f) => {
-    if (f.supplyStatus === "seeded_unclaimed" && f.googlePlaceId) {
-      return !registeredPlaceIds.has(f.googlePlaceId);
-    }
-    return true;
-  });
+  // Keep public geographic search results (/api/places/search) completely independent of account registration,
+  // deduplicating only by identical record id.
+  const seenIds = new Set<string>();
+  const deduped: Facility[] = [];
+  for (const f of swimmingOnly) {
+    if (seenIds.has(f.id)) continue;
+    seenIds.add(f.id);
+    deduped.push(f);
+  }
 
   const cleanUserCity = (userGeo?.city || "")
     .replace(/\s*\(GPS\)/g, "")
@@ -76,40 +73,32 @@ export function partitionFacilities3Tier(
   const hasSpecificLocation = Boolean(userGeo?.isSpecified);
 
   const isLocalMatch = (f: Facility): boolean => {
-    if (cleanUserCity) {
-      const hay = `${f.city || ""} ${f.governorate || ""} ${f.district || ""} ${f.addressAr || ""}`;
-      if (hay.includes(cleanUserCity)) return true;
+    if (cleanUserCity && facilityMatchesCity(f, cleanUserCity)) {
+      return true;
     }
     if (userGeo && Number.isFinite(userGeo.lat) && Number.isFinite(userGeo.lng)) {
-      return calculateDistanceKm(userGeo.lat, userGeo.lng, f.coordinates.lat, f.coordinates.lng) <= 28;
+      return getFacilityDistanceKm(f, userGeo) <= 28;
     }
     return false;
   };
 
   const scopedPool = hasSpecificLocation ? deduped.filter(isLocalMatch) : deduped;
 
+  const verificationRank = (f: Facility) => (f.supplyStatus === "verified_active" ? 0 : 1);
+
   const sortByProximity = (list: Facility[]): Facility[] => {
     if (!userGeo || !hasSpecificLocation) {
-      return seededDiversify(list, rotationSeed);
+      const diversified = seededDiversify(list, rotationSeed);
+      return diversified.sort((a, b) => verificationRank(a) - verificationRank(b));
     }
     return [...list].sort((a, b) => {
-      const aCityMatch =
-        cleanUserCity &&
-        (a.city === cleanUserCity ||
-          (a.addressAr || "").includes(cleanUserCity) ||
-          (a.governorate || "") === cleanUserCity)
-          ? 0
-          : 1;
-      const bCityMatch =
-        cleanUserCity &&
-        (b.city === cleanUserCity ||
-          (b.addressAr || "").includes(cleanUserCity) ||
-          (b.governorate || "") === cleanUserCity)
-          ? 0
-          : 1;
+      const aCityMatch = cleanUserCity && facilityMatchesCity(a, cleanUserCity) ? 0 : 1;
+      const bCityMatch = cleanUserCity && facilityMatchesCity(b, cleanUserCity) ? 0 : 1;
       if (aCityMatch !== bCityMatch) return aCityMatch - bCityMatch;
-      const distA = calculateDistanceKm(userGeo.lat, userGeo.lng, a.coordinates.lat, a.coordinates.lng);
-      const distB = calculateDistanceKm(userGeo.lat, userGeo.lng, b.coordinates.lat, b.coordinates.lng);
+      const rankDiff = verificationRank(a) - verificationRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      const distA = getFacilityDistanceKm(a, userGeo);
+      const distB = getFacilityDistanceKm(b, userGeo);
       return distA - distB;
     });
   };

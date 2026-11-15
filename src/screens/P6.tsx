@@ -9,7 +9,12 @@ import { FacilityCard, FacilityImageOrFallback } from "@/components/editorial/Fa
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
-import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
+import {
+  EGYPT_CITY_PRESETS,
+  facilityMatchesCity,
+  facilityMatchesSearch,
+  getFacilityDistanceKm,
+} from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 import { filterAndSortExploreCoaches } from "@/lib/coachSearch";
 import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
@@ -123,16 +128,9 @@ function Phone6Inner() {
     const q = smartFilters.searchQuery.trim().toLowerCase();
     const list = facilities.filter((f) => {
       if (q) {
-        const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.governorate} ${f.district} ${f.addressAr || ""} ${f.specialtiesAr.join(" ")}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        if (!facilityMatchesSearch(f, q)) return false;
       } else if (smartFilters.city !== "الكل") {
-        const cityNorm = smartFilters.city.trim();
-        const matchesCity =
-          f.city === cityNorm ||
-          (f.city && f.city.includes(cityNorm)) ||
-          (f.addressAr && f.addressAr.includes(cityNorm)) ||
-          (f.district && f.district.includes(cityNorm));
-        if (!matchesCity) return false;
+        if (!facilityMatchesCity(f, smartFilters.city)) return false;
       }
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
@@ -146,10 +144,8 @@ function Phone6Inner() {
     const mergedList = [...list];
     if (!smartFilters.heatedOnly && !smartFilters.ladiesOnly && !smartFilters.lifeguardOnly && googlePlacesResults.length > 0) {
       const seenIds = new Set(mergedList.map((f) => f.id));
-      const seenPlaceIds = new Set(mergedList.map((f) => f.googlePlaceId).filter(Boolean));
       for (const ext of googlePlacesResults) {
         if (seenIds.has(ext.id)) continue;
-        if (ext.googlePlaceId && seenPlaceIds.has(ext.googlePlaceId)) continue;
         mergedList.push(ext);
       }
     }

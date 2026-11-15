@@ -145,18 +145,32 @@ export interface CoachSessionOffer {
   notesAr?: string;
 }
 
+export interface FacilityLocation {
+  id: string;
+  labelAr?: string;
+  governorate: string;
+  city: string;
+  district: string;
+  streetAr?: string;
+  addressAr: string;
+  coordinates: { lat: number; lng: number };
+  googlePlaceId?: string;
+}
+
 export interface Facility {
   id: string;
   slug: string;
   nameAr: string;
   nameEn: string;
   facilityType: "swimming_academy" | "club_pool" | "gym_fitness" | "multi_sport";
+  isAcademyInHostClubs?: boolean;
   sportSector: SportSector;
   governorate: string;
   city: string;
   district: string;
   addressAr: string;
   coordinates: { lat: number; lng: number };
+  locations?: FacilityLocation[];
   whatsappNumber?: string;
   facebookUrl?: string;
   instagramUrl?: string;

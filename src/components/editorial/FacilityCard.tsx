@@ -95,15 +95,26 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             />
           </Link>
 
-          {/* شارة المنشأة الموثقة فقط (بدون أي شارات مزعجة للمنشآت غير المفعلة) */}
-          {!isUnclaimed && (
+          {/* شارة التوثيق الرسمية عند الاعتماد فقط + تمييز الحساب المسجّل والأكاديميات متعددة المواقع */}
+          {facility.supplyStatus === "verified_active" ? (
             <div className="absolute top-3 right-3 flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-deep-olive font-badge-label text-badge-label shadow-sm">
                 <Icon name="verified" className="text-[14px]" />
                 <span>منشأة موثقة رسمياً</span>
               </span>
             </div>
-          )}
+          ) : !isUnclaimed ? (
+            <div className="absolute top-3 right-3 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-dark-slate font-badge-label text-[11px] shadow-sm">
+                <Icon name="pool" className="text-[13px] text-deep-olive" />
+                <span>
+                  {facility.locations && facility.locations.length > 1
+                    ? `أكاديمية (${facility.locations.length} مواقع)`
+                    : "حساب منشأة مسجّل"}
+                </span>
+              </span>
+            </div>
+          ) : null}
 
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <button
@@ -153,6 +164,9 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             <span className="font-bold text-dark-slate">
               {facility.city}
               {facility.district ? ` • ${facility.district}` : ""}
+              {facility.locations && facility.locations.length > 1
+                ? ` • +${facility.locations.length - 1} مواقع`
+                : ""}
             </span>
             {facility.rating > 0 ? (
               <span className="flex items-center gap-1 text-status-warning font-bold">

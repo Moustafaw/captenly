@@ -569,13 +569,25 @@ async function applyApprovedClaimSideEffects(claim: MemberRoleClaim): Promise<{
     nameAr: facilityNameAr,
     nameEn: String(p.nameEn || prevPayload.nameEn || facilityNameAr),
     facilityType: (p.facilityType as Facility["facilityType"]) || prevPayload.facilityType || "swimming_academy",
+    isAcademyInHostClubs:
+      typeof p.isAcademyInHostClubs === "boolean"
+        ? p.isAcademyInHostClubs
+        : prevPayload.isAcademyInHostClubs,
     sportSector: "swimming",
     governorate: claim.governorateAr || String(existingFacRow?.governorate || prevPayload.governorate || "كل مصر"),
     city: claim.cityAr || String(existingFacRow?.city || prevPayload.city || "كل مصر"),
     district: String(p.district || existingFacRow?.district || prevPayload.district || ""),
     addressAr: String(p.addressAr || existingFacRow?.address_ar || prevPayload.addressAr || ""),
-    coordinates: prevPayload.coordinates || { lat: 30.0444, lng: 31.2357 },
+    coordinates:
+      (p.coordinates as Facility["coordinates"] | undefined) ||
+      prevPayload.coordinates ||
+      { lat: 30.0444, lng: 31.2357 },
+    locations: Array.isArray(p.locations)
+      ? (p.locations as Facility["locations"])
+      : prevPayload.locations,
     whatsappNumber: claim.applicantPhone || String(p.whatsappNumber || prevPayload.whatsappNumber || ""),
+    facebookUrl: String(p.facebookUrl || prevPayload.facebookUrl || "") || undefined,
+    instagramUrl: String(p.instagramUrl || prevPayload.instagramUrl || "") || undefined,
     instapayHandle: String(p.instapayHandle || prevPayload.instapayHandle || ""),
     vodafoneCashNumber: String(p.vodafoneCashNumber || prevPayload.vodafoneCashNumber || ""),
     supplyStatus: "verified_active",

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
+import { facilityMatchesCity } from "@/lib/maps";
 
 export default function Desktop4() {
   const { facilities, compareFacilityIds, userLocation } = useCaptenly();
@@ -41,7 +42,7 @@ export default function Desktop4() {
   const poolFacilities = useMemo(() => {
     return facilities.filter((f) => {
       if (f.sportSector === "fitness") return false;
-      if (city !== "الكل" && !f.city.includes(city)) return false;
+      if (city !== "الكل" && !facilityMatchesCity(f, city)) return false;
       if (heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (kidsOnly && !f.specialtiesAr.some((s) => s.includes("أطفال") || s.includes("تأسيس"))) {

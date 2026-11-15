@@ -63,6 +63,7 @@ export default function Desktop22() {
   }, [facility, slug, mergeExternalPlacesFacilities]);
 
   const [activeTab, setActiveTab] = useState<"packages" | "specs" | "coaches" | "safety">("packages");
+  const [selectedLocIndex, setSelectedLocIndex] = useState(0);
 
   if (!facility) {
     return (
@@ -94,6 +95,23 @@ export default function Desktop22() {
   }
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
+  const isVerifiedOfficial = facility.supplyStatus === "verified_active";
+  const branchLocations =
+    Array.isArray(facility.locations) && facility.locations.length > 0
+      ? facility.locations
+      : [];
+  const activeBranch = branchLocations[selectedLocIndex] || branchLocations[0];
+  const mapTargetFacility = activeBranch
+    ? {
+        ...facility,
+        nameAr: activeBranch.labelAr ? `${facility.nameAr} — ${activeBranch.labelAr}` : facility.nameAr,
+        city: activeBranch.city,
+        district: activeBranch.district,
+        governorate: activeBranch.governorate,
+        addressAr: activeBranch.addressAr,
+        coordinates: activeBranch.coordinates,
+      }
+    : facility;
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
   const schoolPrograms = facility.schoolPrograms || [];
@@ -140,10 +158,12 @@ export default function Desktop22() {
         {/* Verified Notice (Clean dark-olive text, zero unclaimed top banner) */}
         {!isUnclaimed && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-surface-container/60">
-            <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
-              <Icon name="verified" className="text-[20px]" />
+            <div className={`flex items-center gap-2 font-bold text-sm ${isVerifiedOfficial ? "text-deep-olive" : "text-dark-slate"}`}>
+              <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[20px] text-deep-olive" />
               <span>
-                صفحة موثقة وتُدار رسمياً من إدارة {facility.nameAr} ({facility.verifiedClaimDateAr || "محدثة"})
+                {isVerifiedOfficial
+                  ? `صفحة موثقة وتُدار رسمياً من إدارة ${facility.nameAr} (${facility.verifiedClaimDateAr || "محدثة"})`
+                  : `صفحة مُسجَّلة وتُدار عبر مسؤولي ${facility.nameAr} على كابتنلي`}
               </span>
             </div>
             <Link href="/dashboard/facility" className="text-xs font-bold text-dark-slate hover:text-deep-olive underline">
@@ -195,7 +215,40 @@ export default function Desktop22() {
               <h1 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-tight">
                 {facility.nameAr}
               </h1>
-              <p className="font-body-default text-text-muted">{facility.addressAr}</p>
+              <p className="font-body-default text-text-muted">
+                {activeBranch ? activeBranch.addressAr : facility.addressAr}
+              </p>
+              {branchLocations.length > 0 && (
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-dark-slate">
+                    {branchLocations.length > 1
+                      ? `مواقع وفروع التدريب (${branchLocations.length} مواقع):`
+                      : facility.isAcademyInHostClubs
+                      ? "النادي / الموقع المستضيف للأكاديمية:"
+                      : "موقع المنشأة:"}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {branchLocations.map((loc, idx) => {
+                      const active = idx === selectedLocIndex;
+                      return (
+                        <button
+                          key={loc.id || idx}
+                          type="button"
+                          onClick={() => setSelectedLocIndex(idx)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors border ${
+                            active
+                              ? "bg-dark-slate text-electric-volt border-dark-slate"
+                              : "bg-surface-snow text-dark-slate border-surface-container hover:border-deep-olive/50"
+                          }`}
+                        >
+                          <Icon name="location_on" className="text-[13px] inline ml-1" />
+                          <span>{loc.labelAr || `${loc.city}${loc.district ? ` — ${loc.district}` : ""}`}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {(facility.publicDescriptionAr || facility.scheduleSummaryAr) && (
                 <p className="text-xs font-semibold text-dark-slate bg-surface-snow px-3.5 py-2 rounded-xl w-fit inline-flex items-center gap-1.5">
                   <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[15px] text-deep-olive" />
@@ -592,11 +645,15 @@ export default function Desktop22() {
             <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
               <div className="text-xs font-bold text-dark-slate flex items-center gap-1.5">
                 <Icon name="location_on" className="text-[15px] text-deep-olive" />
-                <span>الموقع على خرائط Google</span>
+                <span>
+                  {branchLocations.length > 1
+                    ? `الموقع على الخريطة (${activeBranch?.labelAr || activeBranch?.city})`
+                    : "الموقع على خرائط Google"}
+                </span>
               </div>
               <CaptenlyGoogleMap
-                facilities={[facility]}
-                selectedFacilityId={facility.id}
+                facilities={[mapTargetFacility]}
+                selectedFacilityId={mapTargetFacility.id}
                 userCoordinates={{ lat: userLocation.lat, lng: userLocation.lng }}
                 heightClass="h-44"
                 compact

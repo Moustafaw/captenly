@@ -253,7 +253,7 @@ export default function FacilityDashboardPage() {
                   لا توجد منشأة مرتبطة بحسابك حتى الآن
                 </h1>
                 <p className="text-xs text-text-muted mt-0.5">
-                  لتفعيل لوحة إدارة الأكاديمية أو المسبح، يلزم اعتماد طلب التوثيق عبر الإدارة أو قبول دعوة وظيفية من مدير منشأة موثقة.
+                  أضف اسم منشأتك أو أكاديميتك وحدد موقعها الدقيق عبر الخريطة لتُنشر فوراً وتُفتح لك لوحة الإدارة مباشرة (أو اقبل دعوة وظيفية من منشأة قائمة).
                 </p>
               </div>
             </div>
@@ -320,7 +320,7 @@ export default function FacilityDashboardPage() {
                 href="/claim"
                 className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95"
               >
-                تقديم طلب توثيق أو إضافة منشأة (/claim) ←
+                أضف منشأتك / أكاديميتك وحدد موقعها الآن ←
               </Link>
               <Link
                 href="/dashboard/athlete"
@@ -474,13 +474,23 @@ export default function FacilityDashboardPage() {
                 className={`text-xs font-bold px-3 py-1 rounded-full ${
                   isUnclaimed
                     ? "bg-amber-400/20 text-amber-300"
-                    : "bg-electric-volt/15 text-electric-volt"
+                    : facility.supplyStatus === "verified_active"
+                    ? "bg-electric-volt/15 text-electric-volt"
+                    : "bg-white/15 text-white"
                 }`}
               >
-                {isUnclaimed ? "منشأة بانتظار التفعيل الرسمي" : "✓ منشأة موثقة ومعتمدة"}
+                {isUnclaimed
+                  ? "منشأة بانتظار التفعيل الرسمي"
+                  : facility.supplyStatus === "verified_active"
+                  ? "✓ منشأة موثقة رسمياً بالشارة الخضراء"
+                  : "✓ منشأة منشورة وتُدار عبر حسابك"}
               </span>
               <span className="text-xs text-surface-variant">
-                {facility.city} • {facility.district}
+                {facility.city}
+                {facility.district ? ` • ${facility.district}` : ""}
+                {facility.locations && facility.locations.length > 1
+                  ? ` (+${facility.locations.length - 1} مواقع أخرى)`
+                  : ""}
               </span>
               <span
                 className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
@@ -527,6 +537,12 @@ export default function FacilityDashboardPage() {
               </button>
             )}
 
+            <Link
+              href="/claim"
+              className="px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/15"
+            >
+              تعديل المواقع والفروع
+            </Link>
             <Link
               href={`/academy/${facility.slug}`}
               className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/15"

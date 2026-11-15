@@ -5,14 +5,14 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
-import { EGYPT_CITY_PRESETS } from "@/lib/maps";
+import { EGYPT_CITY_PRESETS, facilityMatchesCity } from "@/lib/maps";
 
 export default function Desktop18() {
   const { facilities, smartFilters, updateSmartFilters, resetSmartFilters } = useCaptenly();
 
   const matchingCount = useMemo(() => {
     return facilities.filter((f) => {
-      if (smartFilters.city !== "الكل" && f.city !== smartFilters.city) return false;
+      if (smartFilters.city !== "الكل" && !facilityMatchesCity(f, smartFilters.city)) return false;
       if (f.sportSector === "fitness") return false;
       if (smartFilters.heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (smartFilters.ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
