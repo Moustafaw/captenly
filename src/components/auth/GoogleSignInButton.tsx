@@ -9,6 +9,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 
 interface GoogleStatusResponse {
   configured: boolean;
+  previewAllowed?: boolean;
   hasClientId: boolean;
   hasClientSecret: boolean;
   hasAuthSecret: boolean;
@@ -80,6 +81,7 @@ export function GoogleSignInButton({
   const [statusInfo, setStatusInfo] = useState<GoogleStatusResponse | null>(null);
   const [loadingClick, setLoadingClick] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewBlockedNotice, setPreviewBlockedNotice] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [copiedUri, setCopiedUri] = useState(false);
 
@@ -127,6 +129,11 @@ export function GoogleSignInButton({
 
       if (currentStatus?.configured) {
         await signIn("google", { callbackUrl: "/auth/google-complete" });
+        return;
+      }
+
+      if (currentStatus?.previewAllowed === false) {
+        setPreviewBlockedNotice(true);
         return;
       }
 
@@ -198,12 +205,17 @@ export function GoogleSignInButton({
       >
         <GoogleMark className={compact ? "w-4 h-4 shrink-0" : "w-5 h-5 shrink-0"} />
         <span>{loadingClick ? "جاري التحويل إلى Google..." : labelAr}</span>
-        {statusInfo && !statusInfo.configured && !compact && (
+        {statusInfo && !statusInfo.configured && statusInfo.previewAllowed !== false && !compact && (
           <span className="mr-auto px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold">
             معاينة ذكية
           </span>
         )}
       </button>
+      {previewBlockedNotice && (
+        <p className="mt-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] font-bold text-amber-900">
+          تسجيل الدخول عبر Google يتطلب تفعيل مفاتيح OAuth الحقيقية في إعدادات الخادم؛ استخدم الدخول بكود العضوية أو الهاتف مؤقتاً.
+        </p>
+      )}
 
       {previewOpen &&
         typeof document !== "undefined" &&

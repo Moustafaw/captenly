@@ -1,7 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
 
 export default function AboutPage() {
+  const { isAuthenticated, currentPersona } = useCaptenly();
+  const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
+  const isCoachRole = isAuthenticated && currentPersona.role === "coach";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
+
   return (
     <div className="min-h-screen bg-canvas-alabaster pt-6 pb-16">
       <div className="max-w-[1120px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
@@ -13,7 +23,7 @@ export default function AboutPage() {
             نحو رياضة مصرية آمنة، شفافة الأسعار، وموثقة بالشهادات الميدانية
           </h1>
           <p className="font-body-default text-surface-container-high max-w-3xl">
-            وُلدت كابتنلي لحل ثلاث فجوات حقيقية يواجهها الرياضيون وأولياء الأمور في المحلة الكبرى والغربية ومصر: غياب شفافية الأسعار الكاملة، صعوبة التأكد من اعتماد الكباتن وسلامة المسابح شتاءً، وضياع متابعة الحصص بالدفاتر الورقية.
+            وُلدت كابتنلي لحل ثلاث فجوات حقيقية يواجهها الرياضيون وأولياء الأمور في مختلف محافظات مصر: غياب شفافية الأسعار الكاملة، صعوبة التأكد من اعتماد الكباتن وسلامة المسابح شتاءً، وضياع متابعة الحصص بالدفاتر الورقية.
           </p>
         </section>
 
@@ -63,12 +73,14 @@ export default function AboutPage() {
             >
               استكشف المنشآت
             </Link>
-            <Link
-              href="/claim"
-              className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
-            >
-              طالب بصفحتك مجاناً
-            </Link>
+            {!isAthleteOrParent && (
+              <Link
+                href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+                className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label"
+              >
+                {isFacilityManager ? "لوحة المنشأة" : isCoachRole ? "لوحة الكابتن" : "طالب بصفحتك مجاناً"}
+              </Link>
+            )}
           </div>
         </section>
       </div>

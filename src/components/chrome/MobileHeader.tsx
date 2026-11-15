@@ -24,6 +24,7 @@ export function MobileHeader() {
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
   } = useCaptenly();
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -57,6 +58,14 @@ export function MobileHeader() {
           <div className="flex items-center gap-1.5 shrink-0">
             {isAuthenticated ? (
               <>
+                {activeStaffAssignment && (
+                  <Link
+                    href="/dashboard/facility"
+                    className="px-2 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold whitespace-nowrap"
+                  >
+                    وضع موظف ✓
+                  </Link>
+                )}
                 {effectiveOffline && (
                   <Link
                     href="/dashboard/ledger"
@@ -226,6 +235,38 @@ export function MobileHeader() {
                   <span>تبديل الحساب الوظيفي بالمنشأة</span>
                 </div>
                 {myStaffAssignments.map((assign) => {
+                  if (assign.invitationStatus === "pending") {
+                    return (
+                      <div
+                        key={assign.id}
+                        className="w-full p-2.5 rounded-xl bg-surface-card border border-deep-olive/30 flex flex-col gap-1.5"
+                      >
+                        <span className="text-xs font-bold text-dark-slate truncate">
+                          دعوة: {assign.roleTitleAr} ({assign.facilityNameAr})
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              respondToStaffInvitation(assign.facilityId, assign.id, "accepted")
+                            }
+                            className="flex-1 py-1.5 rounded-lg bg-deep-olive text-white text-xs font-bold"
+                          >
+                            قبول الدعوة ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              respondToStaffInvitation(assign.facilityId, assign.id, "declined")
+                            }
+                            className="flex-1 py-1.5 rounded-lg bg-red-50 text-status-danger text-xs font-bold"
+                          >
+                            رفض ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
                   const isCurrent = activeStaffAssignment?.id === assign.id;
                   return (
                     <Link
@@ -277,7 +318,9 @@ export function MobileHeader() {
                         gated: true,
                       },
                     ]),
-                { href: "/about", icon: "info", label: "عن كابتنلي والخصوصية", gated: false },
+                { href: "/about", icon: "info", label: "عن كابتنلي", gated: false },
+                { href: "/privacy", icon: "shield", label: "الخصوصية وحماية القُصّر", gated: false },
+                { href: "/terms", icon: "gavel", label: "الشروط وقانون 3 لسنة 1985", gated: false },
               ].map((item) => (
                 <Link
                   key={item.href}
@@ -300,16 +343,18 @@ export function MobileHeader() {
             <div className="flex flex-col gap-2 mt-1">
               {isAuthenticated ? (
                 <>
-                  {currentPersona.authProvider === "google" && (
-                    <Link
-                      href="/auth/onboarding?source=google"
-                      onClick={() => setSheetOpen(false)}
-                      className="w-full py-2.5 rounded-full bg-lime-tint text-deep-olive font-bold text-xs text-center flex items-center justify-center gap-1.5"
-                    >
+                  <Link
+                    href="/dashboard/athlete/settings"
+                    onClick={() => setSheetOpen(false)}
+                    className="w-full py-2.5 rounded-full bg-lime-tint text-deep-olive font-bold text-xs text-center flex items-center justify-center gap-1.5"
+                  >
+                    {currentPersona.authProvider === "google" ? (
                       <GoogleMark className="w-4 h-4" />
-                      <span>تعديل نوع الحساب والبيانات</span>
-                    </Link>
-                  )}
+                    ) : (
+                      <Icon name="tune" className="text-[16px]" />
+                    )}
+                    <span>تعديل بيانات الحساب والملف</span>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => {

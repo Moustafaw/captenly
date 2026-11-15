@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { isMemberAccountRole } from "@/types/captenly";
 
 export default function Phone5() {
   const {
@@ -20,6 +21,7 @@ export default function Phone5() {
     checkInBySubscriptionCode,
     renewSwimmerSubscription,
     uploadInstaPayReceipt,
+    confirmReceiptByProvider,
     effectiveOffline,
     isOfflineSimulated,
     toggleOfflineSimulation,
@@ -27,16 +29,22 @@ export default function Phone5() {
     syncOfflineQueue,
     syncLedgersFromServer,
     activeStaffAssignment,
+    minorAthletes,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
   const isFacility =
     currentPersona.role === "facility_manager" || Boolean(activeStaffAssignment);
   const isProvider = isCoach || isFacility;
+  const staffRole = activeStaffAssignment?.role;
+  const canScanAndEnroll =
+    isCoach ||
+    currentPersona.role === "facility_manager" ||
+    (Boolean(activeStaffAssignment) && staffRole !== "accounts_manager");
   const linkedFacilityId =
     activeStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
+  const linkedCoachId = currentPersona.linkedCoachId || currentPersona.id;
 
-  const [facilityScope, setFacilityScope] = useState<"mine" | "all">("mine");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnrollForm, setShowEnrollForm] = useState(false);
@@ -50,23 +58,25 @@ export default function Phone5() {
   const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
   const [newFeeEgp, setNewFeeEgp] = useState("");
 
-  const facilityOwnCount = useMemo(
-    () => sessionLedgers.filter((l) => l.facilityId === linkedFacilityId).length,
-    [sessionLedgers, linkedFacilityId]
-  );
-
   const roleLedgers = useMemo(() => {
     if (isFacility) {
-      if (facilityScope === "mine" && facilityOwnCount > 0) {
-        return sessionLedgers.filter((l) => l.facilityId === linkedFacilityId);
-      }
-      return sessionLedgers;
+      if (!linkedFacilityId) return [];
+      return sessionLedgers.filter((l) => l.facilityId === linkedFacilityId);
     }
     if (isCoach) {
-      return sessionLedgers;
+      return sessionLedgers.filter(
+        (l) => l.coachId === linkedCoachId || l.coachNameAr === currentPersona.fullNameAr
+      );
     }
-    return sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
-  }, [sessionLedgers, currentPersona, isFacility, isCoach, facilityScope, facilityOwnCount, linkedFacilityId]);
+    const isUnifiedMember = isMemberAccountRole(currentPersona.role);
+    return sessionLedgers.filter(
+      (l) =>
+        l.athleteId === currentPersona.id ||
+        (currentPersona.memberCode &&
+          l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+        (isUnifiedMember && minorAthletes.some((m) => m.id === l.athleteId))
+    );
+  }, [sessionLedgers, currentPersona, isFacility, isCoach, linkedFacilityId, linkedCoachId, minorAthletes]);
 
   const filteredLedgers = useMemo(() => {
     return roleLedgers.filter((l) => {
@@ -249,14 +259,16 @@ export default function Phone5() {
               </div>
               {isProvider && (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setScannerOpen(true)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-deep-olive text-white text-[11px] font-bold"
-                  >
-                    <Icon name="qr_code_scanner" className="text-[14px]" />
-                    <span>مسح QR</span>
-                  </button>
+                  {canScanAndEnroll && (
+                    <button
+                      type="button"
+                      onClick={() => setScannerOpen(true)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-deep-olive text-white text-[11px] font-bold"
+                    >
+                      <Icon name="qr_code_scanner" className="text-[14px]" />
+                      <span>مسح QR</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={syncingCloud}
@@ -270,42 +282,21 @@ export default function Phone5() {
                   >
                     <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowEnrollForm((v) => !v)}
-                    className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
-                  >
-                    {showEnrollForm ? "إغلاق" : "+ مشترك"}
-                  </button>
+                  {canScanAndEnroll && (
+                    <button
+                      type="button"
+                      onClick={() => setShowEnrollForm((v) => !v)}
+                      className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+                    >
+                      {showEnrollForm ? "إغلاق" : "+ مشترك"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
-            {isFacility && (
-              <div className="grid grid-cols-2 gap-1.5 bg-surface-snow p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setFacilityScope("mine")}
-                  className={`py-1.5 rounded-lg text-[11px] font-bold ${
-                    facilityScope === "mine" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
-                  }`}
-                >
-                  منشأتي ({facilityOwnCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFacilityScope("all")}
-                  className={`py-1.5 rounded-lg text-[11px] font-bold ${
-                    facilityScope === "all" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
-                  }`}
-                >
-                  كل المنشآت ({sessionLedgers.length})
-                </button>
-              </div>
-            )}
-
             {/* Inline Quick Enroll on Mobile */}
-            {isProvider && showEnrollForm && (
+            {canScanAndEnroll && showEnrollForm && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -364,7 +355,10 @@ export default function Phone5() {
                   onChange={(e) => setNewFacilityId(e.target.value)}
                   className="rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-surface-container"
                 >
-                  {facilities.map((f) => (
+                  {(isFacility && linkedFacilityId
+                    ? facilities.filter((f) => f.id === linkedFacilityId)
+                    : facilities
+                  ).map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.nameAr}
                     </option>
@@ -381,40 +375,44 @@ export default function Phone5() {
 
             {isProvider && (
               <div className="flex flex-col gap-2">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!manualSubCodeInput.trim()) return;
-                    const res = checkInBySubscriptionCode(
-                      manualSubCodeInput.trim(),
-                      "خصم حصة بإدخال كود الاشتراك يدوياً"
-                    );
-                    setMsg({ ok: res.ok, text: res.messageAr });
-                    if (res.ok && res.ledger) {
-                      setSelectedId(res.ledger.id);
-                      setManualSubCodeInput("");
-                    }
-                  }}
-                  className="rounded-xl bg-dark-slate text-white p-3 flex flex-col gap-2"
-                >
-                  <div className="text-[11px] font-bold text-electric-volt">
-                    إدخال كود الاشتراك يدوياً (بدون كاميرا):
-                  </div>
-                  <div className="flex gap-1.5">
-                    <input
-                      value={manualSubCodeInput}
-                      onChange={(e) => setManualSubCodeInput(e.target.value)}
-                      placeholder="SUB-XXXX-XX"
-                      className="flex-1 min-w-0 rounded-xl bg-deep-carbon text-white px-3 py-2 text-xs font-mono border border-white/15 outline-none"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3.5 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-extrabold shrink-0"
-                    >
-                      خصم حصة ✓
-                    </button>
-                  </div>
-                </form>
+                {canScanAndEnroll && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!manualSubCodeInput.trim()) return;
+                      const res = checkInBySubscriptionCode(
+                        manualSubCodeInput.trim(),
+                        isFacility ? linkedFacilityId : undefined,
+                        "خصم حصة بإدخال كود الاشتراك يدوياً",
+                        isCoach ? linkedCoachId : undefined
+                      );
+                      setMsg({ ok: res.ok, text: res.messageAr });
+                      if (res.ok && res.ledger) {
+                        setSelectedId(res.ledger.id);
+                        setManualSubCodeInput("");
+                      }
+                    }}
+                    className="rounded-xl bg-dark-slate text-white p-3 flex flex-col gap-2"
+                  >
+                    <div className="text-[11px] font-bold text-electric-volt">
+                      إدخال كود الاشتراك يدوياً (بدون كاميرا):
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={manualSubCodeInput}
+                        onChange={(e) => setManualSubCodeInput(e.target.value)}
+                        placeholder="SUB-XXXX-XX"
+                        className="flex-1 min-w-0 rounded-xl bg-deep-carbon text-white px-3 py-2 text-xs font-mono border border-white/15 outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3.5 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-extrabold shrink-0"
+                      >
+                        خصم حصة ✓
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 <div className="flex items-center bg-surface-snow rounded-xl px-3 py-2 border border-surface-container">
                   <Icon name="search" className="text-text-muted text-[15px] ml-2 shrink-0" />
@@ -620,31 +618,45 @@ export default function Phone5() {
                   </div>
                 )}
 
-                <div className="w-full flex flex-col gap-2 pt-1">
-                  <input
-                    value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value)}
-                    placeholder={`كود الـ PIN (${activeLedger.pinCode}) أو اضغط مباشرة لمسح QR`}
-                    className="w-full rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container text-center"
-                  />
-                  <button
-                    type="button"
-                    disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
-                    onClick={() => {
-                      const res = checkInSession(
-                        activeLedger.id,
-                        pinInput || activeLedger.pinCode,
-                        pinInput ? "pin_4digit" : "qr_scan",
-                        isProvider ? "خصم حضور من لوحة الكابتن/المنشأة" : "حضور من الموبايل بالمسبح"
-                      );
-                      setMsg({ ok: res.ok, text: res.messageAr });
-                      if (res.ok) setPinInput("");
-                    }}
-                    className="w-full py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold shadow disabled:opacity-40"
-                  >
-                    {isProvider ? "خصم حصة للسباح بالـ QR / PIN ✓" : "تأكيد الحضور بمسح QR / PIN الآن ✓"}
-                  </button>
-                </div>
+                {canScanAndEnroll ? (
+                  <div className="w-full flex flex-col gap-2 pt-1">
+                    <input
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value)}
+                      placeholder="أدخل كود الاشتراك أو PIN (4 أرقام)"
+                      className="w-full rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container text-center"
+                    />
+                    <button
+                      type="button"
+                      disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
+                      onClick={() => {
+                        const cleanEntry = pinInput.trim();
+                        if (!cleanEntry) {
+                          setMsg({
+                            ok: false,
+                            text: "يرجى إدخال كود الاشتراك أو الـ PIN أولاً، أو استخدام زر «فتح الكاميرا لمسح QR».",
+                          });
+                          return;
+                        }
+                        const res = checkInSession(
+                          activeLedger.id,
+                          cleanEntry,
+                          "pin_4digit",
+                          "خصم حضور من لوحة الكابتن/المنشأة"
+                        );
+                        setMsg({ ok: res.ok, text: res.messageAr });
+                        if (res.ok) setPinInput("");
+                      }}
+                      className="w-full py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold shadow disabled:opacity-40"
+                    >
+                      خصم حصة للسباح بالـ QR / PIN ✓
+                    </button>
+                  </div>
+                ) : !isProvider ? (
+                  <div className="w-full rounded-xl bg-surface-snow p-3 text-xs font-bold text-deep-olive text-center border border-surface-container">
+                    اعرض رمز الـ QR أو كود الاشتراك للمسؤول عند المسبح لتسجيل حضورك تلقائياً.
+                  </div>
+                ) : null}
               </div>
 
               {/* Checkin Log */}
@@ -683,12 +695,47 @@ export default function Phone5() {
                 <h3 className="font-card-title-sm text-sm text-dark-slate">
                   أرشيف إيصالات الدفع ({activeLedger.receipts.length})
                 </h3>
-                {activeLedger.receipts.map((r) => (
-                  <div key={r.id} className="rounded-xl bg-surface-snow px-3 py-2 flex justify-between text-[11px]">
-                    <span className="font-mono text-dark-slate">{r.referenceNumber} • {r.channel}</span>
-                    <span className="font-bold text-deep-olive">{r.amountEgp} ج.م</span>
-                  </div>
-                ))}
+                {activeLedger.receipts.map((r) => {
+                  const canConfirmReceipt =
+                    isCoach ||
+                    currentPersona.role === "facility_manager" ||
+                    (Boolean(activeStaffAssignment) &&
+                      (activeStaffAssignment?.role === "accounts_manager" ||
+                        activeStaffAssignment?.role === "general_staff"));
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-xl bg-surface-snow px-3 py-2 flex flex-col gap-1 text-[11px] border border-surface-container/50"
+                    >
+                      <div className="flex justify-between gap-2">
+                        <span className="font-mono text-dark-slate">
+                          {r.referenceNumber} • {r.channel}
+                        </span>
+                        <span className="font-bold text-deep-olive">{r.amountEgp} ج.م</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[10px] font-bold ${
+                            r.confirmedByProvider ? "text-deep-olive" : "text-amber-700"
+                          }`}
+                        >
+                          {r.confirmedByProvider
+                            ? "✓ مؤكد من الحسابات"
+                            : "⏳ بانتظار تأكيد الحسابات"}
+                        </span>
+                        {!r.confirmedByProvider && canConfirmReceipt && (
+                          <button
+                            type="button"
+                            onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
+                            className="px-2 py-0.5 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold"
+                          >
+                            تأكيد ✓
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
                 <div className="flex gap-2 pt-1">
                   <input
                     required
@@ -716,6 +763,8 @@ export default function Phone5() {
       <QrCameraScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
+        scopeFacilityId={isFacility ? linkedFacilityId : undefined}
+        scopeCoachId={isCoach ? linkedCoachId : undefined}
         onLedgerCheckedIn={(ledgerId, messageAr) => {
           setSelectedId(ledgerId);
           setMsg({ ok: true, text: messageAr });

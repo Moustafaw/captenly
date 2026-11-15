@@ -4,28 +4,31 @@ import React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { useCaptenly } from "@/context/CaptenlyContext";
 
 export default function Desktop14() {
+  const { isAuthenticated } = useCaptenly();
+
   const roles = [
     {
       key: "adult_athlete",
-      title: "عضو / سبّاح (مع خيار متابعة الأبناء)",
-      desc: "احصل على كود عضوية فريد، قارن الباقات، وفعل دفتر الحصص الـ QR أوفلاين أو أضف أبناءك من داخل نفس الحساب.",
+      title: "سبّاح / متدرب وولي أمر (حساب موحد)",
+      desc: "احصل على كود عضوية فريد (CAP-M)، تابع جدول حصصك وأرقامك القياسية (PB)، ومع إمكانية إضافة ومتابعة أبنائك اختيارياً من نفس الحساب.",
       href: "/auth/register?role=adult_athlete",
-      icon: "person",
+      icon: "pool",
     },
     {
       key: "coach",
       title: "كابتن سباحة (معتمد / متقدم للتوثيق)",
-      desc: "وثّق شهاداتك برقم الهاتف لإصدار الشارات الخضراء، نشر عروض حصصك، وربط المتدربين بكود العضوية.",
-      href: "/claim?mode=coach",
+      desc: "أنشئ حسابك أولاً ثم وثّق شهاداتك برقم الهاتف لإصدار الشارات الخضراء ونشر عروض حصصك.",
+      href: isAuthenticated ? "/claim?mode=coach" : "/auth/register?role=coach",
       icon: "workspace_premium",
     },
     {
       key: "facility_manager",
       title: "إدارة أكاديمية أو مسبح",
-      desc: "طالب بصفحة منشأتك مجاناً، انشر برامج مدارس السباحة، وفعل دفاتر الحصص للمشتركين بـ 0% عمولة.",
-      href: "/claim",
+      desc: "أنشئ حساب الإدارة أولاً ثم طالب بصفحة منشأتك مجاناً وانشر الباقات بـ 0% عمولة.",
+      href: isAuthenticated ? "/claim" : "/auth/register?role=facility_manager",
       icon: "stadium",
     },
   ];

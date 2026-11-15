@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { isMemberAccountRole } from "@/types/captenly";
 
 export default function Desktop8() {
   const {
@@ -20,6 +21,7 @@ export default function Desktop8() {
     checkInBySubscriptionCode,
     renewSwimmerSubscription,
     uploadInstaPayReceipt,
+    confirmReceiptByProvider,
     effectiveOffline,
     isOfflineSimulated,
     toggleOfflineSimulation,
@@ -27,16 +29,22 @@ export default function Desktop8() {
     syncOfflineQueue,
     syncLedgersFromServer,
     activeStaffAssignment,
+    minorAthletes,
   } = useCaptenly();
 
   const isCoach = currentPersona.role === "coach";
   const isFacility =
     currentPersona.role === "facility_manager" || Boolean(activeStaffAssignment);
   const isProvider = isCoach || isFacility;
+  const staffRole = activeStaffAssignment?.role;
+  const canScanAndEnroll =
+    isCoach ||
+    currentPersona.role === "facility_manager" ||
+    (Boolean(activeStaffAssignment) && staffRole !== "accounts_manager");
   const linkedFacilityId =
     activeStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
+  const linkedCoachId = currentPersona.linkedCoachId || currentPersona.id;
 
-  const [facilityScope, setFacilityScope] = useState<"mine" | "all">("mine");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "renewal_due" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnrollForm, setShowEnrollForm] = useState(false);
@@ -54,23 +62,25 @@ export default function Desktop8() {
   const [newFeeEgp, setNewFeeEgp] = useState("");
   const [enrollMsg, setEnrollMsg] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const facilityOwnCount = useMemo(
-    () => sessionLedgers.filter((l) => l.facilityId === linkedFacilityId).length,
-    [sessionLedgers, linkedFacilityId]
-  );
-
   const roleLedgers = useMemo(() => {
     if (isFacility) {
-      if (facilityScope === "mine" && facilityOwnCount > 0) {
-        return sessionLedgers.filter((l) => l.facilityId === linkedFacilityId);
-      }
-      return sessionLedgers;
+      if (!linkedFacilityId) return [];
+      return sessionLedgers.filter((l) => l.facilityId === linkedFacilityId);
     }
     if (isCoach) {
-      return sessionLedgers;
+      return sessionLedgers.filter(
+        (l) => l.coachId === linkedCoachId || l.coachNameAr === currentPersona.fullNameAr
+      );
     }
-    return sessionLedgers.filter((l) => l.athleteId === currentPersona.id);
-  }, [sessionLedgers, currentPersona, isFacility, isCoach, facilityScope, facilityOwnCount, linkedFacilityId]);
+    const isUnifiedMember = isMemberAccountRole(currentPersona.role);
+    return sessionLedgers.filter(
+      (l) =>
+        l.athleteId === currentPersona.id ||
+        (currentPersona.memberCode &&
+          l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+        (isUnifiedMember && minorAthletes.some((m) => m.id === l.athleteId))
+    );
+  }, [sessionLedgers, currentPersona, isFacility, isCoach, linkedFacilityId, linkedCoachId, minorAthletes]);
 
   const filteredLedgers = useMemo(() => {
     return roleLedgers.filter((l) => {
@@ -314,41 +324,16 @@ export default function Desktop8() {
 
                 {isProvider && (
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {isFacility && (
-                      <div className="inline-flex rounded-full bg-surface-snow p-1 border border-surface-container">
-                        <button
-                          type="button"
-                          onClick={() => setFacilityScope("mine")}
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                            facilityScope === "mine"
-                              ? "bg-dark-slate text-electric-volt"
-                              : "text-text-muted hover:text-dark-slate"
-                          }`}
-                        >
-                          منشأتي ({facilityOwnCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFacilityScope("all")}
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                            facilityScope === "all"
-                              ? "bg-dark-slate text-electric-volt"
-                              : "text-text-muted hover:text-dark-slate"
-                          }`}
-                        >
-                          كل المنشآت ({sessionLedgers.length})
-                        </button>
-                      </div>
+                    {canScanAndEnroll && (
+                      <button
+                        type="button"
+                        onClick={() => setScannerOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-sm"
+                      >
+                        <Icon name="qr_code_scanner" className="text-[16px]" />
+                        <span>مسح QR بالكاميرا</span>
+                      </button>
                     )}
-
-                    <button
-                      type="button"
-                      onClick={() => setScannerOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-sm"
-                    >
-                      <Icon name="qr_code_scanner" className="text-[16px]" />
-                      <span>مسح QR بالكاميرا</span>
-                    </button>
 
                     <button
                       type="button"
@@ -364,14 +349,16 @@ export default function Desktop8() {
                       <span>{syncingCloud ? "جاري المزامنة..." : "مزامنة السحابة"}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowEnrollForm((v) => !v)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95 shadow-sm"
-                    >
-                      <Icon name={showEnrollForm ? "close" : "add"} className="text-[16px]" />
-                      <span>{showEnrollForm ? "إغلاق النموذج" : "إضافة دفتر / مشترك جديد"}</span>
-                    </button>
+                    {canScanAndEnroll && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEnrollForm((v) => !v)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95 shadow-sm"
+                      >
+                        <Icon name={showEnrollForm ? "close" : "add"} className="text-[16px]" />
+                        <span>{showEnrollForm ? "إغلاق النموذج" : "إضافة دفتر / مشترك جديد"}</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -399,14 +386,16 @@ export default function Desktop8() {
               )}
 
               {/* Manual Subscription Code Entry Bar for Facility / Coach / Staff */}
-              {isProvider && (
+              {canScanAndEnroll && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (!manualSubCodeInput.trim()) return;
                     const res = checkInBySubscriptionCode(
                       manualSubCodeInput.trim(),
-                      manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً"
+                      isFacility ? linkedFacilityId : undefined,
+                      manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً",
+                      isCoach ? linkedCoachId : undefined
                     );
                     setEnrollMsg({ ok: res.ok, msg: res.messageAr });
                     setCheckinMsg({ ok: res.ok, msg: res.messageAr });
@@ -469,7 +458,7 @@ export default function Desktop8() {
               )}
 
               {/* Inline Add Swimmer / Client Form for Provider */}
-              {isProvider && showEnrollForm && (
+              {canScanAndEnroll && showEnrollForm && (
                 <form
                   onSubmit={handleQuickEnroll}
                   className="rounded-2xl bg-surface-snow p-5 border border-deep-olive/25 flex flex-col gap-4"
@@ -523,7 +512,10 @@ export default function Desktop8() {
                         onChange={(e) => setNewFacilityId(e.target.value)}
                         className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
                       >
-                        {facilities.map((f) => (
+                        {(isFacility && linkedFacilityId
+                          ? facilities.filter((f) => f.id === linkedFacilityId)
+                          : facilities
+                        ).map((f) => (
                           <option key={f.id} value={f.id}>
                             {f.nameAr}
                           </option>
@@ -685,7 +677,11 @@ export default function Desktop8() {
                             />
                           </div>
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-mono text-text-muted">{l.ledgerCode} • PIN {l.pinCode}</span>
+                            <span className="font-mono text-text-muted">
+                              {isProvider
+                                ? l.subscriptionCode || l.ledgerCode
+                                : `${l.ledgerCode} • PIN ${l.pinCode}`}
+                            </span>
                             <span className="font-extrabold text-deep-olive">
                               {l.completedSessions} / {l.totalSessions} حصص
                             </span>
@@ -761,59 +757,71 @@ export default function Desktop8() {
                       })}
                     </div>
 
-                    {/* Check-in Interactive Box */}
-                    <div className="rounded-2xl bg-surface-snow p-5 flex flex-col gap-3">
-                      <div className="font-card-title-sm text-dark-slate">
-                        {isProvider
-                          ? `تسجيل حضور ${activeLedger.athleteNameAr} وخصم الحصة (${effectiveOffline ? "أوفلاين" : "متصل"})`
-                          : `تسجيل وخصم الحصة الحالية (${effectiveOffline ? "وضع أوفلاين" : "متصل"})`}
-                      </div>
-
-                      {checkinMsg && (
-                        <div
-                          className={`p-3 rounded-xl text-xs font-bold ${
-                            checkinMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-800"
-                          }`}
-                        >
-                          {checkinMsg.msg}
+                    {/* Check-in Interactive Box (Facility/Coach/Subscriptions Staff ONLY) */}
+                    {canScanAndEnroll ? (
+                      <div className="rounded-2xl bg-surface-snow p-5 flex flex-col gap-3">
+                        <div className="font-card-title-sm text-dark-slate">
+                          تسجيل حضور {activeLedger.athleteNameAr} وخصم الحصة ({effectiveOffline ? "أوفلاين" : "متصل"})
                         </div>
-                      )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <input
-                          value={pinInput}
-                          onChange={(e) => setPinInput(e.target.value)}
-                          placeholder={`كود الـ PIN (${activeLedger.pinCode})`}
-                          className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
-                        />
-                        <input
-                          value={coachNote}
-                          onChange={(e) => setCoachNote(e.target.value)}
-                          placeholder="ملاحظة الحصة (اختياري)"
-                          className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
-                        />
-                        <button
-                          type="button"
-                          disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
-                          onClick={() => {
-                            const res = checkInSession(
-                              activeLedger.id,
-                              pinInput || activeLedger.pinCode,
-                              pinInput ? "pin_4digit" : "qr_scan",
-                              coachNote
-                            );
-                            setCheckinMsg({ ok: res.ok, msg: res.messageAr });
-                            if (res.ok) {
-                              setPinInput("");
-                              setCoachNote("");
-                            }
-                          }}
-                          className="py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-40"
-                        >
-                          {isProvider ? "خصم حصة بالـ QR / PIN ✓" : "تأكيد الحضور بمسح QR / PIN ✓"}
-                        </button>
+                        {checkinMsg && (
+                          <div
+                            className={`p-3 rounded-xl text-xs font-bold ${
+                              checkinMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-800"
+                            }`}
+                          >
+                            {checkinMsg.msg}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <input
+                            value={pinInput}
+                            onChange={(e) => setPinInput(e.target.value)}
+                            placeholder="أدخل كود الاشتراك أو PIN (4 أرقام)"
+                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                          />
+                          <input
+                            value={coachNote}
+                            onChange={(e) => setCoachNote(e.target.value)}
+                            placeholder="ملاحظة الحصة (اختياري)"
+                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                          />
+                          <button
+                            type="button"
+                            disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
+                            onClick={() => {
+                              const cleanEntry = pinInput.trim();
+                              if (!cleanEntry) {
+                                setCheckinMsg({
+                                  ok: false,
+                                  msg: "يرجى إدخال كود الاشتراك أو الـ PIN أولاً، أو الضغط على «فتح الكاميرا لمسح QR».",
+                                });
+                                return;
+                              }
+                              const res = checkInSession(
+                                activeLedger.id,
+                                cleanEntry,
+                                "pin_4digit",
+                                coachNote
+                              );
+                              setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                              if (res.ok) {
+                                setPinInput("");
+                                setCoachNote("");
+                              }
+                            }}
+                            className="py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-40"
+                          >
+                            خصم حصة بالـ QR / PIN ✓
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : !isProvider ? (
+                      <div className="rounded-2xl bg-surface-snow p-4 text-xs font-bold text-deep-olive border border-surface-container">
+                        اعرض رمز الـ QR أو كود الاشتراك المتجدد أعلاه للكابتن أو مسؤول الاشتراكات في المسبح لتسجيل حضورك تلقائياً.
+                      </div>
+                    ) : null}
 
                     {/* History */}
                     <div className="flex flex-col gap-2">
@@ -938,15 +946,52 @@ export default function Desktop8() {
                       أرشيف إيصالات الدفع المباشر (InstaPay / كاش)
                     </h3>
                     <div className="flex flex-col gap-2">
-                      {activeLedger.receipts.map((r) => (
-                        <div key={r.id} className="rounded-xl bg-surface-snow p-3 flex justify-between text-xs">
-                          <div>
-                            <div className="font-bold text-dark-slate">{r.channel}</div>
-                            <div className="text-text-muted font-mono">مرجع: {r.referenceNumber}</div>
+                      {activeLedger.receipts.map((r) => {
+                        const canConfirmReceipt =
+                          isCoach ||
+                          currentPersona.role === "facility_manager" ||
+                          (Boolean(activeStaffAssignment) &&
+                            (activeStaffAssignment?.role === "accounts_manager" ||
+                              activeStaffAssignment?.role === "general_staff"));
+                        return (
+                          <div
+                            key={r.id}
+                            className="rounded-xl bg-surface-snow p-3 flex flex-col gap-1.5 text-xs border border-surface-container/60"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-dark-slate">{r.channel}</div>
+                                <div className="text-text-muted font-mono">
+                                  مرجع: {r.referenceNumber}
+                                </div>
+                              </div>
+                              <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-surface-container/50">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  r.confirmedByProvider
+                                    ? "bg-lime-tint text-deep-olive"
+                                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                                }`}
+                              >
+                                {r.confirmedByProvider
+                                  ? "✓ مؤكد ومطابق من الحسابات"
+                                  : `⏳ ${r.uploadedDateAr || "بانتظار مراجعة الحسابات"}`}
+                              </span>
+                              {!r.confirmedByProvider && canConfirmReceipt && (
+                                <button
+                                  type="button"
+                                  onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
+                                  className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold hover:opacity-90"
+                                >
+                                  تأكيد الاستلام ✓
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <form
@@ -1016,6 +1061,8 @@ export default function Desktop8() {
       <QrCameraScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
+        scopeFacilityId={isFacility ? linkedFacilityId : undefined}
+        scopeCoachId={isCoach ? linkedCoachId : undefined}
         onLedgerCheckedIn={(ledgerId, messageAr) => {
           setSelectedLedgerId(ledgerId);
           setCheckinMsg({ ok: true, msg: messageAr });

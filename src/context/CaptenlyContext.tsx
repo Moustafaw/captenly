@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
+  AccountIntent,
   Coach,
   CoachSessionOffer,
   DemandRadarEntry,
@@ -13,6 +14,7 @@ import {
   FacilityStaffMember,
   FacilityStaffRole,
   MemberRegistryEntry,
+  MemberRoleClaim,
   MinorAthleteProfile,
   NotificationItem,
   OfflineCheckinQueueItem,
@@ -23,9 +25,16 @@ import {
   SmartFiltersState,
   UserLocation,
   UserSocialLinks,
+  VerificationBadge,
   VerifiedLeadItem,
+  WorkspaceContextMode,
 } from "@/types/captenly";
 import { EGYPT_CITY_PRESETS, calculateDistanceKm } from "@/lib/maps";
+import {
+  getFacilityStartingPriceEgp,
+  resolveGovernorateFromCity,
+  schoolProgramToPricePackage,
+} from "@/lib/facilityPricing";
 import {
   GUEST_PERSONA,
   INITIAL_ARTICLES,
@@ -61,9 +70,11 @@ const DEFAULT_SMART_FILTERS: SmartFiltersState = {
 };
 
 interface CaptenlyContextType {
-  // Active Persona / Auth State
+  // Active Persona / Auth State & Hybrid Workspace Context
   currentPersona: PersonaAccount;
   isAuthenticated: boolean;
+  activeWorkspaceContext: WorkspaceContextMode;
+  switchWorkspaceContext: (mode: WorkspaceContextMode, staffAssignmentId?: string | null) => void;
   authGateModalOpen: boolean;
   authGateFeatureNameAr: string;
   openAuthGateModal: (featureNameAr?: string) => void;
@@ -77,24 +88,90 @@ interface CaptenlyContextType {
     bioAr?: string;
     socialLinks?: UserSocialLinks;
     hasParentSupervision?: boolean;
-  }) => void;
+    accountIntent?: AccountIntent;
+  }) => { ok: boolean; detectedKeyword?: string; messageAr?: string };
   allPersonas: PersonaAccount[];
   isOfflineSimulated: boolean;
   isBrowserOffline: boolean;
   effectiveOffline: boolean;
   toggleOfflineSimulation: () => void;
 
+  // Admin-Reviewed Role Claims (Coach / Facility Verification Queue)
+  roleClaims: MemberRoleClaim[];
+  refreshRoleClaims: (adminMode?: boolean) => Promise<void>;
+  submitRoleClaimApplication: (payload: {
+    claimType: "coach" | "facility";
+    targetFacilityId?: string;
+    fullNameAr?: string;
+    titleAr?: string;
+    phone?: string;
+    city?: string;
+    governorate?: string;
+    district?: string;
+    sportSector?: "swimming" | "fitness" | "both";
+    yearsExperience?: number;
+    bioAr?: string;
+    avatarUrl?: string;
+    whatsappNumber?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    socialLinks?: UserSocialLinks;
+    instapayHandle?: string;
+    privatePackage8Egp?: number;
+    privatePackage12Egp?: number;
+    specialtiesAr?: string[];
+    syndicateCardRef?: string;
+    edlfCertRef?: string;
+    affiliatedFacilityId?: string;
+    managerName?: string;
+    roleTitleAr?: string;
+    commercialRegRef?: string;
+    updatedBasePriceEgp?: number;
+    proofDocumentUrl?: string;
+    proofNotesAr?: string;
+  }) => Promise<{
+    ok: boolean;
+    claim?: MemberRoleClaim;
+    detectedKeyword?: string;
+    messageAr: string;
+  }>;
+  reviewRoleClaim: (
+    claimId: string,
+    decision: "approve" | "reject" | "withdraw",
+    reviewerNoteAr?: string
+  ) => Promise<{ ok: boolean; claim?: MemberRoleClaim; messageAr: string }>;
+
   // Member Codes Registry & Auth Registration
   memberRegistry: MemberRegistryEntry[];
   registerMemberUser: (payload: {
     fullNameAr: string;
     phone: string;
+    email?: string;
     city: string;
     governorate: string;
     sportPreference: "swimming" | "fitness" | "both";
     hasParentSupervision: boolean;
     role: "adult_athlete" | "parent" | "coach" | "facility_manager";
-  }) => { ok: boolean; persona: PersonaAccount; memberCode: string };
+    accountIntent?: AccountIntent;
+  }) => { ok: boolean; persona: PersonaAccount; memberCode: string; nextPath?: string };
+  registerMemberWithCredentials: (payload: {
+    fullNameAr: string;
+    phone: string;
+    email?: string;
+    password: string;
+    city: string;
+    governorate: string;
+    sportPreference: "swimming" | "fitness" | "both";
+    hasParentSupervision: boolean;
+    role: "adult_athlete" | "parent" | "coach" | "facility_manager";
+    accountIntent?: AccountIntent;
+  }) => Promise<{
+    ok: boolean;
+    persona?: PersonaAccount;
+    memberCode?: string;
+    nextPath?: string;
+    messageAr?: string;
+  }>;
   loginOrCreateWithGoogle: (payload: {
     name: string;
     email: string;
@@ -107,17 +184,21 @@ interface CaptenlyContextType {
     image?: string | null;
     isSimulatedPreview?: boolean;
   }) => Promise<{ ok: boolean; isNewUser: boolean; persona: PersonaAccount; memberCode: string }>;
-  restoreProfileByLogin: (query: string) => Promise<{
+  restoreProfileByLogin: (
+    query: string,
+    password?: string
+  ) => Promise<{
     ok: boolean;
     persona?: PersonaAccount;
     messageAr?: string;
   }>;
   completeGoogleOnboarding: (payload: {
     role: "adult_athlete" | "parent" | "coach" | "facility_manager";
+    accountIntent?: AccountIntent;
     phone?: string;
     city?: string;
     hasParentSupervision?: boolean;
-  }) => { ok: boolean; persona: PersonaAccount };
+  }) => { ok: boolean; persona: PersonaAccount; nextPath?: string };
   signOutToGuest: () => void;
 
   // Location & Proximity (Dynamic Geolocation & Coverage Fallback)
@@ -177,6 +258,11 @@ interface CaptenlyContextType {
   myStaffAssignments: FacilityStaffMember[];
   activeStaffAssignment: FacilityStaffMember | null;
   switchToStaffMode: (staffAssignmentId: string | null) => void;
+  respondToStaffInvitation: (
+    facilityId: string,
+    staffId: string,
+    decision: "accepted" | "declined"
+  ) => void;
   addFacilityStaffMember: (
     facilityId: string,
     payload: {
@@ -184,6 +270,7 @@ interface CaptenlyContextType {
       role: FacilityStaffRole;
       roleTitleAr?: string;
       phone?: string;
+      email?: string;
       memberCodeOrQuery?: string;
     }
   ) => { ok: boolean; staff?: FacilityStaffMember; messageAr: string };
@@ -223,8 +310,10 @@ interface CaptenlyContextType {
     phone: string;
     city: string;
     governorate: string;
-    targetSport: "swimming" | "fitness" | "other";
+    targetSport: "swimming" | "fitness" | "both" | "other";
     notes?: string;
+    targetFacilityId?: string;
+    targetFacilityNameAr?: string;
   }) => { ok: boolean; messageAr: string };
   demandSubmissions: DemandRadarSubmission[];
 
@@ -234,6 +323,8 @@ interface CaptenlyContextType {
   minorAthletes: MinorAthleteProfile[];
   pbRecords: PersonalBestRecord[];
   skillEvaluation: SkillEvaluation5Point;
+  skillEvaluationsByAthlete: Record<string, SkillEvaluation5Point>;
+  getSkillEvaluationForAthlete: (athleteId?: string) => SkillEvaluation5Point;
   sessionLedgers: SessionLedger[];
   verifiedLeads: VerifiedLeadItem[];
   demandRadar: DemandRadarEntry[];
@@ -246,8 +337,6 @@ interface CaptenlyContextType {
   clearComparison: () => void;
 
   // Actions across the 3 Engines
-  confirmFacilityPrices60d: (facilityId: string, updatedBasePriceEgp?: number) => void;
-  simulateTimeTravelDays: (facilityId: string, daysAgo: number) => void;
   createStructuredWhatsappLead: (payload: {
     targetType: "facility" | "coach";
     targetId: string;
@@ -285,7 +374,8 @@ interface CaptenlyContextType {
   checkInBySubscriptionCode: (
     codeInput: string,
     facilityId?: string,
-    coachNoteAr?: string
+    coachNoteAr?: string,
+    coachId?: string
   ) => { ok: boolean; expired?: boolean; ledger?: SessionLedger; messageAr: string };
 
   renewSwimmerSubscription: (
@@ -310,6 +400,11 @@ interface CaptenlyContextType {
       packageTitleAr: string;
     }
   ) => void;
+
+  confirmReceiptByProvider: (
+    ledgerId: string,
+    receiptId: string
+  ) => { ok: boolean; messageAr: string };
 
   lookupRemoteLedgersOrProfile: (query: {
     memberCode?: string;
@@ -346,6 +441,22 @@ interface CaptenlyContextType {
     gender: "male" | "female";
     primarySport: "swimming" | "fitness";
   }) => void;
+  updateMinorAthlete: (
+    childId: string,
+    patch: Partial<Pick<MinorAthleteProfile, "fullNameAr" | "age" | "gender" | "primarySport">>
+  ) => void;
+  removeMinorAthlete: (childId: string) => void;
+  lookupStaffCandidatesRemote: (query: string) => Promise<
+    Array<{
+      memberCode: string;
+      fullNameAr: string;
+      phone: string;
+      email?: string;
+      city: string;
+      role: string;
+      avatarUrl?: string;
+    }>
+  >;
 
   // Coach Registration, Verification & Law 3/1985 Filter
   registerAndVerifyCoach: (payload: {
@@ -394,17 +505,13 @@ interface CaptenlyContextType {
   ) => void;
   approveAffiliationMutual: (coachId: string, facilityId: string) => void;
 
-  // Facility Claim, Package Publishing & Admin Concierge
-  publishSchoolPackage: (payload: {
-    facilityId: string;
-    nameAr: string;
-    sessionsCount: number;
-    sessionsPerWeek: number;
-    durationMinutes: number;
-    baseMonthlyEgp: number;
-    assessmentFeeEgp?: number;
-    membershipCardFeeEgp?: number;
-  }) => { ok: boolean; messageAr: string };
+  // Facility Claim & Concierge & Admin Badge Review
+  reviewEntityBadge: (
+    kind: "coach" | "facility",
+    entityId: string,
+    badgeCode: VerificationBadge["code"],
+    nextStatus: "active" | "expired"
+  ) => void;
 
   claimFacilityAndVerify: (
     facilityId: string,
@@ -432,7 +539,6 @@ interface CaptenlyContextType {
     hasLadiesSlots: boolean;
   }) => Facility;
 
-  claimFacilityListing: (facilityId: string, managerName: string, phone: string) => void;
   resetDemoData: () => void;
 }
 
@@ -462,6 +568,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [minorAthletes, setMinorAthletes] = useState<MinorAthleteProfile[]>(INITIAL_MINOR_ATHLETES);
   const [pbRecords, setPbRecords] = useState<PersonalBestRecord[]>(INITIAL_PB_RECORDS);
   const [skillEvaluation, setSkillEvaluation] = useState<SkillEvaluation5Point>(INITIAL_SKILL_EVALUATION);
+  const [skillEvaluationsByAthlete, setSkillEvaluationsByAthlete] = useState<
+    Record<string, SkillEvaluation5Point>
+  >({});
   const [sessionLedgers, setSessionLedgers] = useState<SessionLedger[]>(INITIAL_SESSION_LEDGERS);
   const [verifiedLeads, setVerifiedLeads] = useState<VerifiedLeadItem[]>(INITIAL_VERIFIED_LEADS);
   const [demandRadar, setDemandRadar] = useState<DemandRadarEntry[]>(INITIAL_DEMAND_RADAR);
@@ -490,6 +599,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [articles, setArticles] = useState<EditorialArticle[]>(INITIAL_ARTICLES);
   const [activeStaffAssignmentId, setActiveStaffAssignmentId] = useState<string | null>(null);
+  const [activeWorkspaceContext, setActiveWorkspaceContextState] =
+    useState<WorkspaceContextMode>("member");
+  const [roleClaims, setRoleClaims] = useState<MemberRoleClaim[]>([]);
   const [userSettings, setUserSettings] = useState({
     familyLaw151Consent: false,
     notifyWhatsappSessions: true,
@@ -534,8 +646,25 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           );
         }
         if (parsed.coaches) setCoaches(parsed.coaches);
-        if (parsed.minorAthletes) setMinorAthletes(parsed.minorAthletes);
+        if (parsed.minorAthletes) {
+          setMinorAthletes(
+            (parsed.minorAthletes as MinorAthleteProfile[]).map((m, idx) => ({
+              ...m,
+              childMemberCode:
+                m.childMemberCode ||
+                `CAP-JR-${String(
+                  (parsed.personaId && Array.isArray(parsed.allPersonas)
+                    ? (parsed.allPersonas as PersonaAccount[]).find((p) => p.id === parsed.personaId)?.memberCode || ""
+                    : ""
+                  ).replace(/\D/g, "").slice(-4) || "0000"
+                )}-${String(idx + 1).padStart(2, "0")}`,
+            }))
+          );
+        }
         if (parsed.pbRecords) setPbRecords(parsed.pbRecords);
+        if (parsed.skillEvaluationsByAthlete && typeof parsed.skillEvaluationsByAthlete === "object") {
+          setSkillEvaluationsByAthlete(parsed.skillEvaluationsByAthlete);
+        }
         if (parsed.sessionLedgers) setSessionLedgers(parsed.sessionLedgers);
         if (parsed.verifiedLeads) setVerifiedLeads(parsed.verifiedLeads);
         if (parsed.demandRadar) setDemandRadar(parsed.demandRadar);
@@ -550,6 +679,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (typeof parsed.activeStaffAssignmentId === "string" || parsed.activeStaffAssignmentId === null) {
           setActiveStaffAssignmentId(parsed.activeStaffAssignmentId);
         }
+        if (
+          parsed.activeWorkspaceContext === "member" ||
+          parsed.activeWorkspaceContext === "coach" ||
+          parsed.activeWorkspaceContext === "facility" ||
+          parsed.activeWorkspaceContext === "staff"
+        ) {
+          setActiveWorkspaceContextState(parsed.activeWorkspaceContext);
+        }
         if (parsed.userSettings) setUserSettings(parsed.userSettings);
         if (parsed.newsletterEmails) setNewsletterEmails(parsed.newsletterEmails);
         if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
@@ -557,6 +694,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           const pool = Array.isArray(parsed.allPersonas) ? parsed.allPersonas : PERSONA_ACCOUNTS;
           const found = pool.find((p: PersonaAccount) => p.id === parsed.personaId);
           setCurrentPersona(found || GUEST_PERSONA);
+          if (!parsed.activeWorkspaceContext && found) {
+            setActiveWorkspaceContextState(
+              found.linkedFacilityId || found.role === "facility_manager"
+                ? "facility"
+                : found.linkedCoachId || found.role === "coach"
+                ? "coach"
+                : "member"
+            );
+          }
         } else {
           setCurrentPersona(GUEST_PERSONA);
         }
@@ -631,6 +777,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             return Array.from(byId.values());
           });
         }
+        if (Array.isArray(data.articles) && data.articles.length > 0) {
+          setArticles((prev) => {
+            const byId = new Map(prev.map((a) => [a.id, a]));
+            for (const remoteArt of data.articles as EditorialArticle[]) {
+              if (remoteArt?.id) byId.set(remoteArt.id, remoteArt);
+            }
+            return Array.from(byId.values());
+          });
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -684,6 +839,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           coaches,
           minorAthletes,
           pbRecords,
+          skillEvaluationsByAthlete,
           sessionLedgers,
           verifiedLeads,
           demandRadar,
@@ -694,6 +850,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           notifications,
           articles,
           activeStaffAssignmentId,
+          activeWorkspaceContext,
           userSettings,
           newsletterEmails,
           userLocation,
@@ -710,6 +867,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     coaches,
     minorAthletes,
     pbRecords,
+    skillEvaluationsByAthlete,
     sessionLedgers,
     verifiedLeads,
     demandRadar,
@@ -720,6 +878,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     notifications,
     articles,
     activeStaffAssignmentId,
+    activeWorkspaceContext,
     userSettings,
     newsletterEmails,
     userLocation,
@@ -789,24 +948,272 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [currentPersona.memberCode]);
 
-  const pushNotification = (notif: Omit<NotificationItem, "id" | "isRead" | "timeAr">) => {
-    setNotifications((prev) => [
-      {
-        ...notif,
-        id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        timeAr: "الآن",
-        isRead: false,
-      },
-      ...prev,
-    ]);
-    if (currentPersona.memberCode) {
+  const generateChildSubCode = (parentCode?: string, index = 1): string => {
+    const digits =
+      (parentCode || "").replace(/\D/g, "").slice(-4) ||
+      String(Math.floor(1000 + Math.random() * 8999));
+    const seq = String(Math.max(1, index)).padStart(2, "0");
+    return `CAP-JR-${digits}-${seq}`;
+  };
+
+  const getDefaultWorkspaceContextForPersona = (persona: PersonaAccount): WorkspaceContextMode => {
+    if (persona.linkedFacilityId || persona.role === "facility_manager") return "facility";
+    if (persona.linkedCoachId || persona.role === "coach") return "coach";
+    return "member";
+  };
+
+  const getProfileSyncKey = (persona: PersonaAccount): string => {
+    if (persona.role === "guest" || persona.id === "persona-guest") return "";
+    if (persona.memberCode) return persona.memberCode;
+    return `FAC-${persona.id.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "USER"}`;
+  };
+
+  const refreshRoleClaims = async (adminMode = false) => {
+    if (typeof window === "undefined") return;
+    if (!adminMode && (currentPersona.role === "guest" || currentPersona.id === "persona-guest")) {
+      setRoleClaims([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        adminMode ? "/api/supabase/role-claims?scope=admin" : "/api/supabase/role-claims",
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.ok && Array.isArray(data.claims)) {
+        setRoleClaims(data.claims as MemberRoleClaim[]);
+      }
+    } catch {
+      // Ignore offline/network failures
+    }
+  };
+
+  // Hydrate authoritative role/entity links & role claims when signed in
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRoleClaims([]);
+      return;
+    }
+    let cancelled = false;
+    refreshRoleClaims(false).catch(() => undefined);
+
+    const profileKey = getProfileSyncKey(currentPersona);
+    if (profileKey || currentPersona.email) {
+      const qs = new URLSearchParams();
+      if (profileKey) qs.set("memberCode", profileKey);
+      if (currentPersona.email) qs.set("email", currentPersona.email);
+      fetch(`/api/supabase/sync-profile?${qs.toString()}`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled || !data?.found || !data?.profile) return;
+          const remote = data.profile as {
+            role?: PersonaAccount["role"];
+            linkedFacilityId?: string;
+            linkedCoachId?: string;
+            accountIntent?: AccountIntent;
+            memberCode?: string;
+            hasParentSupervision?: boolean;
+            needsOnboarding?: boolean;
+          };
+          setCurrentPersona((prev) => {
+            if (prev.role === "guest" || prev.id === "persona-guest") return prev;
+            const nextRole = remote.role || prev.role;
+            const nextFacId = remote.linkedFacilityId ?? prev.linkedFacilityId;
+            const nextCoachId = remote.linkedCoachId ?? prev.linkedCoachId;
+            const nextIntent = remote.accountIntent ?? prev.accountIntent;
+            const nextCode = remote.memberCode || prev.memberCode;
+            if (
+              nextRole === prev.role &&
+              nextFacId === prev.linkedFacilityId &&
+              nextCoachId === prev.linkedCoachId &&
+              nextIntent === prev.accountIntent &&
+              nextCode === prev.memberCode
+            ) {
+              return prev;
+            }
+            const nextPersona: PersonaAccount = {
+              ...prev,
+              role: nextRole,
+              linkedFacilityId: nextFacId,
+              linkedCoachId: nextCoachId,
+              accountIntent: nextIntent,
+              memberCode: nextCode,
+              hasParentSupervision:
+                remote.hasParentSupervision ?? prev.hasParentSupervision,
+              needsOnboarding:
+                remote.needsOnboarding !== undefined ? remote.needsOnboarding : prev.needsOnboarding,
+            };
+            setAllPersonas((list) => list.map((p) => (p.id === nextPersona.id ? nextPersona : p)));
+            return nextPersona;
+          });
+        })
+        .catch(() => undefined);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPersona.id, currentPersona.memberCode, isAuthenticated]);
+
+  const persistPrefsToRemote = (
+    prefs: {
+      favorites?: string[];
+      compareIds?: string[];
+      userSettings?: Record<string, unknown>;
+      userLocation?: Record<string, unknown>;
+    },
+    overrideMemberCode?: string
+  ) => {
+    const code = overrideMemberCode || getProfileSyncKey(currentPersona);
+    if (!code) return;
+    postSupabaseSync("/api/supabase/user-state", {
+      type: "prefs",
+      memberCode: code,
+      prefs,
+    });
+  };
+
+  // Hydrate PB records, 5-point evaluations, family minor children, saved prefs, and leads from Supabase
+  useEffect(() => {
+    const profileKey = getProfileSyncKey(currentPersona);
+    if (!profileKey) return;
+    let cancelled = false;
+    const athleteIds = [currentPersona.id, ...minorAthletes.map((m) => m.id)]
+      .filter(Boolean)
+      .join(",");
+
+    fetch(
+      `/api/supabase/user-state?memberCode=${encodeURIComponent(profileKey)}&athleteIds=${encodeURIComponent(athleteIds)}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.ok) return;
+        if (Array.isArray(data.pbRecords) && data.pbRecords.length > 0) {
+          setPbRecords((prev) => {
+            const byId = new Map(prev.map((r) => [r.id, r]));
+            for (const rec of data.pbRecords as PersonalBestRecord[]) {
+              if (rec?.id) byId.set(rec.id, rec);
+            }
+            return Array.from(byId.values());
+          });
+        }
+        if (data.skillEvaluations && typeof data.skillEvaluations === "object") {
+          setSkillEvaluationsByAthlete((prev) => ({
+            ...prev,
+            ...(data.skillEvaluations as Record<string, SkillEvaluation5Point>),
+          }));
+        }
+        if (Array.isArray(data.minorAthletes) && data.minorAthletes.length > 0) {
+          setMinorAthletes((prev) => {
+            const byId = new Map(prev.map((c) => [c.id, c]));
+            let seq = 0;
+            for (const child of data.minorAthletes as MinorAthleteProfile[]) {
+              if (!child?.id) continue;
+              seq += 1;
+              byId.set(child.id, {
+                ...child,
+                childMemberCode:
+                  child.childMemberCode || generateChildSubCode(currentPersona.memberCode, seq),
+                parentMemberCode: child.parentMemberCode || currentPersona.memberCode || undefined,
+              });
+            }
+            return Array.from(byId.values());
+          });
+        }
+        if (data.prefs) {
+          if (Array.isArray(data.prefs.favorites)) {
+            setSavedFavoriteIds(data.prefs.favorites as string[]);
+          }
+          if (Array.isArray(data.prefs.compareIds)) {
+            setCompareFacilityIds(data.prefs.compareIds as string[]);
+          }
+          if (data.prefs.userSettings && typeof data.prefs.userSettings === "object") {
+            setUserSettings((prev) => ({ ...prev, ...data.prefs.userSettings }));
+          }
+          if (data.prefs.userLocation && data.prefs.userLocation.isSpecified) {
+            setUserLocation(data.prefs.userLocation as UserLocation);
+          }
+        }
+      })
+      .catch(() => undefined);
+
+    const leadTargetId = currentPersona.linkedFacilityId || currentPersona.linkedCoachId;
+    if (leadTargetId) {
+      fetch(`/api/supabase/leads?targetId=${encodeURIComponent(leadTargetId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled || !data?.ok || !Array.isArray(data.leads) || data.leads.length === 0) return;
+          setVerifiedLeads((prev) => {
+            const byId = new Map(prev.map((l) => [l.id, l]));
+            for (const item of data.leads as Array<{
+              id: string;
+              facilityId: string;
+              facilityNameAr: string;
+              memberNameAr: string;
+              phone: string;
+              packageNameAr: string;
+              notes?: string;
+              createdAt?: string;
+            }>) {
+              if (!item.id || byId.has(item.id)) continue;
+              byId.set(item.id, {
+                id: item.id,
+                referralCode: `CAP-L-${item.id.slice(-4).toUpperCase()}`,
+                targetType: currentPersona.linkedCoachId ? "coach" : "facility",
+                targetId: item.facilityId,
+                targetNameAr: item.facilityNameAr || currentPersona.fullNameAr,
+                inquirerNameAr: item.memberNameAr || "متدرب كابتنلي",
+                inquirerPhone: item.phone || "",
+                athleteAge: 10,
+                requestedSpecialtyAr: item.packageNameAr || "استفسار باقة تدريب",
+                preferredScheduleAr: item.notes || "عبر واتساب كابتنلي",
+                createdAtAr: item.createdAt ? item.createdAt.slice(0, 10) : "سحابي",
+                repliedWithin2h: true,
+                replyMinutes: 15,
+                convertedToLedger: false,
+              });
+            }
+            return Array.from(byId.values());
+          });
+        })
+        .catch(() => undefined);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPersona.id, currentPersona.memberCode, currentPersona.linkedFacilityId, currentPersona.linkedCoachId]);
+
+  const pushNotification = (
+    notif: Omit<NotificationItem, "id" | "isRead" | "timeAr"> & { targetMemberCode?: string }
+  ) => {
+    const { targetMemberCode, ...rest } = notif;
+    const recipientCode = (targetMemberCode || getProfileSyncKey(currentPersona)).trim();
+    const isForSelf =
+      !targetMemberCode || targetMemberCode.trim() === getProfileSyncKey(currentPersona);
+
+    if (isForSelf) {
+      setNotifications((prev) => [
+        {
+          ...rest,
+          id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          timeAr: "الآن",
+          isRead: false,
+        },
+        ...prev,
+      ]);
+    }
+    if (recipientCode) {
       postSupabaseSync("/api/supabase/notifications", {
-        memberCode: currentPersona.memberCode,
-        titleAr: notif.titleAr,
-        messageAr: notif.messageAr,
-        type: notif.type,
-        actionLabelAr: notif.actionLabelAr,
-        actionHref: notif.actionHref,
+        memberCode: recipientCode,
+        titleAr: rest.titleAr,
+        messageAr: rest.messageAr,
+        type: rest.type,
+        actionLabelAr: rest.actionLabelAr,
+        actionHref: rest.actionHref,
       });
     }
   };
@@ -876,8 +1283,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || effectiveOffline) return;
     await lookupRemoteLedgersOrProfile({
       memberCode: currentPersona.memberCode || undefined,
-      coachId: currentPersona.role === "coach" ? currentPersona.id : undefined,
-      facilityId: currentPersona.linkedFacilityId || undefined,
+      coachId: currentPersona.linkedCoachId || (currentPersona.role === "coach" ? currentPersona.id : undefined),
+      facilityId: currentPersona.linkedFacilityId || activeStaffAssignment?.facilityId || undefined,
     });
   };
 
@@ -1038,15 +1445,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const setUserCity = (city: string, gov = "مصر") => {
     if (!city || city === "كل مصر" || city === "الكل") {
       setUserLocation(DEFAULT_EGYPT_LOCATION);
+      persistPrefsToRemote({ userLocation: DEFAULT_EGYPT_LOCATION as unknown as Record<string, unknown> });
       return;
     }
     const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
     const lat = preset?.lat ?? (city === "طنطا" ? 30.7865 : city === "زفتى" ? 30.7124 : 30.0444);
     const lng = preset?.lng ?? (city === "طنطا" ? 31.0004 : city === "زفتى" ? 31.2423 : 31.2357);
     const dist = facilities.length > 0 ? getNearestFacilityDistance(lat, lng) : 0;
-    const resolvedGov = preset?.governorate || gov;
+    const resolvedGov = resolveGovernorateFromCity(city, preset?.governorate || gov);
 
-    setUserLocation({
+    const nextLoc: UserLocation = {
       city,
       governorate: resolvedGov,
       lat,
@@ -1055,12 +1463,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       isSpecified: true,
       distanceKm: dist,
       isOutsideCoverage: false,
-    });
+    };
+    setUserLocation(nextLoc);
     syncAccountCityFromLocation(city, resolvedGov);
+    persistPrefsToRemote({ userLocation: nextLoc as unknown as Record<string, unknown> });
   };
 
   const resetLocationToAllEgypt = () => {
     setUserLocation(DEFAULT_EGYPT_LOCATION);
+    persistPrefsToRemote({ userLocation: DEFAULT_EGYPT_LOCATION as unknown as Record<string, unknown> });
   };
 
   const requestAutoGeolocation = async () => {
@@ -1111,9 +1522,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       openAuthGateModal("حفظ المنشآت والكباتن في المفضلة");
       return;
     }
-    setSavedFavoriteIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    setSavedFavoriteIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      persistPrefsToRemote({ favorites: next });
+      return next;
+    });
   };
 
   const isFavorite = (id: string) => (isAuthenticated ? savedFavoriteIds.includes(id) : false);
@@ -1130,7 +1543,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
   const updateUserSettings = (newSettings: Partial<typeof userSettings>) => {
-    setUserSettings((prev) => ({ ...prev, ...newSettings }));
+    setUserSettings((prev) => {
+      const next = { ...prev, ...newSettings };
+      persistPrefsToRemote({ userSettings: next as unknown as Record<string, unknown> });
+      return next;
+    });
   };
 
   const subscribeNewsletter = (email: string) => {
@@ -1170,8 +1587,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     phone: string;
     city: string;
     governorate: string;
-    targetSport: "swimming" | "fitness" | "other";
+    targetSport: "swimming" | "fitness" | "both" | "other";
     notes?: string;
+    targetFacilityId?: string;
+    targetFacilityNameAr?: string;
   }) => {
     if (!isAuthenticated) {
       openAuthGateModal("إرسال طلب توافر منشآت في منطقتك");
@@ -1213,8 +1632,12 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     });
 
     pushNotification({
-      titleAr: `طلب توسع في ${entry.city}`,
-      messageAr: `تم حفظ تسجيلك بنجاح في رادار الطلب التفاعلي لمدينة ${entry.city}.`,
+      titleAr: entry.targetFacilityNameAr
+        ? `طلب توفير أسعار: ${entry.targetFacilityNameAr}`
+        : `طلب توسع في ${entry.city}`,
+      messageAr: entry.targetFacilityNameAr
+        ? `تم تسجيل طلبك لأكاديمية ${entry.targetFacilityNameAr} في رادار الطلب التفاعلي.`
+        : `تم حفظ تسجيلك بنجاح في رادار الطلب التفاعلي لمدينة ${entry.city}.`,
       type: "system",
     });
 
@@ -1223,12 +1646,17 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       phone: entry.phone,
       city: entry.city,
       governorate: entry.governorate,
-      targetSport: entry.targetSport === "other" ? "both" : entry.targetSport,
+      targetSport: entry.targetSport,
+      notes: entry.notes,
+      targetFacilityId: entry.targetFacilityId,
+      targetFacilityNameAr: entry.targetFacilityNameAr,
     });
 
     return {
       ok: true,
-      messageAr: `تم تسجيل طلبك لمدينة ${entry.city} بنجاح! سنبلغك فور تفعيل كابتن أو أكاديمية موثقة في نطاقك.`,
+      messageAr: entry.targetFacilityNameAr
+        ? `تم تسجيل طلبك لتوفير أسعار وتوثيق «${entry.targetFacilityNameAr}»! سنقوم بالتواصل معهم وإشعارك فور التفعيل.`
+        : `تم تسجيل طلبك لمدينة ${entry.city} بنجاح! سنبلغك فور تفعيل كابتن أو أكاديمية موثقة في نطاقك.`,
     };
   };
 
@@ -1240,80 +1668,78 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     sportPreference: "swimming" | "fitness" | "both";
     hasParentSupervision: boolean;
     role: "adult_athlete" | "parent" | "coach" | "facility_manager";
+    accountIntent?: AccountIntent;
   }) => {
     const random4 = Math.floor(1000 + Math.random() * 8999);
-    const isFacilityRole = payload.role === "facility_manager";
-    const prefix = payload.role === "coach" ? "CAP-C" : "CAP-M";
-    const memberCode = isFacilityRole ? "" : `${prefix}-${random4}`;
+    const memberCode = `CAP-M-${random4}`;
+    const safeRole: "adult_athlete" | "parent" =
+      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const resolvedIntent: AccountIntent =
+      payload.accountIntent ||
+      (safeRole === "parent" && payload.hasParentSupervision ? "both_self_and_parent" : safeRole === "parent" ? "parent_only" : "self_athlete");
+    const nextPath =
+      payload.role === "coach"
+        ? "/claim?mode=coach"
+        : payload.role === "facility_manager"
+        ? "/claim"
+        : "/dashboard/ledger";
     const newId = `user-${Date.now()}`;
     const firstName = payload.fullNameAr.split(" ")[0];
 
     const newPersona: PersonaAccount = {
       id: newId,
-      role: payload.role,
+      role: safeRole,
+      accountIntent: resolvedIntent,
       memberCode,
-      hasParentSupervision: payload.role === "parent" ? true : payload.hasParentSupervision,
-      shortLabelAr: isFacilityRole
-        ? `إدارة (${firstName})`
-        : `${firstName} (${memberCode})`,
+      hasParentSupervision: safeRole === "parent" || payload.hasParentSupervision,
+      shortLabelAr: `${firstName} (${memberCode})`,
       fullNameAr: payload.fullNameAr,
       personaTitleAr:
-        payload.role === "coach"
-          ? `كابتن مسجّل — كود ${memberCode}`
-          : isFacilityRole
-          ? "مدير منشأة / أكاديمية"
-          : payload.role === "parent" || payload.hasParentSupervision
-          ? `حساب ولي أمر اختياري — ${memberCode}`
-          : `رياضي مستقل — كود ${memberCode}`,
+        safeRole === "parent"
+          ? `سبّاح وولي أمر — كود ${memberCode}`
+          : `سبّاح / متدرب وولي أمر — كود ${memberCode}`,
       city: payload.city,
       phone: payload.phone,
-      descriptionAr: isFacilityRole
-        ? "حساب إدارة منشأة وأكاديمية لإدارة المشتركين والفرق والطاقم والباقات."
-        : "حساب مفعّل بكود عضوية فريد جاهز للربط مع الكباتن والأكاديميات الموثقة.",
+      descriptionAr:
+        "حساب موحد مفعّل بكود عضوية فريد جاهز لمتابعة اشتراكاتك وأبنائك، أو تقديم طلب توثيق ككابتن / منشأة.",
     };
 
     setAllPersonas((prev) => [newPersona, ...prev]);
     setCurrentPersona(newPersona);
     setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState("member");
     applyAccountCityToUserLocation(payload.city, payload.governorate);
 
-    if (payload.role === "adult_athlete" || payload.role === "parent") {
-      const regEntry: MemberRegistryEntry = {
-        memberCode,
-        athleteId: newId,
-        fullNameAr: payload.fullNameAr,
-        phone: payload.phone,
-        city: payload.city,
-        role: payload.role,
-        isMinor: false,
-      };
-      setMemberRegistry((prev) => [regEntry, ...prev]);
-    }
+    const regEntry: MemberRegistryEntry = {
+      memberCode,
+      athleteId: newId,
+      fullNameAr: payload.fullNameAr,
+      phone: payload.phone,
+      city: payload.city,
+      role: safeRole,
+      isMinor: false,
+    };
+    setMemberRegistry((prev) => [regEntry, ...prev]);
 
     pushNotification({
       titleAr: `مرحباً بك في كابتنلي يا ${firstName}!`,
-      messageAr: isFacilityRole
-        ? "تم تفعيل حساب إدارة المنشأة بنجاح. يمكنك الآن توثيق صفحتك وإدارة المشتركين والموظفين والكباتن."
-        : payload.role === "coach"
-        ? `تم إنشاء حسابك ككابتن بكود تعريفي (${memberCode}). يمكنك الآن استكمال توثيق شاراتك ونشر عروضك.`
-        : `تم توليد كود عضويتك الفريد ${memberCode}. عند الاشتراك مع أي أكاديمية سيتولد لك كود اشتراك متجدد خاص بالباقة.`,
+      messageAr:
+        payload.role === "coach" || payload.role === "facility_manager"
+          ? `تم إنشاء حسابك بكود عضويتك (${memberCode}). استكمل الآن طلب التوثيق للمراجعة الإدارية.`
+          : `تم توليد كود عضويتك الفريد ${memberCode}. عند الاشتراك مع أي أكاديمية سيتولد لك كود اشتراك متجدد خاص بالباقة.`,
       type: "school_card",
-      actionLabelAr: isFacilityRole
-        ? "لوحة المنشأة"
-        : payload.role === "coach"
-        ? "لوحة الكابتن"
-        : "عرض حسابي",
-      actionHref: isFacilityRole
-        ? "/dashboard/facility"
-        : payload.role === "coach"
-        ? "/dashboard/coach"
-        : "/dashboard/athlete",
+      actionLabelAr:
+        payload.role === "coach" || payload.role === "facility_manager"
+          ? "استكمال طلب التوثيق"
+          : "عرض حسابي",
+      actionHref: nextPath,
     });
 
     postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: memberCode || `FAC-${random4}`,
+      memberCode,
       fullNameAr: payload.fullNameAr,
-      role: payload.role,
+      role: safeRole,
+      accountIntent: resolvedIntent,
       phone: payload.phone,
       city: payload.city,
       governorate: payload.governorate,
@@ -1322,7 +1748,102 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       needsOnboarding: false,
     });
 
-    return { ok: true, persona: newPersona, memberCode };
+    return { ok: true, persona: newPersona, memberCode, nextPath };
+  };
+
+  const registerMemberWithCredentials: CaptenlyContextType["registerMemberWithCredentials"] = async (
+    payload
+  ) => {
+    const cleanName = payload.fullNameAr.trim();
+    const cleanPhone = payload.phone.trim();
+    const cleanEmail = payload.email?.trim().toLowerCase() || undefined;
+    if (!cleanName || payload.password.length < 6) {
+      return {
+        ok: false,
+        messageAr: "يرجى إدخال الاسم بالكامل وكلمة مرور لا تقل عن 6 أحرف.",
+      };
+    }
+
+    const random4 = Math.floor(1000 + Math.random() * 8999);
+    const dbMemberCode = `CAP-M-${random4}`;
+    const safeRole: "adult_athlete" | "parent" =
+      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const resolvedIntent: AccountIntent =
+      payload.accountIntent ||
+      (safeRole === "parent" && payload.hasParentSupervision ? "both_self_and_parent" : safeRole === "parent" ? "parent_only" : "self_athlete");
+    const nextPath =
+      payload.role === "coach"
+        ? "/claim?mode=coach"
+        : payload.role === "facility_manager"
+        ? "/claim"
+        : "/dashboard/ledger";
+    const cleanCity = (payload.city || "").trim() || "كل مصر";
+    const cleanGov = resolveGovernorateFromCity(cleanCity, payload.governorate || "مصر");
+
+    try {
+      const res = await fetch("/api/auth/member-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          memberCode: dbMemberCode,
+          fullNameAr: cleanName,
+          phone: cleanPhone,
+          email: cleanEmail,
+          password: payload.password,
+          city: cleanCity,
+          governorate: cleanGov,
+          sportPreference: payload.sportPreference,
+          hasParentSupervision: safeRole === "parent" || payload.hasParentSupervision,
+          role: safeRole,
+          accountIntent: resolvedIntent,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok || !data?.profile) {
+        return {
+          ok: false,
+          messageAr:
+            data?.messageAr ||
+            "تعذر إتمام التسجيل في قاعدة البيانات حالياً. تأكد من عدم تكرار رقم الهاتف أو البريد الإلكتروني.",
+        };
+      }
+
+      const persistedPersona = hydratePersonaFromRemoteProfile({
+        ...data.profile,
+        memberCode: data.profile.memberCode || dbMemberCode,
+        accountIntent: resolvedIntent,
+      });
+      setActiveWorkspaceContextState("member");
+      applyAccountCityToUserLocation(cleanCity, cleanGov);
+
+      pushNotification({
+        targetMemberCode: dbMemberCode,
+        titleAr: `مرحباً بك في كابتنلي يا ${cleanName.split(" ")[0]}!`,
+        messageAr:
+          payload.role === "coach" || payload.role === "facility_manager"
+            ? `تم إنشاء حسابك بكود (${dbMemberCode}). يمكنك الآن إرسال طلب التوثيق ككابتن أو إدارة منشأة للمراجعة.`
+            : `تم إنشاء حسابك بكود عضويتك الفريد ${dbMemberCode} وتشفير بيانات الدخول بنجاح.`,
+        type: "school_card",
+        actionLabelAr:
+          payload.role === "coach" || payload.role === "facility_manager"
+            ? "استكمال التوثيق الآن"
+            : "عرض حسابي",
+        actionHref: nextPath,
+      });
+
+      return {
+        ok: true,
+        persona: persistedPersona,
+        memberCode: persistedPersona.memberCode || dbMemberCode,
+        nextPath,
+      };
+    } catch {
+      return {
+        ok: false,
+        messageAr: "تعذر الاتصال بالخادم لتسجيل الحساب. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.",
+      };
+    }
   };
 
   const generateUniqueMemberCode = (prefix: "CAP-M" | "CAP-C" | "CAP-F") => {
@@ -1448,6 +1969,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   const completeGoogleOnboarding = (payload: {
     role: "adult_athlete" | "parent" | "coach" | "facility_manager";
+    accountIntent?: AccountIntent;
     phone?: string;
     city?: string;
     hasParentSupervision?: boolean;
@@ -1462,74 +1984,98 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       ? existingSuffix
       : String(Math.floor(1000 + Math.random() * 8999));
 
-    const isFacilityRole = payload.role === "facility_manager";
-    const prefix = payload.role === "coach" ? "CAP-C" : "CAP-M";
-    const nextCode = isFacilityRole ? "" : `${prefix}-${validDigits}`;
+    const safeRole: "adult_athlete" | "parent" =
+      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const resolvedIntent: AccountIntent =
+      payload.accountIntent ||
+      (safeRole === "parent" && payload.hasParentSupervision
+        ? "both_self_and_parent"
+        : safeRole === "parent"
+        ? "parent_only"
+        : "self_athlete");
+    const nextCode =
+      currentPersona.memberCode && /^CAP-M-\d+/i.test(currentPersona.memberCode)
+        ? currentPersona.memberCode
+        : `CAP-M-${validDigits}`;
+    const nextPath =
+      payload.role === "coach"
+        ? "/claim?mode=coach"
+        : payload.role === "facility_manager"
+        ? "/claim"
+        : "/dashboard/athlete";
 
     const roleTitleMap: Record<PersonaAccount["role"], string> = {
       guest: "زائر كابتنلي",
-      adult_athlete: `رياضي مستقل — كود ${nextCode}`,
-      parent: `حساب ولي أمر عائلي — ${nextCode}`,
-      coach: `كابتن مسجّل — ${nextCode}`,
-      facility_manager: "إدارة منشأة / أكاديمية",
+      adult_athlete: `سبّاح / متدرب وولي أمر — كود ${nextCode}`,
+      parent: `سبّاح وولي أمر — ${nextCode}`,
+      coach: `كابتن معتمد — ${nextCode}`,
+      facility_manager: `إدارة منشأة / أكاديمية — ${nextCode}`,
       super_admin: "مشرف منصة كابتنلي",
     };
 
+    const preservedRole =
+      currentPersona.role === "coach" ||
+      currentPersona.role === "facility_manager" ||
+      currentPersona.role === "super_admin"
+        ? currentPersona.role
+        : safeRole;
+
     const updatedPersona: PersonaAccount = {
       ...currentPersona,
-      role: payload.role,
+      role: preservedRole,
+      accountIntent: resolvedIntent,
       memberCode: nextCode,
       phone: cleanPhone,
       city: cleanCity,
       hasParentSupervision:
-        payload.role === "parent" ? true : Boolean(payload.hasParentSupervision),
+        safeRole === "parent" ? true : Boolean(payload.hasParentSupervision),
       needsOnboarding: false,
-      shortLabelAr: isFacilityRole ? `إدارة (${firstName})` : `${firstName} (${nextCode})`,
-      personaTitleAr: roleTitleMap[payload.role],
+      shortLabelAr: `${firstName} (${nextCode})`,
+      personaTitleAr: roleTitleMap[preservedRole],
     };
 
     setCurrentPersona(updatedPersona);
     setAllPersonas((prev) =>
       prev.map((p) => (p.id === currentPersona.id ? updatedPersona : p))
     );
+    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(updatedPersona));
     applyAccountCityToUserLocation(cleanCity);
 
-    if (payload.role === "adult_athlete" || payload.role === "parent") {
-      setMemberRegistry((prev) => {
-        const hasEntry = prev.some((m) => m.athleteId === currentPersona.id);
-        if (hasEntry) {
-          return prev.map((m) =>
-            m.athleteId === currentPersona.id
-              ? {
-                  ...m,
-                  memberCode: nextCode,
-                  phone: cleanPhone,
-                  city: cleanCity,
-                  role: payload.role === "parent" ? "parent" : "adult_athlete",
-                }
-              : m
-          );
-        }
-        return [
-          {
-            memberCode: nextCode,
-            athleteId: currentPersona.id,
-            fullNameAr: currentPersona.fullNameAr,
-            phone: cleanPhone,
-            city: cleanCity,
-            role: payload.role === "parent" ? "parent" : "adult_athlete",
-            isMinor: false,
-          },
-          ...prev,
-        ];
-      });
-    }
+    setMemberRegistry((prev) => {
+      const hasEntry = prev.some((m) => m.athleteId === currentPersona.id);
+      if (hasEntry) {
+        return prev.map((m) =>
+          m.athleteId === currentPersona.id
+            ? {
+                ...m,
+                memberCode: nextCode,
+                phone: cleanPhone,
+                city: cleanCity,
+                role: safeRole,
+              }
+            : m
+        );
+      }
+      return [
+        {
+          memberCode: nextCode,
+          athleteId: currentPersona.id,
+          fullNameAr: currentPersona.fullNameAr,
+          phone: cleanPhone,
+          city: cleanCity,
+          role: safeRole,
+          isMinor: false,
+        },
+        ...prev,
+      ];
+    });
 
     postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: nextCode || `FAC-${validDigits}`,
+      memberCode: nextCode,
       email: updatedPersona.email,
       fullNameAr: updatedPersona.fullNameAr,
       role: updatedPersona.role,
+      accountIntent: resolvedIntent,
       phone: updatedPersona.phone,
       city: updatedPersona.city,
       avatarUrl: updatedPersona.avatarUrl,
@@ -1540,7 +2086,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       linkedCoachId: updatedPersona.linkedCoachId,
     });
 
-    return { ok: true, persona: updatedPersona };
+    return { ok: true, persona: updatedPersona, nextPath };
   };
 
   const hydratePersonaFromRemoteProfile = (remote: {
@@ -1550,6 +2096,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     email?: string;
     fullNameAr: string;
     role: PersonaAccount["role"];
+    accountIntent?: AccountIntent;
     phone?: string;
     city?: string;
     governorate?: string;
@@ -1564,30 +2111,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   }): PersonaAccount => {
     const firstName = remote.fullNameAr.split(" ")[0] || "عضو";
     const isFacilityRole = remote.role === "facility_manager";
-    const cleanCode = isFacilityRole ? "" : remote.memberCode || "";
-    const resolvedLinkedFac =
-      remote.linkedFacilityId ||
-      (isFacilityRole && remote.phone
-        ? facilities.find(
-            (f) =>
-              f.supplyStatus !== "seeded_unclaimed" &&
-              f.whatsappNumber &&
-              remote.phone &&
-              f.whatsappNumber.slice(-9) === remote.phone.replace(/\D/g, "").slice(-9)
-          )?.id
-        : undefined);
-    const resolvedLinkedCoach =
-      remote.linkedCoachId ||
-      (remote.role === "coach"
-        ? coaches.find((c) => c.SingleCoachId === cleanCode || c.fullNameAr === remote.fullNameAr)?.id
-        : undefined);
+    const cleanCode = remote.memberCode || "";
+    const resolvedLinkedFac = remote.linkedFacilityId || undefined;
+    const resolvedLinkedCoach = remote.linkedCoachId || undefined;
 
     const roleTitles: Record<PersonaAccount["role"], string> = {
       guest: "زائر كابتنلي",
-      adult_athlete: `رياضي مسجّل — كود ${cleanCode || "CAP-M"}`,
-      parent: `حساب ولي أمر عائلي — ${cleanCode || "CAP-M"}`,
-      coach: `كابتن مسجّل — ${cleanCode || "CAP-C"}`,
-      facility_manager: "إدارة منشأة / أكاديمية",
+      adult_athlete: `سبّاح / متدرب وولي أمر — كود ${cleanCode || "CAP-M"}`,
+      parent: `سبّاح وولي أمر — ${cleanCode || "CAP-M"}`,
+      coach: `كابتن معتمد — ${cleanCode || "CAP-M"}`,
+      facility_manager: `إدارة منشأة / أكاديمية${cleanCode ? ` — ${cleanCode}` : ""}`,
       super_admin: "مشرف منصة كابتنلي",
     };
 
@@ -1604,6 +2137,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           ? `google-${remote.email.toLowerCase().replace(/[^a-z0-9]/g, "-")}`
           : `user-${remote.dbProfileKey || remote.id || Date.now()}`),
       role: remote.role || "adult_athlete",
+      accountIntent: remote.accountIntent ?? existing?.accountIntent,
       memberCode: cleanCode,
       hasParentSupervision: Boolean(remote.hasParentSupervision),
       avatarUrl: remote.avatarUrl || existing?.avatarUrl || undefined,
@@ -1621,8 +2155,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       phone: remote.phone || existing?.phone || "",
       bioAr: remote.bioAr ?? existing?.bioAr,
       socialLinks: remote.socialLinks ?? existing?.socialLinks,
-      linkedFacilityId: resolvedLinkedFac || existing?.linkedFacilityId,
-      linkedCoachId: resolvedLinkedCoach || existing?.linkedCoachId,
+      linkedFacilityId: resolvedLinkedFac,
+      linkedCoachId: resolvedLinkedCoach,
       descriptionAr:
         existing?.descriptionAr ||
         "حساب محفوظ ومزامن عبر كابتنلي لاستعادة كافة البيانات عبر الأجهزة.",
@@ -1631,9 +2165,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setAllPersonas((prev) => [persona, ...prev.filter((p) => p.id !== persona.id && (!persona.email || p.email?.toLowerCase() !== persona.email.toLowerCase()))]);
     setCurrentPersona(persona);
     setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(persona));
     applyAccountCityToUserLocation(persona.city, remote.governorate);
 
-    if ((persona.role === "adult_athlete" || persona.role === "parent") && cleanCode) {
+    if (cleanCode) {
       setMemberRegistry((prev) => {
         if (prev.some((m) => m.memberCode.toUpperCase() === cleanCode.toUpperCase())) return prev;
         return [
@@ -1691,66 +2226,71 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return loginOrCreateWithGoogle(payload);
   };
 
-  const restoreProfileByLogin: CaptenlyContextType["restoreProfileByLogin"] = async (query) => {
+  const restoreProfileByLogin: CaptenlyContextType["restoreProfileByLogin"] = async (
+    query,
+    password = ""
+  ) => {
     const clean = query.trim();
     if (!clean) {
-      return { ok: false, messageAr: "يرجى إدخال رقم الموبايل أو كود العضوية." };
+      return { ok: false, messageAr: "يرجى إدخال كود العضوية أو رقم الموبايل أو البريد الإلكتروني." };
     }
-    const upper = clean.toUpperCase();
-    const digits = clean.replace(/\D/g, "");
-    const tail10 = digits.length >= 9 ? digits.slice(-10) : "";
-
-    const localMatch = allPersonas.find(
-      (p) =>
-        p.role !== "guest" &&
-        ((p.memberCode && p.memberCode.toUpperCase() === upper) ||
-          (p.phone && p.phone.trim() === clean) ||
-          (tail10 && p.phone && p.phone.replace(/\D/g, "").endsWith(tail10)))
-    );
-
-    if (localMatch) {
-      switchPersona(localMatch.id);
-      if (localMatch.memberCode || localMatch.linkedFacilityId || localMatch.linkedCoachId) {
-        lookupRemoteLedgersOrProfile({
-          memberCode: localMatch.memberCode || undefined,
-          coachId: localMatch.linkedCoachId || (localMatch.role === "coach" ? localMatch.id : undefined),
-          facilityId: localMatch.linkedFacilityId || undefined,
-        }).catch(() => undefined);
-      }
-      return { ok: true, persona: localMatch };
+    if (!password) {
+      return { ok: false, messageAr: "يرجى إدخال كلمة المرور للمتابعة." };
     }
 
     try {
-      const param =
-        upper.startsWith("CAP-") || upper.startsWith("FAC-")
-          ? `memberCode=${encodeURIComponent(upper)}`
-          : `phone=${encodeURIComponent(clean)}`;
-      const res = await fetch(`/api/supabase/sync-profile?${param}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.found && data?.profile) {
-          const restored = hydratePersonaFromRemoteProfile(data.profile);
-          return { ok: true, persona: restored };
-        }
+      const res = await fetch("/api/auth/member-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          query: clean,
+          password,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok && data?.profile) {
+        const restored = hydratePersonaFromRemoteProfile(data.profile);
+        return { ok: true, persona: restored };
       }
+      return {
+        ok: false,
+        messageAr:
+          data?.messageAr ||
+          "بيانات الدخول غير صحيحة أو الحساب غير موجود.",
+      };
     } catch {
-      // Network offline fallback
+      return {
+        ok: false,
+        messageAr: "تعذر الاتصال بالخادم للتحقق من كلمة المرور. يرجى المحاولة مجدداً.",
+      };
     }
-
-    return {
-      ok: false,
-      messageAr:
-        "لم نعثر على حساب مسجّل بهذا الرقم أو الكود. يمكنك إنشاء حساب جديد خلال 30 ثانية أو الدخول بحساب Google.",
-    };
   };
 
   const signOutToGuest = () => {
+    if (typeof window !== "undefined") {
+      fetch("/api/auth/member-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      }).catch(() => {});
+    }
     const guest =
       allPersonas.find((p) => p.role === "guest") ||
       PERSONA_ACCOUNTS.find((p) => p.role === "guest") ||
       PERSONA_ACCOUNTS[0];
     setCurrentPersona(guest);
     setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState("member");
+    setRoleClaims([]);
+    setSavedFavoriteIds([]);
+    setCompareFacilityIds([]);
+    setMinorAthletes([]);
+    setPbRecords([]);
+    setSkillEvaluationsByAthlete({});
+    setSkillEvaluation(INITIAL_SKILL_EVALUATION);
+    setVerifiedLeads([]);
+    setNotifications([]);
   };
 
   const switchPersona = (personaId: string) => {
@@ -1758,6 +2298,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     if (target) {
       setCurrentPersona(target);
       setActiveStaffAssignmentId(null);
+      setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(target));
       if (target.role !== "guest") {
         applyAccountCityToUserLocation(target.city);
       }
@@ -1780,14 +2321,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       );
     }
     if (currentPersona.role !== "guest") {
-      const profileKey =
-        currentPersona.memberCode ||
-        `FAC-${currentPersona.id.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "USER"}`;
+      const profileKey = getProfileSyncKey(currentPersona);
       postSupabaseSync("/api/supabase/sync-profile", {
         memberCode: profileKey,
         email: currentPersona.email,
         fullNameAr: currentPersona.fullNameAr,
         role: currentPersona.role,
+        accountIntent: currentPersona.accountIntent,
         phone: currentPersona.phone,
         city: currentPersona.city,
         avatarUrl: avatarDataUrl,
@@ -1807,67 +2347,105 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     bioAr?: string;
     socialLinks?: UserSocialLinks;
     hasParentSupervision?: boolean;
+    accountIntent?: AccountIntent;
   }) => {
-    setCurrentPersona((prev) => {
-      const next: PersonaAccount = {
-        ...prev,
-        ...(patch.fullNameAr !== undefined ? { fullNameAr: patch.fullNameAr } : {}),
-        ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
-        ...(patch.city !== undefined ? { city: patch.city } : {}),
-        ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
-        ...(patch.socialLinks !== undefined
-          ? { socialLinks: { ...(prev.socialLinks || {}), ...patch.socialLinks } }
-          : {}),
-        ...(patch.hasParentSupervision !== undefined
-          ? { hasParentSupervision: patch.hasParentSupervision }
-          : {}),
-      };
-      setAllPersonas((list) => list.map((p) => (p.id === next.id ? next : p)));
-
-      if (next.linkedCoachId) {
-        setCoaches((list) =>
-          list.map((c) => {
-            if (c.id !== next.linkedCoachId) return c;
-            const nextCoach: Coach = {
-              ...c,
-              ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
-              ...(patch.socialLinks !== undefined
-                ? {
-                    socialLinks: { ...(c.socialLinks || {}), ...patch.socialLinks },
-                    facebookUrl: patch.socialLinks.facebook ?? c.facebookUrl,
-                    instagramUrl: patch.socialLinks.instagram ?? c.instagramUrl,
-                  }
-                : {}),
-            };
-            syncCoachToSupabase(nextCoach);
-            return nextCoach;
-          })
-        );
+    if (currentPersona.linkedCoachId && patch.bioAr !== undefined) {
+      const linkedCoach = coaches.find((c) => c.id === currentPersona.linkedCoachId);
+      const hasMedicalLicense = linkedCoach?.badges.some(
+        (b) => b.code === "BADGE_06_MEDICAL_PT" && b.status === "active"
+      );
+      if (!hasMedicalLicense) {
+        const detected = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => patch.bioAr?.includes(kw));
+        if (detected) {
+          return {
+            ok: false,
+            detectedKeyword: detected,
+            messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): يرجى إزالة مصطلح «${detected}» لغير الأطباء المرخصين.`,
+          };
+        }
       }
+    }
 
-      if (next.role !== "guest") {
-        const profileKey =
-          next.memberCode ||
-          `FAC-${next.id.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "USER"}`;
-        postSupabaseSync("/api/supabase/sync-profile", {
-          memberCode: profileKey,
-          email: next.email,
-          fullNameAr: next.fullNameAr,
-          role: next.role,
-          phone: next.phone,
-          city: next.city,
-          avatarUrl: next.avatarUrl,
-          bioAr: next.bioAr,
-          socialLinks: next.socialLinks,
-          authProvider: next.authProvider || "captenly",
-          hasParentSupervision: next.hasParentSupervision,
-          needsOnboarding: Boolean(next.needsOnboarding),
-          linkedFacilityId: next.linkedFacilityId,
-          linkedCoachId: next.linkedCoachId,
-        });
-      }
-      return next;
-    });
+    const next: PersonaAccount = {
+      ...currentPersona,
+      ...(patch.fullNameAr !== undefined ? { fullNameAr: patch.fullNameAr } : {}),
+      ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+      ...(patch.city !== undefined ? { city: patch.city } : {}),
+      ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
+      ...(patch.socialLinks !== undefined
+        ? { socialLinks: { ...(currentPersona.socialLinks || {}), ...patch.socialLinks } }
+        : {}),
+      ...(patch.hasParentSupervision !== undefined
+        ? { hasParentSupervision: patch.hasParentSupervision }
+        : {}),
+      ...(patch.accountIntent !== undefined ? { accountIntent: patch.accountIntent } : {}),
+    };
+
+    setCurrentPersona(next);
+    setAllPersonas((list) => list.map((p) => (p.id === next.id ? next : p)));
+
+    if (next.linkedCoachId) {
+      setCoaches((list) =>
+        list.map((c) => {
+          if (c.id !== next.linkedCoachId) return c;
+          const nextCoach: Coach = {
+            ...c,
+            ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
+            ...(patch.socialLinks !== undefined
+              ? {
+                  socialLinks: { ...(c.socialLinks || {}), ...patch.socialLinks },
+                  facebookUrl: patch.socialLinks.facebook ?? c.facebookUrl,
+                  instagramUrl: patch.socialLinks.instagram ?? c.instagramUrl,
+                }
+              : {}),
+          };
+          syncCoachToSupabase(nextCoach);
+          return nextCoach;
+        })
+      );
+    }
+
+    if (next.linkedFacilityId) {
+      updateFacilityAndSync(next.linkedFacilityId, (f) => ({
+        ...f,
+        ...(patch.city && patch.city !== "كل مصر"
+          ? {
+              city: patch.city,
+              governorate: resolveGovernorateFromCity(patch.city, f.governorate),
+            }
+          : {}),
+        ...(patch.bioAr !== undefined ? { publicDescriptionAr: patch.bioAr } : {}),
+        ...(patch.socialLinks?.facebook !== undefined
+          ? { facebookUrl: patch.socialLinks.facebook || f.facebookUrl }
+          : {}),
+        ...(patch.socialLinks?.instagram !== undefined
+          ? { instagramUrl: patch.socialLinks.instagram || f.instagramUrl }
+          : {}),
+      }));
+    }
+
+    if (next.role !== "guest") {
+      const profileKey = getProfileSyncKey(next);
+      postSupabaseSync("/api/supabase/sync-profile", {
+        memberCode: profileKey,
+        email: next.email,
+        fullNameAr: next.fullNameAr,
+        role: next.role,
+        accountIntent: next.accountIntent,
+        phone: next.phone,
+        city: next.city,
+        avatarUrl: next.avatarUrl,
+        bioAr: next.bioAr,
+        socialLinks: next.socialLinks,
+        authProvider: next.authProvider || "captenly",
+        hasParentSupervision: next.hasParentSupervision,
+        needsOnboarding: Boolean(next.needsOnboarding),
+        linkedFacilityId: next.linkedFacilityId,
+        linkedCoachId: next.linkedCoachId,
+      });
+    }
+
+    return { ok: true, messageAr: "تم حفظ تحديثات الملف بنجاح." };
   };
 
   const toggleOfflineSimulation = () => {
@@ -1875,15 +2453,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleCompareFacility = (facilityId: string) => {
-    if (!isAuthenticated) {
-      openAuthGateModal("مقارنة المنشآت والباقات");
-      return {
-        ok: false,
-        messageAr: "يرجى تسجيل الدخول أو إنشاء حساب في Captenly للمقارنة بين المنشآت.",
-      };
-    }
     if (compareFacilityIds.includes(facilityId)) {
-      setCompareFacilityIds((prev) => prev.filter((id) => id !== facilityId));
+      const next = compareFacilityIds.filter((id) => id !== facilityId);
+      setCompareFacilityIds(next);
+      persistPrefsToRemote({ compareIds: next });
       return { ok: true };
     }
     if (compareFacilityIds.length >= 4) {
@@ -1892,51 +2465,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         messageAr: "الحد الأقصى للمقارنة الجانبية هو 4 منشآت في شاشة واحدة (MVP-04).",
       };
     }
-    setCompareFacilityIds((prev) => [...prev, facilityId]);
+    const next = [...compareFacilityIds, facilityId];
+    setCompareFacilityIds(next);
+    persistPrefsToRemote({ compareIds: next });
     return { ok: true };
   };
 
-  const clearComparison = () => setCompareFacilityIds([]);
-
-  const confirmFacilityPrices60d = (facilityId: string, updatedBasePriceEgp?: number) => {
-    setFacilities((prev) =>
-      prev.map((fac) => {
-        if (fac.id !== facilityId) return fac;
-        const updatedPackages =
-          updatedBasePriceEgp && fac.pricePackages.length > 0
-            ? fac.pricePackages.map((pkg, idx) =>
-                idx === 0 ? { ...pkg, baseMonthlyEgp: updatedBasePriceEgp } : pkg
-              )
-            : fac.pricePackages;
-        return {
-          ...fac,
-          priceLastVerifiedDaysAgo: 0,
-          priceLastVerifiedDate: "اليوم — موثق ومؤكد",
-          pricePackages: updatedPackages,
-        };
-      })
-    );
-  };
-
-  const simulateTimeTravelDays = (facilityId: string, daysAgo: number) => {
-    setFacilities((prev) =>
-      prev.map((fac) =>
-        fac.id === facilityId
-          ? {
-              ...fac,
-              priceLastVerifiedDaysAgo: daysAgo,
-              priceLastVerifiedDate:
-                daysAgo === 0
-                  ? "اليوم (محدث)"
-                  : daysAgo <= 60
-                  ? `منذ ${daysAgo} يوماً (أخضر نشط)`
-                  : daysAgo <= 119
-                  ? `منذ ${daysAgo} يوماً (فترة تذكير 61-119)`
-                  : `منذ ${daysAgo} يوماً (أكثر من 120 يوم — قديم)`,
-            }
-          : fac
-      )
-    );
+  const clearComparison = () => {
+    setCompareFacilityIds([]);
+    persistPrefsToRemote({ compareIds: [] });
   };
 
   const createStructuredWhatsappLead = (payload: {
@@ -2046,14 +2583,25 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       ? `CAP-M-${rawCode.replace(/[^A-Z0-9]/g, "").slice(-4) || Math.floor(1000 + Math.random() * 8999)}`
       : `CAP-M-${Math.floor(1000 + Math.random() * 8999)}`;
 
-    const regMatch = memberRegistry.find((m) => m.memberCode.toUpperCase() === normalizedCode);
+    const regMatch = memberRegistry.find(
+      (m) =>
+        m.memberCode.toUpperCase() === normalizedCode ||
+        (m.childMemberCode || "").toUpperCase() === normalizedCode
+    );
+    const minorMatch = minorAthletes.find(
+      (c) =>
+        (c.childMemberCode || "").toUpperCase() === normalizedCode ||
+        c.id.toUpperCase() === rawCode
+    );
     const personaMatch = allPersonas.find((p) => (p.memberCode || "").toUpperCase() === normalizedCode);
     const targetFacility = facilities.find((f) => f.id === payload.facilityId);
     const targetCoach = coaches.find((c) => c.id === payload.coachId);
 
-    const athleteId = regMatch?.athleteId || personaMatch?.id || `member-${normalizedCode}`;
+    const athleteId =
+      minorMatch?.id || regMatch?.athleteId || personaMatch?.id || `member-${normalizedCode}`;
     const athleteNameAr =
       payload.athleteNameAr?.trim() ||
+      minorMatch?.fullNameAr ||
       regMatch?.fullNameAr ||
       personaMatch?.fullNameAr ||
       `مشترك (${normalizedCode})`;
@@ -2077,8 +2625,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       memberCode: normalizedCode,
       athleteId,
       athleteNameAr,
-      isMinor: Boolean(payload.isMinor ?? regMatch?.isMinor),
-      parentNameAr: payload.parentNameAr || regMatch?.parentNameAr,
+      isMinor: Boolean(payload.isMinor ?? (minorMatch ? true : regMatch?.isMinor)),
+      parentNameAr: payload.parentNameAr || (minorMatch ? currentPersona.fullNameAr : regMatch?.parentNameAr),
       coachId: targetCoach?.id || targetFacility?.id || currentPersona.id,
       coachNameAr:
         targetCoach?.fullNameAr ||
@@ -2156,7 +2704,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           fullNameAr: athleteNameAr,
           phone: personaMatch?.phone || "",
           city: targetFacility?.city || currentPersona.city || "مصر",
-          role: payload.isMinor ? "parent" : "adult_athlete",
+          role: "adult_athlete",
           isMinor: payload.isMinor,
           parentNameAr: payload.parentNameAr,
         },
@@ -2176,7 +2724,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       postSupabaseSync("/api/supabase/notifications", {
         memberCode: normalizedCode,
         titleAr: `تم تفعيل اشتراكك (${payload.totalSessions} حصص) — كود الاشتراك: ${subscriptionCode}`,
-        messageAr: `أهلاً ${athleteNameAr} — تم تفعيل باقتك (${trackLabelAr}) في ${targetFacility?.nameAr || currentPersona.fullNameAr}. كود اشتراكك لهذه الباقة هو ${subscriptionCode} (PIN: ${pinCode}).`,
+        messageAr: `أهلاً ${athleteNameAr} — تم تفعيل باقتك (${trackLabelAr}) في ${targetFacility?.nameAr || currentPersona.fullNameAr}. كود اشتراكك لهذه الباقة هو ${subscriptionCode}.`,
         type: "session_reminder",
         actionLabelAr: "عرض كود الاشتراك والـ QR",
         actionHref: "/dashboard/ledger",
@@ -2214,15 +2762,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
 
     const cleanInput = enteredPinOrQr.trim().toUpperCase();
+    const hasUnmaskedPin = Boolean(targetLedger.pinCode && targetLedger.pinCode !== "****");
     if (
       method === "pin_4digit" &&
-      cleanInput !== targetLedger.pinCode &&
+      !(hasUnmaskedPin && cleanInput === targetLedger.pinCode.toUpperCase()) &&
       cleanInput !== subCode.toUpperCase() &&
       cleanInput !== targetLedger.ledgerCode.toUpperCase()
     ) {
       return {
         ok: false,
-        messageAr: `كود الاشتراك أو الـ PIN غير صحيح! كود الاشتراك الحالي هو: ${subCode} (أو PIN: ${targetLedger.pinCode})`,
+        messageAr: `كود الاشتراك أو الـ PIN غير صحيح! يرجى التحقق من كود الاشتراك الحالي (${subCode}) أو مسح رمز QR الخاص بالسباح.`,
       };
     }
 
@@ -2305,7 +2854,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const checkInBySubscriptionCode = (
     codeInput: string,
     facilityId?: string,
-    coachNoteAr?: string
+    coachNoteAr?: string,
+    coachId?: string
   ) => {
     const raw = codeInput.trim();
     if (!raw) {
@@ -2318,10 +2868,12 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       cleaned = (parts[1] || "").trim().toUpperCase();
     }
 
-    const pool = facilityId
-      ? sessionLedgers.filter((l) => l.facilityId === facilityId)
-      : sessionLedgers;
-    const searchPool = pool.length > 0 ? pool : sessionLedgers;
+    // Strict scoping: never fall back to other facilities or coaches when a scope is supplied
+    const searchPool = sessionLedgers.filter((l) => {
+      if (facilityId && l.facilityId !== facilityId) return false;
+      if (coachId && l.coachId !== coachId) return false;
+      return true;
+    });
 
     const exactMatch =
       searchPool.find(
@@ -2329,16 +2881,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           (l.subscriptionCode || "").toUpperCase() === cleaned ||
           l.ledgerCode.toUpperCase() === cleaned
       ) ||
-      searchPool.find((l) => l.pinCode === cleaned && l.status !== "completed") ||
       searchPool.find(
-        (l) => (l.memberCode || "").toUpperCase() === cleaned && l.status !== "completed"
-      ) ||
-      searchPool.find((l) => (l.memberCode || "").toUpperCase() === cleaned);
+        (l) => l.pinCode && l.pinCode !== "****" && l.pinCode === cleaned && l.status !== "completed"
+      );
 
     if (!exactMatch) {
       return {
         ok: false,
-        messageAr: `لم يتم العثور على اشتراك بالكود «${raw}». تأكد من كتابة كود الاشتراك الظاهر بجانب اسم المشترك.`,
+        messageAr: `لم يتم العثور على اشتراك بالكود «${raw}». تأكد من مسح أو كتابة كود الاشتراك (CAP-SUB-...) الظاهر بجانب اسم المشترك.`,
       };
     }
 
@@ -2396,12 +2946,18 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, messageAr: "الاشتراك المطلوب تجديده غير موجود." };
     }
 
-    // Mark old ledger code as expired/completed
+    // Mark old ledger code as expired/completed and persist to backend
+    const closedOldLedger: SessionLedger = {
+      ...oldLedger,
+      status: "completed",
+      isCodeExpired: true,
+    };
     setSessionLedgers((prev) =>
-      prev.map((l) =>
-        l.id === ledgerId ? { ...l, status: "completed", isCodeExpired: true } : l
-      )
+      prev.map((l) => (l.id === ledgerId ? closedOldLedger : l))
     );
+    if (!effectiveOffline) {
+      postSupabaseSync("/api/supabase/session-ledgers", { ledger: closedOldLedger });
+    }
 
     const lastReceiptAmount = oldLedger.receipts[0]?.amountEgp || 0;
     return enrollSwimmerByMemberCode({
@@ -2439,8 +2995,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
               referenceNumber: payload.referenceNumber,
               channel: payload.channel,
               amountEgp: payload.amountEgp,
-              uploadedDateAr: "الآن — مرفق ومؤرشف",
-              confirmedByProvider: true,
+              uploadedDateAr: "بانتظار مراجعة وتأكيد الحسابات",
+              confirmedByProvider: false,
               packageTitleAr: payload.packageTitleAr,
             },
             ...l.receipts,
@@ -2454,6 +3010,59 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const confirmReceiptByProvider = (ledgerId: string, receiptId: string) => {
+    setSessionLedgers((prev) =>
+      prev.map((l) => {
+        if (l.id !== ledgerId) return l;
+        const updated: SessionLedger = {
+          ...l,
+          receipts: l.receipts.map((r) =>
+            r.id === receiptId
+              ? {
+                  ...r,
+                  confirmedByProvider: true,
+                  uploadedDateAr: r.uploadedDateAr.includes("مؤكد")
+                    ? r.uploadedDateAr
+                    : "تم التأكيد والمطابقة ✓",
+                }
+              : r
+          ),
+        };
+        if (!effectiveOffline) {
+          postSupabaseSync("/api/supabase/session-ledgers", { ledger: updated });
+        }
+        return updated;
+      })
+    );
+    pushNotification({
+      titleAr: "تم تأكيد مطابقة الإيصال المالي",
+      messageAr: "اعتمد فريق الحسابات إيصال الدفع بنجاح وتحديث سجل المدفوعات.",
+      type: "school_card",
+      actionHref: "/dashboard/ledger",
+    });
+    return {
+      ok: true,
+      messageAr: "تم تأكيد مطابقة الإيصال المالي وتحديث سجل الحسابات ✓",
+    };
+  };
+
+  const getSkillEvaluationForAthlete = (athleteId?: string): SkillEvaluation5Point => {
+    const targetId = athleteId || currentPersona.id;
+    if (skillEvaluationsByAthlete[targetId]) {
+      return skillEvaluationsByAthlete[targetId];
+    }
+    if (targetId === currentPersona.id && skillEvaluation.athleteId === currentPersona.id) {
+      return skillEvaluation;
+    }
+    return {
+      athleteId: targetId || "unrated",
+      evaluatedDateAr: "",
+      coachNameAr: "",
+      coachFeedbackAr: "",
+      metrics: INITIAL_SKILL_EVALUATION.metrics.map((m) => ({ ...m, score: 0 })),
+    };
+  };
+
   const addNewPBRecord = (record: Omit<PersonalBestRecord, "id" | "recordedDateAr">) => {
     const newRec: PersonalBestRecord = {
       ...record,
@@ -2461,6 +3070,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       recordedDateAr: "اليوم — مسجل بالحساب",
     };
     setPbRecords((prev) => [newRec, ...prev]);
+    const ownerCode = getProfileSyncKey(currentPersona);
+    if (ownerCode) {
+      postSupabaseSync("/api/supabase/user-state", {
+        type: "pb",
+        memberCode: ownerCode,
+        pbRecord: newRec,
+      });
+    }
   };
 
   const recordCoachSkillAndPB = (payload: {
@@ -2497,11 +3114,46 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
     setPbRecords((prev) => [newRec, ...prev]);
 
+    const regMember = memberRegistry.find((m) => m.athleteId === targetAthleteId);
+    const personaTarget = allPersonas.find((p) => p.id === targetAthleteId);
+    const ledgerTarget = sessionLedgers.find((l) => l.athleteId === targetAthleteId);
+    const recipientMemberCode =
+      regMember?.memberCode ||
+      personaTarget?.memberCode ||
+      ledgerTarget?.memberCode ||
+      getProfileSyncKey(currentPersona);
+
+    if (recipientMemberCode) {
+      postSupabaseSync("/api/supabase/user-state", {
+        type: "pb",
+        memberCode: recipientMemberCode,
+        pbRecord: newRec,
+      });
+    }
+
     if (payload.skills) {
-      setSkillEvaluation(payload.skills);
+      const scopedSkills: SkillEvaluation5Point = {
+        ...payload.skills,
+        athleteId: targetAthleteId,
+      };
+      setSkillEvaluationsByAthlete((prev) => ({
+        ...prev,
+        [targetAthleteId]: scopedSkills,
+      }));
+      if (targetAthleteId === currentPersona.id) {
+        setSkillEvaluation(scopedSkills);
+      }
+      if (recipientMemberCode) {
+        postSupabaseSync("/api/supabase/user-state", {
+          type: "skill_eval",
+          memberCode: recipientMemberCode,
+          skillEvaluation: scopedSkills,
+        });
+      }
     }
 
     pushNotification({
+      targetMemberCode: recipientMemberCode || undefined,
       titleAr: `تقييم ورقم قياسي جديد (${payload.eventTitleAr})`,
       messageAr: `سجّل كابتن ${payload.coachNameAr} للسباح ${payload.swimmerNameAr} زمناً قدره ${payload.currentValue} ${payload.unitAr || "ثانية"}.`,
       type: "passport_badge",
@@ -2516,25 +3168,340 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     gender: "male" | "female";
     primarySport: "swimming" | "fitness";
   }) => {
+    const ownerCode = getProfileSyncKey(currentPersona);
+    const parentMemberCode = currentPersona.memberCode || ownerCode || "";
+    const existingCodes = new Set(
+      minorAthletes.map((m) => (m.childMemberCode || "").toUpperCase()).filter(Boolean)
+    );
+    let seq = minorAthletes.length + 1;
+    let childSubCode = generateChildSubCode(parentMemberCode, seq);
+    while (existingCodes.has(childSubCode.toUpperCase()) && seq < 99) {
+      seq += 1;
+      childSubCode = generateChildSubCode(parentMemberCode, seq);
+    }
+
     const newChild: MinorAthleteProfile = {
       id: `athlete-${Date.now()}`,
+      childMemberCode: childSubCode,
+      parentMemberCode: parentMemberCode || undefined,
       fullNameAr: child.fullNameAr,
       age: child.age,
       birthYear: 2026 - child.age,
       gender: child.gender,
-      primarySport: child.primarySport,
-      currentStarLevel: 1,
-      starTitleAr: "النجمة الأولى — تأسيس وأمان مائي",
+      primarySport: "swimming",
+      currentStarLevel: 0,
+      starTitleAr: "",
       isPrivateByDefault: true,
       parentConsentVerified: true,
-      activeCoachNameAr: "بانتظار ربط كابتن بكود العضوية",
-      activeFacilityNameAr: "حساب عائلي اختياري",
+      activeCoachNameAr: "",
+      activeFacilityNameAr: "",
     };
     setMinorAthletes((prev) => [...prev, newChild]);
-    setCurrentPersona((prev) => ({ ...prev, hasParentSupervision: true }));
+    setMemberRegistry((prev) => [
+      {
+        memberCode: childSubCode,
+        childMemberCode: childSubCode,
+        parentMemberCode: parentMemberCode || undefined,
+        athleteId: newChild.id,
+        fullNameAr: child.fullNameAr,
+        phone: currentPersona.phone,
+        city: currentPersona.city,
+        role: "adult_athlete",
+        isMinor: true,
+        parentNameAr: currentPersona.fullNameAr,
+        hasParentSupervision: true,
+      },
+      ...prev.filter((m) => m.memberCode !== childSubCode),
+    ]);
+    setCurrentPersona((prev) => ({
+      ...prev,
+      hasParentSupervision: true,
+      accountIntent:
+        prev.accountIntent === "self_athlete" || prev.accountIntent === "both_self_and_parent"
+          ? "both_self_and_parent"
+          : prev.accountIntent || "parent_only",
+    }));
+    if (ownerCode) {
+      postSupabaseSync("/api/supabase/user-state", {
+        type: "minor_upsert",
+        memberCode: ownerCode,
+        minorAthlete: newChild,
+      });
+    }
   };
 
-  // تسجيل وتوثيق كابتن حقيقي بنفسه للحصول على الشارات الخضراء
+  const updateMinorAthlete = (
+    childId: string,
+    patch: Partial<Pick<MinorAthleteProfile, "fullNameAr" | "age" | "gender" | "primarySport">>
+  ) => {
+    const ownerCode = getProfileSyncKey(currentPersona);
+    setMinorAthletes((prev) =>
+      prev.map((c) => {
+        if (c.id !== childId) return c;
+        const nextAge = patch.age !== undefined ? patch.age : c.age;
+        const updated: MinorAthleteProfile = {
+          ...c,
+          ...patch,
+          birthYear: 2026 - nextAge,
+        };
+        if (ownerCode) {
+          postSupabaseSync("/api/supabase/user-state", {
+            type: "minor_upsert",
+            memberCode: ownerCode,
+            minorAthlete: updated,
+          });
+        }
+        return updated;
+      })
+    );
+  };
+
+  const removeMinorAthlete = (childId: string) => {
+    setMinorAthletes((prev) => prev.filter((c) => c.id !== childId));
+    const ownerCode = getProfileSyncKey(currentPersona);
+    if (ownerCode) {
+      postSupabaseSync("/api/supabase/user-state", {
+        type: "minor_delete",
+        memberCode: ownerCode,
+        minorId: childId,
+      });
+    }
+  };
+
+  const updateCoachAndSync = (coachId: string, updater: (c: Coach) => Coach) => {
+    const existing = coaches.find((c) => c.id === coachId);
+    if (!existing) return;
+    const next = updater(existing);
+    setCoaches((prev) => prev.map((c) => (c.id === coachId ? next : c)));
+    syncCoachToSupabase(next);
+  };
+
+  const updateFacilityAndSync = (facilityId: string, updater: (f: Facility) => Facility) => {
+    const existing = facilities.find((f) => f.id === facilityId);
+    if (!existing) return;
+    const next = updater(existing);
+    setFacilities((prev) => prev.map((f) => (f.id === facilityId ? next : f)));
+    syncFacilityToSupabase(next);
+  };
+
+  const submitRoleClaimApplication: CaptenlyContextType["submitRoleClaimApplication"] = async (
+    payload
+  ) => {
+    if (!isAuthenticated || currentPersona.role === "guest" || currentPersona.id === "persona-guest") {
+      return {
+        ok: false,
+        messageAr: "يجب تسجيل الدخول أولاً بحساب كابتنلي لتقديم طلب التوثيق.",
+      };
+    }
+
+    const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
+    const cleanFb = (payload.facebookUrl || payload.socialLinks?.facebook || "").trim();
+    const cleanIg = (payload.instagramUrl || payload.socialLinks?.instagram || "").trim();
+    const cleanPhone = (payload.phone || currentPersona.phone || "").replace(/\D/g, "");
+
+    if (!cleanWa && !cleanFb && !cleanIg && !cleanPhone) {
+      return {
+        ok: false,
+        messageAr: "يرجى إدخال وسيلة تواصل واحدة على الأقل (رقم موبايل أو واتساب أو رابط حساب تواصل).",
+      };
+    }
+
+    if (payload.claimType === "coach") {
+      const bio = payload.bioAr || "";
+      const detected = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => bio.includes(kw));
+      if (detected) {
+        return {
+          ok: false,
+          detectedKeyword: detected,
+          messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): يرجى إزالة مصطلح «${detected}» لغير الأطباء المرخصين.`,
+        };
+      }
+    }
+
+    const targetFacility =
+      facilities.find((f) => f.id === payload.targetFacilityId) ||
+      facilities.find((f) => f.id === payload.affiliatedFacilityId);
+
+    const formattedWa = cleanWa
+      ? cleanWa.startsWith("20")
+        ? cleanWa
+        : cleanWa.startsWith("0")
+        ? `2${cleanWa}`
+        : `20${cleanWa}`
+      : undefined;
+
+    const proposedPayload: Record<string, unknown> = {
+      fullNameAr: payload.fullNameAr || currentPersona.fullNameAr,
+      titleAr: payload.titleAr || "",
+      sportSector: "swimming",
+      governorate:
+        payload.governorate || targetFacility?.governorate || currentPersona.city || "كل مصر",
+      city: payload.city || targetFacility?.city || currentPersona.city || "كل مصر",
+      district: payload.district || targetFacility?.district || "",
+      yearsExperience: payload.yearsExperience ?? 0,
+      bioAr: payload.bioAr || "",
+      avatarUrl: payload.avatarUrl || currentPersona.avatarUrl || "",
+      whatsappNumber: formattedWa,
+      facebookUrl: cleanFb || undefined,
+      instagramUrl: cleanIg || undefined,
+      socialLinks: {
+        ...(payload.socialLinks || {}),
+        ...(cleanFb ? { facebook: cleanFb } : {}),
+        ...(cleanIg ? { instagram: cleanIg } : {}),
+      },
+      instapayHandle: payload.instapayHandle,
+      privatePackage8Egp: payload.privatePackage8Egp,
+      privatePackage12Egp: payload.privatePackage12Egp,
+      specialtiesAr: payload.specialtiesAr,
+      syndicateCardRef: payload.syndicateCardRef,
+      edlfCertRef: payload.edlfCertRef,
+      affiliatedFacilityId: payload.affiliatedFacilityId || targetFacility?.id,
+      managerName: payload.managerName || currentPersona.fullNameAr,
+      roleTitleAr: payload.roleTitleAr,
+      phone: payload.phone || currentPersona.phone,
+      commercialRegRef: payload.commercialRegRef,
+      updatedBasePriceEgp: payload.updatedBasePriceEgp,
+    };
+
+    try {
+      const res = await fetch("/api/supabase/role-claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claimType: payload.claimType,
+          applicantNameAr:
+            payload.claimType === "facility"
+              ? payload.managerName || payload.fullNameAr || currentPersona.fullNameAr
+              : payload.fullNameAr || currentPersona.fullNameAr,
+          applicantPhone: payload.phone || currentPersona.phone || "",
+          applicantEmail: currentPersona.email || "",
+          targetFacilityId: payload.targetFacilityId || targetFacility?.id || undefined,
+          targetFacilityNameAr: targetFacility?.nameAr,
+          cityAr: payload.city || targetFacility?.city || currentPersona.city || "كل مصر",
+          governorateAr: payload.governorate || targetFacility?.governorate || "مصر",
+          proofDocumentUrl: payload.proofDocumentUrl,
+          proofNotesAr: payload.proofNotesAr,
+          proposedPayload,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok || !data?.claim) {
+        return {
+          ok: false,
+          messageAr:
+            data?.messageAr ||
+            "تعذّر إرسال طلب التوثيق حالياً. تأكد من تسجيل الدخول وصحة البيانات ثم أعد المحاولة.",
+        };
+      }
+      const savedClaim = data.claim as MemberRoleClaim;
+      setRoleClaims((prev) => [savedClaim, ...prev.filter((c) => c.id !== savedClaim.id)]);
+      pushNotification({
+        titleAr:
+          payload.claimType === "facility"
+            ? `تم استلام طلب توثيق منشأة ${targetFacility?.nameAr || ""}`.trim()
+            : "تم استلام طلب التوثيق ككابتن للمراجعة",
+        messageAr:
+          "يراجع فريق كابتنلي مستنداتك الآن. سيبقى حسابك الحالي مفعلاً بالكامل حتى صدور قرار الاعتماد.",
+        type: "passport_badge",
+        actionLabelAr: "متابعة حالة الطلب",
+        actionHref: "/claim",
+      });
+      return {
+        ok: true,
+        claim: savedClaim,
+        messageAr:
+          data.messageAr ||
+          "تم استلام طلب التوثيق بنجاح وهو الآن قيد المراجعة الإدارية — سيبقى حسابك الحالي فعالاً حتى الاعتماد.",
+      };
+    } catch {
+      return {
+        ok: false,
+        messageAr: "تعذّر الاتصال بالخادم لإرسال طلب التوثيق. حاول مرة أخرى.",
+      };
+    }
+  };
+
+  const reviewRoleClaim: CaptenlyContextType["reviewRoleClaim"] = async (
+    claimId,
+    decision,
+    reviewerNoteAr
+  ) => {
+    try {
+      const res = await fetch("/api/supabase/role-claims", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: claimId, action: decision, reviewerNoteAr }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok || !data?.claim) {
+        return {
+          ok: false,
+          messageAr: data?.messageAr || "تعذّر تنفيذ قرار المراجعة الإدارية للطلب.",
+        };
+      }
+      const updatedClaim = data.claim as MemberRoleClaim;
+      setRoleClaims((prev) =>
+        prev.map((c) => (c.id === updatedClaim.id ? updatedClaim : c))
+      );
+
+      if (decision === "approve") {
+        // Refresh approved public facilities/coaches immediately
+        fetch("/api/supabase/public-supply", { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((supply) => {
+            if (!supply) return;
+            if (Array.isArray(supply.facilities)) setFacilities(supply.facilities);
+            if (Array.isArray(supply.coaches)) setCoaches(supply.coaches);
+          })
+          .catch(() => undefined);
+
+        if (
+          currentPersona.memberCode &&
+          updatedClaim.applicantMemberCode.toUpperCase() ===
+            currentPersona.memberCode.toUpperCase()
+        ) {
+          const nextRole: PersonaAccount["role"] =
+            updatedClaim.claimType === "facility" ? "facility_manager" : "coach";
+          setCurrentPersona((prev) => {
+            const nextPersona: PersonaAccount = {
+              ...prev,
+              role: nextRole,
+              linkedCoachId:
+                typeof data.approvedCoachId === "string"
+                  ? data.approvedCoachId
+                  : prev.linkedCoachId,
+              linkedFacilityId:
+                typeof data.approvedFacilityId === "string"
+                  ? data.approvedFacilityId
+                  : prev.linkedFacilityId,
+            };
+            setAllPersonas((list) =>
+              list.map((p) => (p.id === nextPersona.id ? nextPersona : p))
+            );
+            return nextPersona;
+          });
+        }
+      }
+
+      return {
+        ok: true,
+        claim: updatedClaim,
+        messageAr:
+          decision === "approve"
+            ? "تم اعتماد الطلب وتفعيل الصلاحيات الرسمية في المنصة بنجاح."
+            : decision === "withdraw"
+            ? "تم سحب طلب التوثيق بنجاح."
+            : "تم رفض الطلب وتسجيل ملاحظة المراجعة للمتقدم.",
+      };
+    } catch {
+      return {
+        ok: false,
+        messageAr: "تعذّر الاتصال بالخادم لتحديث حالة الطلب.",
+      };
+    }
+  };
+
+  // تقديم طلب توثيق كابتن (لا يمنح ترقية فورية — يدخل طابور المراجعة الإدارية)
   const registerAndVerifyCoach = (payload: {
     fullNameAr: string;
     titleAr: string;
@@ -2577,179 +3544,37 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    const idNum = Math.floor(1000 + Math.random() * 8999);
-    const coachId = `coach-${Date.now()}`;
-    const slug = `coach-${idNum}-${payload.fullNameAr.trim().replace(/\s+/g, "-")}`;
-    const fac = facilities.find((f) => f.id === payload.facilityId);
-    const formattedWa = cleanWa
-      ? cleanWa.startsWith("20")
-        ? cleanWa
-        : cleanWa.startsWith("0")
-        ? `2${cleanWa}`
-        : `20${cleanWa}`
-      : undefined;
-
-    const newCoach: Coach = {
-      id: coachId,
-      slug,
-      SingleCoachId: `CAP-ID-${idNum}`,
+    void submitRoleClaimApplication({
+      claimType: "coach",
+      affiliatedFacilityId: payload.facilityId,
+      targetFacilityId: payload.facilityId,
       fullNameAr: payload.fullNameAr,
       titleAr: payload.titleAr,
-      sportSector: payload.sportSector,
-      governorate: payload.governorate,
+      phone: payload.phone,
       city: payload.city,
+      governorate: payload.governorate,
       district: payload.district,
+      sportSector: "swimming",
       yearsExperience: payload.yearsExperience,
       bioAr: payload.bioAr,
-      avatarUrl: payload.avatarUrl || "/screens/3dff88737bec.jpg",
-      whatsappNumber: formattedWa,
-      facebookUrl: cleanFb || undefined,
-      instagramUrl: cleanIg || undefined,
-      socialLinks: {
-        ...(payload.socialLinks || {}),
-        ...(cleanFb ? { facebook: cleanFb } : {}),
-        ...(cleanIg ? { instagram: cleanIg } : {}),
-      },
-      instapayHandle: payload.instapayHandle || `${payload.phone}@instapay`,
+      avatarUrl: payload.avatarUrl,
+      whatsappNumber: payload.whatsappNumber,
+      facebookUrl: payload.facebookUrl,
+      instagramUrl: payload.instagramUrl,
+      socialLinks: payload.socialLinks,
+      instapayHandle: payload.instapayHandle,
       privatePackage8Egp: payload.privatePackage8Egp,
       privatePackage12Egp: payload.privatePackage12Egp,
-      sessionOffers: [
-        {
-          id: `offer-${Date.now()}-1`,
-          titleAr: "باقة التأسيس والانطلاق (8 حصص)",
-          sessionsCount: 8,
-          priceEgp: payload.privatePackage8Egp,
-          durationMinutes: 60,
-          notesAr: "تدريب فردي أو مجموعة صغيرة مع تقييم مبدئي.",
-        },
-        {
-          id: `offer-${Date.now()}-2`,
-          titleAr: "الباقة المكثفة لتطوير الأداء (12 حصة)",
-          sessionsCount: 12,
-          priceEgp: payload.privatePackage12Egp,
-          durationMinutes: 60,
-          notesAr: "متابعة الأرقام القياسية وتصحيح التكنيك.",
-        },
-      ],
-      subscriptionTier: "free_founding",
-      commissionRate: 0,
-      qrCodeToken: `CAP-QR-C${idNum}`,
-      priceLastVerifiedDaysAgo: 0,
-      priceLastVerifiedDate: "اليوم — موثق بالمنصة",
-      rating: 5.0,
-      verifiedReviewsCount: 1,
-      activeAthletesCount: 0,
-      isVerifiedCoach: true,
-      badges: [
-        {
-          code: "BADGE_01_IDENTITY",
-          titleAr: "الشارة 01: هوية وتليفون موثق",
-          authorityAr: "تحقق رقم الموبايل والبطاقة القومية",
-          verifiedDate: "اليوم",
-          status: "active",
-          documentRef: payload.phone,
-          descriptionAr: "تأكيد الهوية الحقيقية للكابتن برقم الهاتف الشخصي والمستند الرسمي.",
-        },
-        {
-          code: "BADGE_04_ESF_FEDERATION",
-          titleAr: "الشارة 04: اعتماد مهني / نقابة رياضية",
-          authorityAr: "نقابة المهن الرياضية / الاتحاد المختص",
-          verifiedDate: "اليوم",
-          status: "active",
-          documentRef: payload.syndicateCardRef,
-          descriptionAr: `رقم القيد / الشهادة المعتمدة: ${payload.syndicateCardRef}`,
-        },
-        ...(payload.edlfCertRef
-          ? [
-              {
-                code: "BADGE_05_EDLF_LIFEGUARD" as const,
-                titleAr: "الشارة 05: إنقاذ وإسعاف أولي معتمد",
-                authorityAr: "الاتحاد المصري للغوص والإنقاذ",
-                verifiedDate: "اليوم",
-                status: "active" as const,
-                documentRef: payload.edlfCertRef,
-                descriptionAr: `شهادة إنقاذ سارية رقم ${payload.edlfCertRef}`,
-              },
-            ]
-          : []),
-      ],
-      specialties: (payload.specialtiesAr.length ? payload.specialtiesAr : ["تأسيس أطفال"]).map(
-        (name) => ({ nameAr: name, credibilityTier: "official_credential" })
-      ),
-      affiliations: fac
-        ? [
-            {
-              facilityId: fac.id,
-              facilityNameAr: fac.nameAr,
-              city: fac.city,
-              scheduleAr: "حسب الجدول المعلن",
-              roleAr: "مدرب معتمد",
-              status: "active_mutual",
-            },
-          ]
-        : [],
-    };
-
-    setCoaches((prev) => [newCoach, ...prev]);
-    syncCoachToSupabase(newCoach);
-
-    if (fac) {
-      updateFacilityAndSync(fac.id, (f) => ({
-        ...f,
-        affiliatedCoachIds: [...f.affiliatedCoachIds, coachId],
-      }));
-    }
-
-    const coachPersona: PersonaAccount = {
-      id: currentPersona.role !== "guest" ? currentPersona.id : `persona-${coachId}`,
-      role: "coach",
-      memberCode: `CAP-ID-${idNum}`,
-      email: currentPersona.email,
-      authProvider: currentPersona.authProvider || "phone",
-      needsOnboarding: false,
-      hasParentSupervision: false,
-      avatarUrl: payload.avatarUrl || currentPersona.avatarUrl || "/screens/3dff88737bec.jpg",
-      shortLabelAr: `${payload.fullNameAr} (موثق ✓)`,
-      fullNameAr: payload.fullNameAr,
-      personaTitleAr: `كابتن موثق — كود ${newCoach.SingleCoachId}`,
-      city: payload.city,
-      phone: payload.phone,
-      linkedCoachId: coachId,
-      linkedFacilityId: fac?.id,
-      descriptionAr: "حساب كابتن موثق بالشارات الخضراء ومفعّل لإدارة دفاتر الحصص وكروت المدارس.",
-    };
-    setAllPersonas((prev) => [coachPersona, ...prev.filter((p) => p.id !== coachPersona.id)]);
-    setCurrentPersona(coachPersona);
-    applyAccountCityToUserLocation(payload.city, payload.governorate);
-
-    postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: coachPersona.memberCode || newCoach.SingleCoachId,
-      email: coachPersona.email,
-      fullNameAr: coachPersona.fullNameAr,
-      role: "coach",
-      phone: coachPersona.phone,
-      city: coachPersona.city,
-      governorate: payload.governorate,
-      avatarUrl: coachPersona.avatarUrl,
-      authProvider: coachPersona.authProvider || "captenly",
-      hasParentSupervision: false,
-      needsOnboarding: false,
-      linkedCoachId: coachId,
-      linkedFacilityId: fac?.id,
-    });
-
-    pushNotification({
-      titleAr: "مبروك! تم توثيق حسابك وإصدار الشارات الخضراء",
-      messageAr: `أصبح ملفك (${payload.fullNameAr}) ظاهراً للسباحين والأهالي الآن برقم كابتن ${newCoach.SingleCoachId}.`,
-      type: "passport_badge",
-      actionLabelAr: "عرض لوحة الكابتن",
-      actionHref: "/dashboard/coach",
+      specialtiesAr: payload.specialtiesAr,
+      syndicateCardRef: payload.syndicateCardRef,
+      edlfCertRef: payload.edlfCertRef,
+      proofNotesAr: `قيد نقابي/شهادة: ${payload.syndicateCardRef}${payload.edlfCertRef ? ` | إنقاذ: ${payload.edlfCertRef}` : ""}`,
     });
 
     return {
       ok: true,
-      coach: newCoach,
-      messageAr: `تم اعتماد ملفك وإصدار الشارات الخضراء بنجاح! رقم ملفك هو ${newCoach.SingleCoachId}.`,
+      messageAr:
+        "تم استلام طلب التوثيق ككابتن للمراجعة الإدارية بنجاح — سيبقى حسابك الحالي فعالاً حتى اعتماد الطلب من إدارة كابتنلي.",
     };
   };
 
@@ -2778,24 +3603,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const gracefulDisaffiliateCoach = (coachId: string, facilityId: string) => {
-    setCoaches((prev) =>
-      prev.map((c) => {
-        if (c.id !== coachId) return c;
-        return {
-          ...c,
-          affiliations: c.affiliations.map((aff) =>
-            aff.facilityId === facilityId ? { ...aff, status: "gracefully_disaffiliated" } : aff
-          ),
-        };
-      })
-    );
-    setFacilities((prev) =>
-      prev.map((f) =>
-        f.id === facilityId
-          ? { ...f, affiliatedCoachIds: f.affiliatedCoachIds.filter((id) => id !== coachId) }
-          : f
-      )
-    );
+    updateCoachAndSync(coachId, (c) => ({
+      ...c,
+      affiliations: c.affiliations.map((aff) =>
+        aff.facilityId === facilityId ? { ...aff, status: "gracefully_disaffiliated" } : aff
+      ),
+    }));
+    updateFacilityAndSync(facilityId, (f) => ({
+      ...f,
+      affiliatedCoachIds: f.affiliatedCoachIds.filter((id) => id !== coachId),
+    }));
   };
 
   const requestMutualAffiliation = (
@@ -2806,63 +3623,70 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const targetFacility = facilities.find((f) => f.id === facilityId);
     if (!targetFacility) return;
-    setCoaches((prev) =>
-      prev.map((c) =>
-        c.id === coachId
-          ? {
-              ...c,
-              affiliations: [
-                ...c.affiliations,
-                {
-                  facilityId,
-                  facilityNameAr: targetFacility.nameAr,
-                  city: targetFacility.city,
-                  scheduleAr,
-                  roleAr,
-                  status: "pending",
-                },
-              ],
-            }
-          : c
-      )
-    );
+    updateCoachAndSync(coachId, (c) => ({
+      ...c,
+      affiliations: [
+        ...c.affiliations,
+        {
+          facilityId,
+          facilityNameAr: targetFacility.nameAr,
+          city: targetFacility.city,
+          scheduleAr,
+          roleAr,
+          status: "pending",
+        },
+      ],
+    }));
   };
 
   const approveAffiliationMutual = (coachId: string, facilityId: string) => {
-    setCoaches((prev) =>
-      prev.map((c) => ({
+    updateCoachAndSync(coachId, (c) => ({
+      ...c,
+      affiliations: c.affiliations.map((a) =>
+        a.facilityId === facilityId ? { ...a, status: "active_mutual" } : a
+      ),
+    }));
+    updateFacilityAndSync(facilityId, (f) =>
+      f.affiliatedCoachIds.includes(coachId)
+        ? f
+        : { ...f, affiliatedCoachIds: [...f.affiliatedCoachIds, coachId] }
+    );
+  };
+
+  const reviewEntityBadge = (
+    kind: "coach" | "facility",
+    entityId: string,
+    badgeCode: VerificationBadge["code"],
+    nextStatus: "active" | "expired"
+  ) => {
+    const todayLabel = "اليوم — اعتماد إدارة كابتنلي";
+    if (kind === "coach") {
+      updateCoachAndSync(entityId, (c) => ({
         ...c,
-        affiliations:
-          c.id === coachId
-            ? c.affiliations.map((a) =>
-                a.facilityId === facilityId ? { ...a, status: "active_mutual" } : a
-              )
-            : c.affiliations,
-      }))
-    );
-    setFacilities((prev) =>
-      prev.map((f) =>
-        f.id === facilityId && !f.affiliatedCoachIds.includes(coachId)
-          ? { ...f, affiliatedCoachIds: [...f.affiliatedCoachIds, coachId] }
-          : f
-      )
-    );
-  };
-
-  const updateCoachAndSync = (coachId: string, updater: (c: Coach) => Coach) => {
-    const existing = coaches.find((c) => c.id === coachId);
-    if (!existing) return;
-    const next = updater(existing);
-    setCoaches((prev) => prev.map((c) => (c.id === coachId ? next : c)));
-    syncCoachToSupabase(next);
-  };
-
-  const updateFacilityAndSync = (facilityId: string, updater: (f: Facility) => Facility) => {
-    const existing = facilities.find((f) => f.id === facilityId);
-    if (!existing) return;
-    const next = updater(existing);
-    setFacilities((prev) => prev.map((f) => (f.id === facilityId ? next : f)));
-    syncFacilityToSupabase(next);
+        badges: c.badges.map((b) =>
+          b.code === badgeCode
+            ? {
+                ...b,
+                status: nextStatus,
+                verifiedDate: nextStatus === "active" ? todayLabel : b.verifiedDate,
+              }
+            : b
+        ),
+      }));
+      return;
+    }
+    updateFacilityAndSync(entityId, (f) => ({
+      ...f,
+      badges: f.badges.map((b) =>
+        b.code === badgeCode
+          ? {
+              ...b,
+              status: nextStatus,
+              verifiedDate: nextStatus === "active" ? todayLabel : b.verifiedDate,
+            }
+          : b
+      ),
+    }));
   };
 
   const addCoachSessionOffer = (coachId: string, offer: Omit<CoachSessionOffer, "id">) => {
@@ -2895,17 +3719,37 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const syncFacilityProgramsPricing = (
+    f: Facility,
+    nextPrograms: FacilitySchoolProgram[]
+  ): Facility => {
+    const nonProgPackages = (f.pricePackages || []).filter(
+      (p) => !p.id.startsWith("pkg_prog_")
+    );
+    const syncedPackages = [
+      ...nextPrograms.map(schoolProgramToPricePackage),
+      ...nonProgPackages,
+    ];
+    return {
+      ...f,
+      schoolPrograms: nextPrograms,
+      pricePackages: syncedPackages,
+      priceLastVerifiedDaysAgo: 0,
+      priceLastVerifiedDate: "اليوم — محدث من الإدارة",
+    };
+  };
+
   const addFacilitySchoolProgram = (
     facilityId: string,
     program: Omit<FacilitySchoolProgram, "id">
   ) => {
-    const newProgram: FacilitySchoolProgram = { ...program, id: `prog-${Date.now()}-${Math.floor(Math.random() * 1000)}` };
-    updateFacilityAndSync(facilityId, (f) => ({
-      ...f,
-      schoolPrograms: [newProgram, ...(f.schoolPrograms || [])],
-      priceLastVerifiedDaysAgo: 0,
-      priceLastVerifiedDate: "اليوم — محدث من الإدارة",
-    }));
+    const newProgram: FacilitySchoolProgram = {
+      ...program,
+      id: `prog-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    };
+    updateFacilityAndSync(facilityId, (f) =>
+      syncFacilityProgramsPricing(f, [newProgram, ...(f.schoolPrograms || [])])
+    );
     return { ok: true, messageAr: `تم نشر بطاقة «${program.titleAr}» بنجاح!` };
   };
 
@@ -2914,22 +3758,22 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     programId: string,
     patch: Partial<Omit<FacilitySchoolProgram, "id">>
   ) => {
-    updateFacilityAndSync(facilityId, (f) => ({
-      ...f,
-      schoolPrograms: (f.schoolPrograms || []).map((p) =>
-        p.id === programId ? { ...p, ...patch } : p
-      ),
-      priceLastVerifiedDaysAgo: 0,
-      priceLastVerifiedDate: "اليوم — محدث من الإدارة",
-    }));
+    updateFacilityAndSync(facilityId, (f) =>
+      syncFacilityProgramsPricing(
+        f,
+        (f.schoolPrograms || []).map((p) => (p.id === programId ? { ...p, ...patch } : p))
+      )
+    );
     return { ok: true, messageAr: "تم تحديث تفاصيل البطاقة بنجاح." };
   };
 
   const removeFacilitySchoolProgram = (facilityId: string, programId: string) => {
-    updateFacilityAndSync(facilityId, (f) => ({
-      ...f,
-      schoolPrograms: (f.schoolPrograms || []).filter((p) => p.id !== programId),
-    }));
+    updateFacilityAndSync(facilityId, (f) =>
+      syncFacilityProgramsPricing(
+        f,
+        (f.schoolPrograms || []).filter((p) => p.id !== programId)
+      )
+    );
   };
 
   const mergeExternalPlacesFacilities = (externalPlaces: Facility[]) => {
@@ -2947,63 +3791,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // نشر كارت باقة أو مدرسة تعليمية جديدة للمنشأة
-  const publishSchoolPackage = (payload: {
-    facilityId: string;
-    nameAr: string;
-    sessionsCount: number;
-    sessionsPerWeek: number;
-    durationMinutes: number;
-    baseMonthlyEgp: number;
-    assessmentFeeEgp?: number;
-    membershipCardFeeEgp?: number;
-  }) => {
-    const target = facilities.find((f) => f.id === payload.facilityId);
-    if (!target) {
-      return { ok: false, messageAr: "يرجى اختيار منشأة صالحة لنشر الباقة عليها." };
-    }
-
-    const newPkg = {
-      id: `pkg-${Date.now()}`,
-      nameAr: payload.nameAr,
-      sessionsCount: payload.sessionsCount,
-      sessionsPerWeek: payload.sessionsPerWeek,
-      durationMinutes: payload.durationMinutes,
-      baseMonthlyEgp: payload.baseMonthlyEgp,
-      assessmentFeeEgp: payload.assessmentFeeEgp || 0,
-      membershipCardFeeEgp: payload.membershipCardFeeEgp || 0,
-      mandatoryKitFeeEgp: 0,
-      companionFeeEgp: 0,
-    };
-
-    setFacilities((prev) =>
-      prev.map((f) =>
-        f.id === payload.facilityId
-          ? {
-              ...f,
-              pricePackages: [newPkg, ...f.pricePackages],
-              priceLastVerifiedDaysAgo: 0,
-              priceLastVerifiedDate: "اليوم — محدث من الإدارة",
-            }
-          : f
-      )
-    );
-
-    pushNotification({
-      titleAr: `تم نشر باقة جديدة في ${target.nameAr}`,
-      messageAr: `الباقة «${payload.nameAr}» (${payload.baseMonthlyEgp} ج.م) ظاهرة الآن للرياضيين وأولياء الأمور.`,
-      type: "school_card",
-      actionLabelAr: "عرض صفحة المنشأة",
-      actionHref: `/academy/${target.slug}`,
-    });
-
-    return {
-      ok: true,
-      messageAr: `تم نشر كارت الباقة «${payload.nameAr}» وظهوره في نتائج البحث فوراً!`,
-    };
-  };
-
-  // مطالبة إدارة المكان أو النادي بالصفحة وتوثيقها مجاناً
+  // تقديم طلب مطالبة وتوثيق منشأة (لا يمنح ترقية فورية — يدخل طابور المراجعة الإدارية)
   const claimFacilityAndVerify = (
     facilityId: string,
     payload: {
@@ -3023,6 +3811,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, messageAr: "المنشأة غير موجودة." };
     }
 
+    // Prevent unauthorized re-claiming of already verified facilities
+    if (existing.supplyStatus === "verified_active") {
+      return {
+        ok: false,
+        messageAr: "هذه المنشأة موثقة ومُدارة بالفعل من قِبل مالكها أو مديرها المعتمد.",
+      };
+    }
+
     const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
     const cleanFb = (payload.facebookUrl || "").trim();
     const cleanIg = (payload.instagramUrl || "").trim();
@@ -3034,104 +3830,27 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    const formattedWa = cleanWa
-      ? cleanWa.startsWith("20")
-        ? cleanWa
-        : cleanWa.startsWith("0")
-        ? `2${cleanWa}`
-        : `20${cleanWa}`
-      : undefined;
-
-    const verifiedFac: Facility = {
-      ...existing,
-      supplyStatus: "verified_active",
-      verifiedClaimDateAr: "اليوم — منشأة مفعّلة وموثقة",
-      sourcePublicNoteAr: `مُدارة ومحدّثة رسمياً بواسطة ${payload.managerName} (${payload.roleTitleAr})`,
-      whatsappNumber: formattedWa ?? existing.whatsappNumber,
-      facebookUrl: cleanFb || existing.facebookUrl,
-      instagramUrl: cleanIg || existing.instagramUrl,
-      instapayHandle: payload.instapayHandle || existing.instapayHandle,
-      priceLastVerifiedDaysAgo: 0,
-      priceLastVerifiedDate: "اليوم — أسعار مؤكدة من الإدارة",
-      completenessScore: 95,
-      pricePackages:
-        payload.updatedBasePriceEgp && existing.pricePackages.length > 0
-          ? existing.pricePackages.map((p, i) =>
-              i === 0 ? { ...p, baseMonthlyEgp: payload.updatedBasePriceEgp! } : p
-            )
-          : existing.pricePackages,
-      badges: [
-        {
-          code: "BADGE_01_IDENTITY",
-          titleAr: "الشارة 01: تحقق هوية المسؤول الرسمي",
-          authorityAr: "توثيق رقم هاتف الإدارة",
-          verifiedDate: "اليوم",
-          status: "active",
-          descriptionAr: `تم التحقق من إدارة ${payload.managerName} (${payload.roleTitleAr}).`,
-        },
-        {
-          code: "BADGE_02_FACILITY",
-          titleAr: "الشارة 02: منشأة موثقة ومعتمدة",
-          authorityAr: "فريق توثيق كابتنلي",
-          verifiedDate: "اليوم",
-          status: "active",
-          documentRef: payload.commercialRegRef || "VERIFIED-CLAIM",
-          descriptionAr: "البيانات والأسعار والمواعيد محدثة ومؤكدة من إدارة المنشأة مباشرة.",
-        },
-      ],
-    };
-
-    setFacilities((prev) => prev.map((f) => (f.id === facilityId ? verifiedFac : f)));
-    syncFacilityToSupabase(verifiedFac);
-
-    const mgrPersona: PersonaAccount = {
-      id: currentPersona.role !== "guest" ? currentPersona.id : `persona-mgr-${facilityId}`,
-      role: "facility_manager",
-      memberCode: "",
-      email: currentPersona.email,
-      avatarUrl: currentPersona.avatarUrl,
-      authProvider: currentPersona.authProvider || "phone",
-      needsOnboarding: false,
-      hasParentSupervision: false,
-      shortLabelAr: `إدارة ${existing.nameAr.slice(0, 18)}`,
+    void submitRoleClaimApplication({
+      claimType: "facility",
+      targetFacilityId: facilityId,
       fullNameAr: payload.managerName,
-      personaTitleAr: `${payload.roleTitleAr} — ${existing.nameAr}`,
-      city: existing.city,
+      managerName: payload.managerName,
+      roleTitleAr: payload.roleTitleAr,
       phone: payload.phone,
-      linkedFacilityId: existing.id,
-      descriptionAr: "حساب إدارة منشأة موثقة مع صلاحية تفعيل دفاتر الحصص للسباحين.",
-    };
-    setAllPersonas((prev) => [mgrPersona, ...prev.filter((p) => p.id !== mgrPersona.id)]);
-    setCurrentPersona(mgrPersona);
-    applyAccountCityToUserLocation(existing.city, existing.governorate);
-
-    postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: `FAC-${mgrPersona.id.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || Date.now().toString().slice(-6)}`,
-      email: mgrPersona.email,
-      fullNameAr: mgrPersona.fullNameAr,
-      role: "facility_manager",
-      phone: mgrPersona.phone,
-      city: mgrPersona.city,
+      city: existing.city,
       governorate: existing.governorate,
-      avatarUrl: mgrPersona.avatarUrl,
-      authProvider: mgrPersona.authProvider || "captenly",
-      hasParentSupervision: false,
-      needsOnboarding: false,
-      linkedFacilityId: existing.id,
-    });
-
-    pushNotification({
-      titleAr: `تم توثيق وإدارة ${existing.nameAr} مجاناً!`,
-      messageAr: "تحولت الصفحة إلى موثقة ويمكنك الآن تفعيل دفاتر الحصص والـ QR للمشتركين مباشرة.",
-      type: "passport_badge",
-      actionLabelAr: "فتح لوحة المنشأة",
-      actionHref: "/dashboard/facility",
+      whatsappNumber: payload.whatsappNumber,
+      facebookUrl: payload.facebookUrl,
+      instagramUrl: payload.instagramUrl,
+      instapayHandle: payload.instapayHandle,
+      updatedBasePriceEgp: payload.updatedBasePriceEgp,
+      commercialRegRef: payload.commercialRegRef,
+      proofNotesAr: `طلب مطالبة منشأة: ${existing.nameAr}${payload.commercialRegRef ? ` | مرجع: ${payload.commercialRegRef}` : ""}`,
     });
 
     return {
       ok: true,
-      facility: verifiedFac,
-      messageAr: `تم استلام إدارة «${existing.nameAr}» وتفعيل التوثيق الأخضر مجاناً!`,
+      messageAr: `تم استلام طلب توثيق وإدارة «${existing.nameAr}» للمراجعة الإدارية بنجاح — سيبقى حسابك الحالي فعالاً حتى اعتماد الطلب من إدارة كابتنلي.`,
     };
   };
 
@@ -3148,6 +3867,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const id = `fac-concierge-${Date.now()}`;
     const slug = `${id}-${newFac.city}`;
     const cleanWa = (newFac.whatsappNumber || "").replace(/\D/g, "");
+    const matchedPreset = EGYPT_CITY_PRESETS.find(
+      (p) => p.city === newFac.city || newFac.city.includes(p.city) || p.city.includes(newFac.city)
+    );
     const created: Facility = {
       id,
       slug,
@@ -3160,11 +3882,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           ? "multi_sport"
           : "swimming_academy",
       sportSector: newFac.sportSector,
-      governorate: "الغربية",
+      governorate: resolveGovernorateFromCity(newFac.city, matchedPreset?.governorate || "مصر"),
       city: newFac.city,
       district: newFac.district,
       addressAr: `${newFac.district}، ${newFac.city}`,
-      coordinates: { lat: 30.9706, lng: 31.1656 },
+      coordinates: matchedPreset ? { lat: matchedPreset.lat, lng: matchedPreset.lng } : { lat: 30.0444, lng: 31.2357 },
       whatsappNumber: cleanWa
         ? cleanWa.startsWith("2")
           ? cleanWa
@@ -3243,19 +3965,26 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return created;
   };
 
-  const claimFacilityListing = (facilityId: string, managerName: string, phone: string) => {
-    claimFacilityAndVerify(facilityId, {
-      managerName,
-      roleTitleAr: "مدير المنشأة",
-      phone,
-      whatsappNumber: phone,
-    });
+  // --- موظفو المنشأة والصلاحيات + تبديل الحساب ---
+  const lookupStaffCandidatesRemote: CaptenlyContextType["lookupStaffCandidatesRemote"] = async (
+    query
+  ) => {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    try {
+      const res = await fetch(`/api/supabase/staff-lookup?q=${encodeURIComponent(q)}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data?.candidates) ? data.candidates : [];
+    } catch {
+      return [];
+    }
   };
 
-  // --- موظفو المنشأة والصلاحيات + تبديل الحساب ---
   const myStaffAssignments: FacilityStaffMember[] = facilities.flatMap((fac) =>
     (fac.staffMembers || []).filter((st) => {
       if (!isAuthenticated) return false;
+      if (st.invitationStatus === "declined" || st.invitationStatus === "revoked") return false;
       if (st.linkedPersonaId && st.linkedPersonaId === currentPersona.id) return true;
       if (
         st.linkedMemberCode &&
@@ -3265,8 +3994,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
       if (
-        st.hasAccount &&
-        st.fullNameAr.trim() === currentPersona.fullNameAr.trim()
+        st.email &&
+        currentPersona.email &&
+        st.email.trim().toLowerCase() === currentPersona.email.trim().toLowerCase()
       ) {
         return true;
       }
@@ -3275,22 +4005,115 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   );
 
   const activeStaffAssignment: FacilityStaffMember | null =
-    myStaffAssignments.find((s) => s.id === activeStaffAssignmentId) || null;
+    myStaffAssignments.find(
+      (s) => s.id === activeStaffAssignmentId && s.invitationStatus !== "pending"
+    ) || null;
 
   const switchToStaffMode = (staffAssignmentId: string | null) => {
-    setActiveStaffAssignmentId(staffAssignmentId);
     if (staffAssignmentId) {
       const target = myStaffAssignments.find((s) => s.id === staffAssignmentId);
-      if (target) {
+      if (!target) return;
+      if (target.invitationStatus === "pending") {
         pushNotification({
-          titleAr: `تبديل الحساب: ${target.roleTitleAr}`,
-          messageAr: `أنت الآن تعمل بصلاحية «${target.roleTitleAr}» داخل ${target.facilityNameAr}.`,
-          type: "passport_badge",
-          actionLabelAr: "فتح لوحة المنشأة",
-          actionHref: "/dashboard/facility",
+          titleAr: `دعوة عمل معلقة لدى ${target.facilityNameAr}`,
+          messageAr: `يرجى قبول الدعوة الوظيفية كـ «${target.roleTitleAr}» أولاً لتفعيل لوحة المنشأة.`,
+          type: "system",
+          actionLabelAr: "إدارة الدعوات",
+          actionHref: "/dashboard/athlete/settings",
         });
+        return;
+      }
+      setActiveStaffAssignmentId(staffAssignmentId);
+      setActiveWorkspaceContextState("staff");
+      pushNotification({
+        titleAr: `تبديل الحساب: ${target.roleTitleAr}`,
+        messageAr: `أنت الآن تعمل بصلاحية «${target.roleTitleAr}» داخل ${target.facilityNameAr}.`,
+        type: "passport_badge",
+        actionLabelAr: "فتح لوحة المنشأة",
+        actionHref: "/dashboard/facility",
+      });
+      return;
+    }
+
+    setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(currentPersona));
+  };
+
+  const switchWorkspaceContext: CaptenlyContextType["switchWorkspaceContext"] = (
+    mode,
+    staffAssignmentId
+  ) => {
+    if (mode === "member") {
+      setActiveStaffAssignmentId(null);
+      setActiveWorkspaceContextState("member");
+      return;
+    }
+    if (mode === "coach") {
+      if (currentPersona.linkedCoachId || currentPersona.role === "coach") {
+        setActiveStaffAssignmentId(null);
+        setActiveWorkspaceContextState("coach");
+      }
+      return;
+    }
+    if (mode === "facility") {
+      if (currentPersona.linkedFacilityId || currentPersona.role === "facility_manager") {
+        setActiveStaffAssignmentId(null);
+        setActiveWorkspaceContextState("facility");
+      }
+      return;
+    }
+    if (mode === "staff") {
+      const targetId =
+        staffAssignmentId ||
+        myStaffAssignments.find((s) => s.invitationStatus !== "pending")?.id ||
+        null;
+      if (targetId) {
+        switchToStaffMode(targetId);
       }
     }
+  };
+
+  const respondToStaffInvitation: CaptenlyContextType["respondToStaffInvitation"] = (
+    facilityId,
+    staffId,
+    decision
+  ) => {
+    const targetFac = facilities.find((f) => f.id === facilityId);
+    const targetStaff = targetFac?.staffMembers?.find((s) => s.id === staffId);
+    if (!targetFac || !targetStaff) return;
+
+    updateFacilityAndSync(facilityId, (f) => ({
+      ...f,
+      staffMembers: (f.staffMembers || []).map((st) =>
+        st.id === staffId
+          ? {
+              ...st,
+              invitationStatus: decision,
+              assignedDateAr:
+                decision === "accepted" ? "اليوم — دعوة مقبولة ✓" : "تم رفض الدعوة",
+            }
+          : st
+      ),
+    }));
+
+    if (decision === "declined" && activeStaffAssignmentId === staffId) {
+      setActiveStaffAssignmentId(null);
+      setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(currentPersona));
+    }
+
+    pushNotification({
+      titleAr:
+        decision === "accepted"
+          ? `تم قبول الانضمام لطاقم ${targetFac.nameAr}`
+          : `تم رفض دعوة ${targetFac.nameAr}`,
+      messageAr:
+        decision === "accepted"
+          ? `يمكنك الآن التبديل إلى وضع موظف (${targetStaff.roleTitleAr}) في أي وقت.`
+          : `تم تحديث حالة الدعوة الخاصة بـ ${targetFac.nameAr}.`,
+      type: "system",
+      actionLabelAr: decision === "accepted" ? "تبديل وضع العمل" : undefined,
+      actionHref: decision === "accepted" ? "/dashboard/athlete/settings" : undefined,
+    });
   };
 
   const addFacilityStaffMember = (
@@ -3300,6 +4123,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       role: FacilityStaffRole;
       roleTitleAr?: string;
       phone?: string;
+      email?: string;
       memberCodeOrQuery?: string;
     }
   ) => {
@@ -3319,29 +4143,37 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
 
     const query = (payload.memberCodeOrQuery || "").trim();
+    const emailInput = (payload.email || "").trim().toLowerCase();
     const matchedPersona = allPersonas.find(
       (p) =>
         p.id !== "persona-guest" &&
         ((query &&
           ((p.memberCode && p.memberCode.toUpperCase() === query.toUpperCase()) ||
-            p.fullNameAr.includes(query) ||
             (p.email && p.email.toLowerCase() === query.toLowerCase()))) ||
+          (emailInput && p.email && p.email.toLowerCase() === emailInput) ||
           p.fullNameAr.trim() === cleanName)
     );
     const matchedRegistry = memberRegistry.find(
       (m) =>
         (query &&
           (m.memberCode.toUpperCase() === query.toUpperCase() ||
-            m.fullNameAr.includes(query) ||
             (m.email && m.email.toLowerCase() === query.toLowerCase()))) ||
+        (emailInput && m.email && m.email.toLowerCase() === emailInput) ||
         m.fullNameAr.trim() === cleanName
     );
 
-    const hasAccount = Boolean(matchedPersona || matchedRegistry || query.toUpperCase().startsWith("CAP-"));
+    const hasAccount = Boolean(
+      matchedPersona || matchedRegistry || query.toUpperCase().startsWith("CAP-")
+    );
     const linkedMemberCode =
       matchedPersona?.memberCode ||
       matchedRegistry?.memberCode ||
       (query.toUpperCase().startsWith("CAP-") ? query.toUpperCase() : undefined);
+    const resolvedEmail =
+      emailInput ||
+      matchedPersona?.email ||
+      matchedRegistry?.email ||
+      (query.includes("@") ? query.toLowerCase() : undefined);
 
     const newStaff: FacilityStaffMember = {
       id: `staff-${Date.now()}-${Math.floor(100 + Math.random() * 899)}`,
@@ -3351,10 +4183,12 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       role: payload.role,
       roleTitleAr: payload.roleTitleAr?.trim() || defaultRoleTitles[payload.role],
       phone: payload.phone?.trim() || matchedPersona?.phone || matchedRegistry?.phone,
+      email: resolvedEmail,
       linkedMemberCode,
       linkedPersonaId: matchedPersona?.id,
       hasAccount,
-      assignedDateAr: "اليوم — صلاحية نشطة",
+      invitationStatus: hasAccount ? "pending" : "accepted",
+      assignedDateAr: hasAccount ? "اليوم — دعوة بانتظار القبول" : "اليوم — سجل داخلي",
     };
 
     updateFacilityAndSync(facilityId, (f) => ({
@@ -3363,18 +4197,23 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }));
 
     pushNotification({
-      titleAr: `تم تعيين ${newStaff.fullNameAr} (${newStaff.roleTitleAr})`,
+      targetMemberCode: linkedMemberCode || undefined,
+      titleAr: hasAccount
+        ? `دعوة عمل جديدة لدى ${fac.nameAr}`
+        : `تم تسجيل ${newStaff.fullNameAr} (${newStaff.roleTitleAr})`,
       messageAr: hasAccount
-        ? `تم ربط حساب الموظف (${linkedMemberCode || "حساب مسجل"}) ومنحه صلاحية تبديل الحساب لإدارة مهام «${newStaff.roleTitleAr}» في ${fac.nameAr}.`
+        ? `دعتك إدارة ${fac.nameAr} للانضمام بصلاحية «${newStaff.roleTitleAr}». يمكنك قبول الدعوة أو رفضها من الإعدادات أو القائمة العلوية.`
         : `تم تسجيل ${newStaff.fullNameAr} ضمن طاقم ${fac.nameAr} بدون اشتراط حساب شخصي.`,
       type: "passport_badge",
+      actionLabelAr: hasAccount ? "قبول أو رفض الدعوة" : undefined,
+      actionHref: hasAccount ? "/dashboard/athlete/settings" : undefined,
     });
 
     return {
       ok: true,
       staff: newStaff,
       messageAr: hasAccount
-        ? `تم إضافة «${newStaff.fullNameAr}» وربط صلاحية (${newStaff.roleTitleAr}) بحسابه بنجاح.`
+        ? `تم إرسال دعوة العمل لـ «${newStaff.fullNameAr}» بصلاحية (${newStaff.roleTitleAr}) بنجاح — تُفعّل فور قبوله الدعوة.`
         : `تم تسجيل «${newStaff.fullNameAr}» (${newStaff.roleTitleAr}) ضمن موظفي المنشأة بنجاح.`,
     };
   };
@@ -3561,6 +4400,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           return nextArt;
         })
       );
+      if (updatedArticle) {
+        postSupabaseSync("/api/supabase/public-supply", { article: updatedArticle });
+      }
       return {
         ok: true,
         article: updatedArticle,
@@ -3608,6 +4450,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
 
     setArticles((prev) => [newArticle, ...prev]);
+    postSupabaseSync("/api/supabase/public-supply", { article: newArticle });
 
     pushNotification({
       titleAr: "تم نشر مقالك الرياضي بنجاح!",
@@ -3626,12 +4469,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   const deleteEditorialArticle = (articleId: string) => {
     setArticles((prev) => prev.filter((a) => a.id !== articleId));
+    postSupabaseSync("/api/supabase/public-supply", { deleteArticleId: articleId });
   };
 
   const resetDemoData = () => {
     localStorage.removeItem(STORAGE_KEY);
     setAllPersonas(PERSONA_ACCOUNTS);
     setCurrentPersona(GUEST_PERSONA);
+    setActiveWorkspaceContextState("member");
+    setRoleClaims([]);
     setMemberRegistry(INITIAL_MEMBER_REGISTRY);
     setFacilities(INITIAL_FACILITIES);
     setCoaches(INITIAL_COACHES);
@@ -3654,6 +4500,12 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentPersona,
         isAuthenticated,
+        activeWorkspaceContext,
+        switchWorkspaceContext,
+        roleClaims,
+        refreshRoleClaims,
+        submitRoleClaimApplication,
+        reviewRoleClaim,
         authGateModalOpen,
         authGateFeatureNameAr,
         openAuthGateModal,
@@ -3668,6 +4520,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         toggleOfflineSimulation,
         memberRegistry,
         registerMemberUser,
+        registerMemberWithCredentials,
         loginOrCreateWithGoogle,
         restoreOrLoginWithGoogle,
         restoreProfileByLogin,
@@ -3704,6 +4557,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         minorAthletes,
         pbRecords,
         skillEvaluation,
+        skillEvaluationsByAthlete,
+        getSkillEvaluationForAthlete,
         sessionLedgers,
         verifiedLeads,
         demandRadar,
@@ -3712,19 +4567,21 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         compareFacilityIds,
         toggleCompareFacility,
         clearComparison,
-        confirmFacilityPrices60d,
-        simulateTimeTravelDays,
         createStructuredWhatsappLead,
         enrollSwimmerByMemberCode,
         checkInSession,
         checkInBySubscriptionCode,
         renewSwimmerSubscription,
         uploadInstaPayReceipt,
+        confirmReceiptByProvider,
         lookupRemoteLedgersOrProfile,
         syncLedgersFromServer,
         addNewPBRecord,
         recordCoachSkillAndPB,
         addMinorAthlete,
+        updateMinorAthlete,
+        removeMinorAthlete,
+        lookupStaffCandidatesRemote,
         registerAndVerifyCoach,
         addCoachSessionOffer,
         updateCoachSessionOffer,
@@ -3735,6 +4592,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         myStaffAssignments,
         activeStaffAssignment,
         switchToStaffMode,
+        respondToStaffInvitation,
         addFacilityStaffMember,
         removeFacilityStaffMember,
         addFacilityCoachRosterEntry,
@@ -3745,10 +4603,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         gracefulDisaffiliateCoach,
         requestMutualAffiliation,
         approveAffiliationMutual,
-        publishSchoolPackage,
+        reviewEntityBadge,
         claimFacilityAndVerify,
         seedNewFacilityConcierge,
-        claimFacilityListing,
         resetDemoData,
       }}
     >

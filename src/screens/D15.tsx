@@ -7,11 +7,22 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ProfileSocialPillsRow } from "@/components/editorial/AthleteProfileSocialEditor";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { isMemberAccountRole } from "@/types/captenly";
 
-function calcImprovementPct(previousValue: number, currentValue: number): number | null {
+function calcImprovementPct(
+  previousValue: number,
+  currentValue: number,
+  unitAr?: string
+): number | null {
   if (!previousValue || previousValue <= 0) return null;
-  // In swimming timing (seconds), smaller is faster => improvement %
-  const pct = ((previousValue - currentValue) / previousValue) * 100;
+  const normalizedUnit = (unitAr || "").trim();
+  const higherIsBetter = ["متر", "سم", "كجم", "نقطة", "مرة", "تكرار", "لفة"].some((u) =>
+    normalizedUnit.includes(u)
+  );
+  const pct = higherIsBetter
+    ? ((currentValue - previousValue) / previousValue) * 100
+    : ((previousValue - currentValue) / previousValue) * 100;
   return Number(pct.toFixed(1));
 }
 
@@ -19,19 +30,26 @@ export default function Desktop15() {
   const router = useRouter();
   const {
     currentPersona,
+    userLocation,
     isAuthenticated,
     minorAthletes,
     addMinorAthlete,
     pbRecords,
     addNewPBRecord,
-    skillEvaluation,
+    getSkillEvaluationForAthlete,
     sessionLedgers,
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
   } = useCaptenly();
 
+  const canManageFamily = isMemberAccountRole(currentPersona.role);
+  const isParentOnlyIntent = currentPersona.accountIntent === "parent_only";
   const [activeTab, setActiveTab] = useState<"analytics" | "ledgers" | "family">("analytics");
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>(() =>
+    isParentOnlyIntent && minorAthletes.length > 0 ? minorAthletes[0].id : ""
+  );
 
   // Child form
   const [childFormOpen, setChildFormOpen] = useState(false);
@@ -42,32 +60,75 @@ export default function Desktop15() {
   const [eventTitle, setEventTitle] = useState("");
   const [newVal, setNewVal] = useState("");
   const [prevVal, setPrevVal] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
+  const [pbTargetAthleteId, setPbTargetAthleteId] = useState<string>("");
 
-  const myLedgers = sessionLedgers.filter(
-    (l) =>
+  const effectiveAthleteId = useMemo(() => {
+    if (canManageFamily && selectedAthleteId && minorAthletes.some((m) => m.id === selectedAthleteId)) {
+      return selectedAthleteId;
+    }
+    if (canManageFamily && isParentOnlyIntent && minorAthletes.length > 0 && selectedAthleteId !== "self") {
+      return minorAthletes[0].id;
+    }
+    return currentPersona.id;
+  }, [canManageFamily, selectedAthleteId, minorAthletes, currentPersona.id, isParentOnlyIntent]);
+
+  const selectedAthleteName = useMemo(() => {
+    if (effectiveAthleteId === currentPersona.id) return currentPersona.fullNameAr;
+    return minorAthletes.find((m) => m.id === effectiveAthleteId)?.fullNameAr || currentPersona.fullNameAr;
+  }, [effectiveAthleteId, currentPersona.id, currentPersona.fullNameAr, minorAthletes]);
+
+  const myLedgers = sessionLedgers.filter((l) => {
+    if (canManageFamily && selectedAthleteId && selectedAthleteId !== "self") {
+      return l.athleteId === selectedAthleteId;
+    }
+    if (canManageFamily && selectedAthleteId === "self") {
+      return (
+        l.athleteId === currentPersona.id ||
+        (Boolean(currentPersona.memberCode) &&
+          l.memberCode?.toUpperCase() === currentPersona.memberCode?.toUpperCase())
+      );
+    }
+    return (
       l.athleteId === currentPersona.id ||
       (currentPersona.memberCode &&
-        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase())
+        l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
+      (canManageFamily && minorAthletes.some((m) => m.id === l.athleteId))
+    );
+  });
+  const myPBs = useMemo(() => {
+    if (canManageFamily && selectedAthleteId && selectedAthleteId !== "self") {
+      return pbRecords.filter((p) => p.athleteId === effectiveAthleteId);
+    }
+    if (canManageFamily && selectedAthleteId === "self") {
+      return pbRecords.filter((p) => p.athleteId === currentPersona.id);
+    }
+    return pbRecords.filter(
+      (p) =>
+        p.athleteId === currentPersona.id ||
+        (canManageFamily && minorAthletes.some((m) => m.id === p.athleteId))
+    );
+  }, [pbRecords, currentPersona.id, canManageFamily, minorAthletes, selectedAthleteId, effectiveAthleteId]);
+
+  const activeSkillEvaluation = useMemo(
+    () => getSkillEvaluationForAthlete(effectiveAthleteId),
+    [getSkillEvaluationForAthlete, effectiveAthleteId]
   );
-  const myPBs = useMemo(
-    () =>
-      pbRecords.filter(
-        (p) =>
-          p.athleteId === currentPersona.id ||
-          minorAthletes.some((m) => m.id === p.athleteId)
-      ),
-    [pbRecords, currentPersona.id, minorAthletes]
+
+  const hasSkillEvaluation = useMemo(
+    () => activeSkillEvaluation.metrics.some((m) => m.score > 0),
+    [activeSkillEvaluation]
   );
 
   const avgSkillScore = useMemo(() => {
-    if (!skillEvaluation.metrics.length) return 0;
-    const total = skillEvaluation.metrics.reduce((sum, m) => sum + m.score, 0);
-    return (total / skillEvaluation.metrics.length).toFixed(1);
-  }, [skillEvaluation]);
+    if (!activeSkillEvaluation.metrics.length) return 0;
+    const total = activeSkillEvaluation.metrics.reduce((sum, m) => sum + m.score, 0);
+    return (total / activeSkillEvaluation.metrics.length).toFixed(1);
+  }, [activeSkillEvaluation]);
 
   const handleAddChild = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!childName.trim()) return;
+    if (!childName.trim() || !canManageFamily) return;
     addMinorAthlete({
       fullNameAr: childName.trim(),
       age: Number(childAge) || 8,
@@ -81,18 +142,26 @@ export default function Desktop15() {
   const handleAddPB = (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventTitle.trim() || !Number(newVal)) return;
+    const targetId =
+      canManageFamily && pbTargetAthleteId && pbTargetAthleteId !== "self"
+        ? pbTargetAthleteId
+        : effectiveAthleteId;
+    const targetName =
+      targetId === currentPersona.id
+        ? currentPersona.fullNameAr
+        : minorAthletes.find((m) => m.id === targetId)?.fullNameAr || selectedAthleteName;
     addNewPBRecord({
-      athleteId: currentPersona.id,
-      athleteNameAr: currentPersona.fullNameAr,
+      athleteId: targetId,
+      athleteNameAr: targetName,
       sportType: "swimming",
       eventTitleAr: eventTitle.trim(),
       currentValue: Number(newVal) || 0,
       previousValue: Number(prevVal) || 0,
-      unitAr: "ثانية",
+      unitAr: pbUnitAr,
       verificationSource: "self_entered",
       verificationLabelAr: "سجل شخصي عبر الجواز الرياضي",
       coachNameAr: "متابعة ذاتية",
-      facilityNameAr: currentPersona.city,
+      facilityNameAr: userLocation.isSpecified ? userLocation.city : "تسجيل شخصي",
     });
     setEventTitle("");
     setNewVal("");
@@ -104,6 +173,21 @@ export default function Desktop15() {
       <GuestAccountGateScreen
         titleAr="ملفك الرياضي وجواز السفر المائي"
         descriptionAr="أنشئ حسابك أو سجّل دخولك في Captenly للحصول على كود عضوية فريد، متابعة الأرقام القياسية، وحفظ دفاتر حصصك."
+      />
+    );
+  }
+
+  if (currentPersona.role === "coach" || currentPersona.role === "facility_manager") {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="لوحة السبّاح وولي الأمر"
+        descriptionAr="هذه الصفحة مخصصة لحسابات السبّاحين وأولياء الأمور لمتابعة الأرقام القياسية ودفاتر الحصص."
+        fallbackHref={
+          currentPersona.role === "facility_manager" ? "/dashboard/facility" : "/dashboard/coach"
+        }
+        fallbackLabelAr={
+          currentPersona.role === "facility_manager" ? "الانتقال للوحة المنشأة" : "الانتقال للوحة الكابتن"
+        }
       />
     );
   }
@@ -139,15 +223,26 @@ export default function Desktop15() {
                       {currentPersona.memberCode}
                     </span>
                   )}
-                  <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold">
-                    {currentPersona.city}
-                  </span>
+                  {currentPersona.city && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold">
+                      {currentPersona.city}
+                    </span>
+                  )}
                 </div>
 
-                <p className="text-xs md:text-sm text-surface-container-high leading-relaxed max-w-2xl">
-                  {currentPersona.bioAr ||
-                    "سبّاح نشط على كابتنلي • قارن المسابح، سجّل أرقامك القياسية، وتابع حضورك بـ QR."}
-                </p>
+                {currentPersona.bioAr ? (
+                  <p className="text-xs md:text-sm text-surface-container-high leading-relaxed max-w-2xl">
+                    {currentPersona.bioAr}
+                  </p>
+                ) : (
+                  <Link
+                    href="/dashboard/athlete/settings"
+                    className="text-xs text-electric-volt/90 hover:underline w-fit inline-flex items-center gap-1"
+                  >
+                    <Icon name="edit" className="text-[13px]" />
+                    <span>أضف نبذة تعريفية لملفك +</span>
+                  </Link>
+                )}
 
                 <ProfileSocialPillsRow />
               </div>
@@ -161,7 +256,9 @@ export default function Desktop15() {
                   <div className="text-[10px] text-surface-container-high">أرقام PB</div>
                 </div>
                 <div className="rounded-2xl bg-deep-carbon px-4 py-2.5 text-center">
-                  <div className="text-lg font-black text-electric-volt">{avgSkillScore}/5</div>
+                  <div className="text-lg font-black text-electric-volt">
+                    {hasSkillEvaluation ? `${avgSkillScore}/5` : "—"}
+                  </div>
                   <div className="text-[10px] text-surface-container-high">تقييم المهارة</div>
                 </div>
                 <div className="rounded-2xl bg-deep-carbon px-4 py-2.5 text-center">
@@ -191,7 +288,7 @@ export default function Desktop15() {
         </section>
 
         {/* Staff Role Account Switcher Card (when user has been granted a staff role at a facility) */}
-        {myStaffAssignments.length > 0 && (
+        {myStaffAssignments.some((st) => st.invitationStatus !== "declined") && (
           <section className="rounded-2xl bg-lime-tint border border-deep-olive/35 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-captenly-enter">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-deep-olive text-electric-volt flex items-center justify-center shrink-0">
@@ -199,31 +296,58 @@ export default function Desktop15() {
               </div>
               <div>
                 <h2 className="font-card-title-sm text-dark-slate">
-                  تبديل الحساب الوظيفي (صلاحيات موظف منشأة مفعّلة لحسابك)
+                  دعوات وصلاحيات العمل بالمنشأة
                 </h2>
                 <p className="text-xs text-deep-olive mt-0.5">
-                  لديك صلاحية عمل داخل المنشأة؛ يمكنك تبديل حسابك الآن لفتح واجهة المنشأة المخصصة لدورك الوظيفي فقط.
+                  اقبل الدعوة أولاً لتفعيل صلاحيتك، أو بدّل حسابك مباشرة لواجهة المنشأة المخصصة لدورك الوظيفي.
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
-              {myStaffAssignments.map((st) => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => {
-                    switchToStaffMode(st.id);
-                    router.push("/dashboard/facility");
-                  }}
-                  className={`px-4 py-2.5 rounded-full text-xs font-extrabold transition-all ${
-                    activeStaffAssignment?.id === st.id
-                      ? "bg-deep-olive text-electric-volt"
-                      : "bg-dark-slate text-electric-volt hover:opacity-95"
-                  }`}
-                >
-                  تبديل الحساب إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
-                </button>
-              ))}
+              {myStaffAssignments
+                .filter((st) => st.invitationStatus !== "declined")
+                .map((st) =>
+                  st.invitationStatus === "pending" ? (
+                    <div
+                      key={st.id}
+                      className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface-card px-3.5 py-2 border border-deep-olive/25"
+                    >
+                      <span className="text-xs font-bold text-dark-slate">
+                        دعوة: {st.roleTitleAr} ({st.facilityNameAr})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => respondToStaffInvitation(st.facilityId, st.id, "accepted")}
+                        className="px-3 py-1.5 rounded-full bg-deep-olive text-white text-xs font-bold"
+                      >
+                        قبول الدعوة ✓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => respondToStaffInvitation(st.facilityId, st.id, "declined")}
+                        className="px-3 py-1.5 rounded-full bg-red-50 text-status-danger text-xs font-bold"
+                      >
+                        رفض ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => {
+                        switchToStaffMode(st.id);
+                        router.push("/dashboard/facility");
+                      }}
+                      className={`px-4 py-2.5 rounded-full text-xs font-extrabold transition-all ${
+                        activeStaffAssignment?.id === st.id
+                          ? "bg-deep-olive text-electric-volt"
+                          : "bg-dark-slate text-electric-volt hover:opacity-95"
+                      }`}
+                    >
+                      تبديل الحساب إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
+                    </button>
+                  )
+                )}
             </div>
           </section>
         )}
@@ -233,7 +357,9 @@ export default function Desktop15() {
           {[
             { key: "analytics", label: "أرقامي وتحليل الأداء", icon: "monitoring" },
             { key: "ledgers", label: `حصصي QR (${myLedgers.length})`, icon: "qr_code_2" },
-            { key: "family", label: `الأبناء (${minorAthletes.length})`, icon: "family_restroom" },
+            ...(canManageFamily
+              ? [{ key: "family", label: `الأبناء والأسرة (${minorAthletes.length})`, icon: "family_restroom" }]
+              : []),
           ].map((t) => (
             <button
               key={t.key}
@@ -251,6 +377,36 @@ export default function Desktop15() {
           ))}
         </div>
 
+        {/* Child Filter Selector (only shown when member has added children) */}
+        {activeTab === "analytics" && canManageFamily && minorAthletes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 bg-surface-card px-4 py-3 rounded-2xl border border-surface-container">
+            <span className="text-xs font-bold text-text-muted ml-1">عرض تطور وتقييم:</span>
+            <button
+              type="button"
+              onClick={() => setSelectedAthleteId("")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                !selectedAthleteId ? "bg-dark-slate text-electric-volt" : "bg-surface-snow text-dark-slate"
+              }`}
+            >
+              جميع سجلات الأسرة / حسابي
+            </button>
+            {minorAthletes.map((child) => (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => setSelectedAthleteId(child.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  selectedAthleteId === child.id
+                    ? "bg-deep-olive text-white"
+                    : "bg-surface-snow text-dark-slate hover:bg-lime-tint"
+                }`}
+              >
+                {child.fullNameAr} ({child.age} س)
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tab 1: Performance Analytics & PB Tracking */}
         {activeTab === "analytics" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
@@ -266,7 +422,7 @@ export default function Desktop15() {
 
               <div className="flex flex-col gap-3">
                 {myPBs.map((rec) => {
-                  const pct = calcImprovementPct(rec.previousValue, rec.currentValue);
+                  const pct = calcImprovementPct(rec.previousValue, rec.currentValue, rec.unitAr);
                   const barWidth = Math.max(20, Math.min(100, Math.round(100 - (rec.currentValue / 90) * 60)));
                   return (
                     <div
@@ -314,20 +470,51 @@ export default function Desktop15() {
 
               <form
                 onSubmit={handleAddPB}
-                className="pt-3 border-t border-surface-container grid grid-cols-1 sm:grid-cols-4 gap-2"
+                className="pt-3 border-t border-surface-container grid grid-cols-1 sm:grid-cols-6 gap-2"
               >
+                {canManageFamily && minorAthletes.length > 0 && (
+                  <select
+                    value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
+                    onChange={(e) => setPbTargetAthleteId(e.target.value)}
+                    className="sm:col-span-2 rounded-xl bg-surface-snow px-3 py-2 text-xs font-bold outline-none border border-surface-container"
+                  >
+                    {!isParentOnlyIntent && (
+                      <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
+                    )}
+                    {minorAthletes.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        الابن: {child.fullNameAr}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <input
+                  required
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
                   placeholder="السباق (مثلاً: 50م حرة)"
-                  className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                  className={`${
+                    canManageFamily && minorAthletes.length > 0 ? "sm:col-span-2" : "sm:col-span-2"
+                  } rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container`}
                 />
+                <select
+                  value={pbUnitAr}
+                  onChange={(e) => setPbUnitAr(e.target.value)}
+                  className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs font-bold outline-none border border-surface-container"
+                >
+                  <option value="ثانية">ثانية</option>
+                  <option value="متر">متر</option>
+                  <option value="لفة">لفة</option>
+                  <option value="تكرار">تكرار</option>
+                  <option value="نقطة">نقطة</option>
+                </select>
                 <input
+                  required
                   type="number"
                   step="0.1"
                   value={newVal}
                   onChange={(e) => setNewVal(e.target.value)}
-                  placeholder="الزمن الجديد (ث)"
+                  placeholder={`الرقم الجديد (${pbUnitAr})`}
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
                 <input
@@ -335,14 +522,16 @@ export default function Desktop15() {
                   step="0.1"
                   value={prevVal}
                   onChange={(e) => setPrevVal(e.target.value)}
-                  placeholder="الزمن السابق (اختياري)"
+                  placeholder="السابق (اختياري)"
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
                 <button
                   type="submit"
-                  className="rounded-xl bg-dark-slate text-electric-volt font-bold text-xs py-2"
+                  className={`${
+                    canManageFamily && minorAthletes.length > 0 ? "sm:col-span-6" : ""
+                  } rounded-xl bg-dark-slate text-electric-volt font-bold text-xs py-2 px-4`}
                 >
-                  + تسجيل رقم جديد
+                  + تسجيل رقم قياسي جديد
                 </button>
               </form>
             </section>
@@ -350,10 +539,12 @@ export default function Desktop15() {
             <section className="lg:col-span-5 bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-section-title text-dark-slate">التقييم المهاري (5 محاور)</h2>
-                <span className="text-xs font-extrabold text-deep-olive">{avgSkillScore} / 5</span>
+                <span className="text-xs font-extrabold text-deep-olive">
+                  {hasSkillEvaluation ? `${avgSkillScore} / 5` : "لم يُقيّم بعد"}
+                </span>
               </div>
               <div className="flex flex-col gap-3">
-                {skillEvaluation.metrics.map((m) => (
+                {activeSkillEvaluation.metrics.map((m) => (
                   <div key={m.labelAr} className="flex flex-col gap-1">
                     <div className="flex justify-between text-xs font-bold text-dark-slate">
                       <span>{m.labelAr}</span>
@@ -368,10 +559,20 @@ export default function Desktop15() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-text-muted bg-surface-snow p-3.5 rounded-xl leading-relaxed">
-                <strong className="text-dark-slate">ملاحظة الكابتن ({skillEvaluation.coachNameAr}):</strong>{" "}
-                {skillEvaluation.coachFeedbackAr}
-              </p>
+              {hasSkillEvaluation && activeSkillEvaluation.coachFeedbackAr ? (
+                <p className="text-xs text-text-muted bg-surface-snow p-3.5 rounded-xl leading-relaxed">
+                  {activeSkillEvaluation.coachNameAr && (
+                    <strong className="text-dark-slate">
+                      ملاحظة الكابتن ({activeSkillEvaluation.coachNameAr}):{" "}
+                    </strong>
+                  )}
+                  {activeSkillEvaluation.coachFeedbackAr}
+                </p>
+              ) : (
+                <p className="text-xs text-text-muted bg-surface-snow p-3.5 rounded-xl leading-relaxed">
+                  لم يُسجّل تقييم مهاري من الكابتن بعد.
+                </p>
+              )}
             </section>
           </div>
         )}
@@ -435,33 +636,62 @@ export default function Desktop15() {
           </section>
         )}
 
-        {/* Tab 3: Optional Family / Minor Athletes Supervision */}
-        {activeTab === "family" && (
+        {/* Tab 3: Family / Minor Athletes Supervision (optional in unified swimmer & family account) */}
+        {canManageFamily && activeTab === "family" && (
           <section className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-section-title text-dark-slate">متابعة الأبناء والأسرة (اختياري)</h2>
                 <p className="text-xs text-text-muted mt-0.5">
-                  أضف ملفات أبنائك لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك وبموافقة ولي الأمر (قانون 151 لسنة 2020).
+                  إذا كنت ولي أمر وتتابع سبّاحين صغاراً (تحت 14 سنة)، يمكنك إضافة ملفاتهم هنا لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك الموحد (قانون 151 لسنة 2020).
                 </p>
               </div>
+              <Link
+                href="/dashboard/athlete/settings/family"
+                className="text-xs font-bold text-deep-olive hover:underline shrink-0"
+              >
+                تعديل أو حذف ملفات الأبناء ←
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {minorAthletes.map((child) => (
-                <div key={child.id} className="rounded-2xl bg-surface-snow p-4 flex items-center justify-between">
-                  <div>
-                    <div className="font-card-title-sm text-dark-slate">
-                      {child.fullNameAr} ({child.age} سنوات)
+              {minorAthletes.map((child) => {
+                const childLedger = sessionLedgers.find((l) => l.athleteId === child.id);
+                const facLabel = childLedger?.facilityNameAr || child.activeFacilityNameAr;
+                const coachLabel = childLedger?.coachNameAr || child.activeCoachNameAr;
+                return (
+                  <div key={child.id} className="rounded-2xl bg-surface-snow p-4 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-card-title-sm text-dark-slate">
+                          {child.fullNameAr} ({child.age} سنوات)
+                        </span>
+                        {child.childMemberCode && (
+                          <code
+                            dir="ltr"
+                            className="px-2 py-0.5 rounded bg-lime-tint text-deep-olive font-mono text-[11px] font-bold"
+                          >
+                            {child.childMemberCode}
+                          </code>
+                        )}
+                      </div>
+                      {child.currentStarLevel > 0 && child.starTitleAr && (
+                        <div className="text-xs text-deep-olive font-bold mt-0.5">{child.starTitleAr}</div>
+                      )}
+                      {(coachLabel || facLabel) ? (
+                        <div className="text-[11px] text-text-muted mt-0.5">
+                          {[coachLabel, facLabel].filter(Boolean).join(" • ")}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-text-muted mt-0.5">
+                          غير مربوط بأكاديمية أو كابتن بعد
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs text-deep-olive font-bold mt-0.5">{child.starTitleAr}</div>
-                    <div className="text-[11px] text-text-muted mt-0.5">
-                      {child.activeCoachNameAr} • {child.activeFacilityNameAr}
-                    </div>
+                    <Icon name="verified" className="text-deep-olive text-[20px] shrink-0" />
                   </div>
-                  <Icon name="verified" className="text-deep-olive text-[20px]" />
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {childFormOpen ? (

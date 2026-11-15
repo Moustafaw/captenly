@@ -25,11 +25,13 @@ export default function Desktop22() {
     toggleCompareFacility,
     createStructuredWhatsappLead,
     currentPersona,
+    minorAthletes,
     isAuthenticated,
     openAuthGateModal,
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
+    subscribeDemandRadar,
   } = useCaptenly();
 
   const facility = useMemo(
@@ -38,9 +40,10 @@ export default function Desktop22() {
   );
 
   const [gplaceLoading, setGplaceLoading] = useState(false);
+  const [demandRequested, setDemandRequested] = useState(false);
 
   useEffect(() => {
-    if (facility || !slug || !slug.startsWith("gplace-")) return;
+    if (facility || !slug || (!slug.startsWith("gplace-") && !slug.startsWith("osm-"))) return;
     let cancelled = false;
     setGplaceLoading(true);
     fetch(`/api/places/search?placeId=${encodeURIComponent(slug)}`)
@@ -117,7 +120,7 @@ export default function Desktop22() {
       whatsappNumber: facility.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: schoolPrograms[0]?.titleAr || facility.specialtiesAr[0] || "اشتراك شهري",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
@@ -131,6 +134,24 @@ export default function Desktop22() {
       typeof window !== "undefined" ? window.location.href : ""
     }`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleRequestFacilityPricing = () => {
+    if (!isAuthenticated) {
+      openAuthGateModal(`طلب توفير مواعيد وأسعار ${facility.nameAr}`);
+      return;
+    }
+    const res = subscribeDemandRadar({
+      fullNameAr: currentPersona.fullNameAr || "مستخدم كابتنلي",
+      phone: currentPersona.phone || "",
+      city: facility.city || userLocation.city || "مصر",
+      governorate: facility.governorate || "مصر",
+      targetSport: "swimming",
+      targetFacilityId: facility.id,
+      targetFacilityNameAr: facility.nameAr,
+      notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
+    });
+    if (res.ok) setDemandRequested(true);
   };
 
   return (
@@ -179,12 +200,16 @@ export default function Desktop22() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs font-bold text-deep-olive">
-                  {facility.governorate} • {facility.city} • {facility.district}
+                  {facility.governorate} • {facility.city}
+                  {facility.district ? ` • ${facility.district}` : ""}
                 </span>
-                <span className="flex items-center gap-1 text-status-warning font-bold text-sm">
-                  <Icon name="star" className="text-[16px]" />
-                  {facility.rating} ({facility.reviewsCount} تقييم)
-                </span>
+                {facility.rating > 0 ? (
+                  <span className="flex items-center gap-1 text-status-warning font-bold text-sm">
+                    <Icon name="star" className="text-[16px]" />
+                    {facility.rating}
+                    {facility.reviewsCount > 0 ? ` (${facility.reviewsCount} تقييم)` : ""}
+                  </span>
+                ) : null}
               </div>
 
               <h1 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-tight">
@@ -223,6 +248,12 @@ export default function Desktop22() {
               {!isUnclaimed && (
                 <Link
                   href={`/booking?facility=${facility.slug}`}
+                  onClick={(e) => {
+                    if (!isAuthenticated) {
+                      e.preventDefault();
+                      openAuthGateModal("تجهيز بيانات التسجيل والحجز");
+                    }
+                  }}
                   className="px-5 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95"
                 >
                   تجهيز الحجز والانضمام
@@ -300,6 +331,22 @@ export default function Desktop22() {
                         ? "هذه المنشأة غير مسجلة أو مفعّلة على منصة Captenly بعد — لذلك لا تتوفر باقات أو مواعيد حصص معلنة حتى الآن."
                         : "لم تقم إدارة المنشأة بإضافة بطاقات المواعيد والأسعار بعد."}
                     </p>
+                    {isUnclaimed && (
+                      <button
+                        type="button"
+                        onClick={handleRequestFacilityPricing}
+                        disabled={demandRequested}
+                        className={`mt-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
+                          demandRequested
+                            ? "bg-lime-tint text-deep-olive border border-deep-olive/30"
+                            : "bg-dark-slate text-electric-volt hover:opacity-95"
+                        }`}
+                      >
+                        {demandRequested
+                          ? "✓ تم تسجيل طلبك لتوفير الأسعار والمواعيد"
+                          : "اطلب توفير الأسعار والمواعيد لهذه المنشأة ←"}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -515,6 +562,20 @@ export default function Desktop22() {
                     ? "هذه المنشأة غير مسجلة على المنصة بعد — لم تُضف أي مواعيد أو أسعار."
                     : "لم تُنشر بطاقات مواعيد وأسعار لهذه المنشأة حتى الآن."}
                 </p>
+                {isUnclaimed && (
+                  <button
+                    type="button"
+                    onClick={handleRequestFacilityPricing}
+                    disabled={demandRequested}
+                    className={`mt-1 px-4 py-2 rounded-full text-[11px] font-bold transition-all ${
+                      demandRequested
+                        ? "bg-lime-tint text-deep-olive border border-deep-olive/30"
+                        : "bg-dark-slate text-electric-volt hover:opacity-95"
+                    }`}
+                  >
+                    {demandRequested ? "✓ تم تسجيل طلبك" : "اطلب توفير الأسعار والمواعيد ←"}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-2.5 max-h-[380px] overflow-y-auto pr-0.5">

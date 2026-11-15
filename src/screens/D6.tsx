@@ -106,9 +106,18 @@ export default function Desktop6() {
                   </h2>
                 );
               }
+              const parts = line.split(/(\*\*[^*]+\*\*)/g);
               return (
                 <p key={i} className="font-body-default text-text-muted leading-loose">
-                  {line.replace(/\*\*/g, "")}
+                  {parts.map((part, idx) =>
+                    part.startsWith("**") && part.endsWith("**") && part.length > 4 ? (
+                      <strong key={idx} className="font-bold text-dark-slate">
+                        {part.slice(2, -2)}
+                      </strong>
+                    ) : (
+                      part
+                    )
+                  )}
                 </p>
               );
             })}

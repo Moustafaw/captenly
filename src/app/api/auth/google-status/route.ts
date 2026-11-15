@@ -7,6 +7,7 @@ export async function GET() {
   const readiness = getGoogleOAuthReadiness();
   return NextResponse.json({
     ...readiness,
+    previewAllowed: process.env.NODE_ENV !== "production",
     callbackPath: "/api/auth/callback/google",
   });
 }

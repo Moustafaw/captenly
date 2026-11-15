@@ -1,5 +1,8 @@
 "use client";
 
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { getFacilityBookablePackages, toLedgerSessionBucket } from "@/lib/facilityPricing";
+
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
@@ -38,28 +41,37 @@ export default function FacilityDashboardPage() {
     enrollSwimmerByMemberCode,
     checkInSession,
     checkInBySubscriptionCode,
+    lookupStaffCandidatesRemote,
+    recordCoachSkillAndPB,
     renewSwimmerSubscription,
+    confirmReceiptByProvider,
     currentPersona,
     isAuthenticated,
     effectiveOffline,
     offlineQueue,
     syncOfflineQueue,
     syncLedgersFromServer,
+    roleClaims,
+    myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
     addFacilityStaffMember,
     removeFacilityStaffMember,
     addFacilityCoachRosterEntry,
     removeFacilityCoachRosterEntry,
-    seedNewFacilityConcierge,
-    claimFacilityAndVerify,
   } = useCaptenly();
 
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
 
+  const verifiedActiveStaffAssignment =
+    activeStaffAssignment &&
+    (!activeStaffAssignment.invitationStatus || activeStaffAssignment.invitationStatus === "accepted")
+      ? activeStaffAssignment
+      : null;
+
   const boundFacilityId =
-    activeStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
+    verifiedActiveStaffAssignment?.facilityId || currentPersona.linkedFacilityId || "";
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>(boundFacilityId);
 
   useEffect(() => {
@@ -74,8 +86,8 @@ export default function FacilityDashboardPage() {
   );
 
   // Determine staff permission restrictions if in Staff Mode
-  const isStaffMode = Boolean(activeStaffAssignment);
-  const staffRole: FacilityStaffRole | null = activeStaffAssignment?.role || null;
+  const isStaffMode = Boolean(verifiedActiveStaffAssignment);
+  const staffRole: FacilityStaffRole | null = verifiedActiveStaffAssignment?.role || null;
 
   const allowedTabs: { id: FacilitySectionTab; labelAr: string; icon: string }[] = useMemo(() => {
     const all: { id: FacilitySectionTab; labelAr: string; icon: string }[] = [
@@ -110,9 +122,9 @@ export default function FacilityDashboardPage() {
   const [memberCodeInput, setMemberCodeInput] = useState("");
   const [athleteNameInput, setAthleteNameInput] = useState("");
   const [selectedTrack, setSelectedTrack] = useState<"school" | "buds" | "prep" | "team" | "ladies">("school");
-  const [pkgTitleInput, setPkgTitleInput] = useState("مدرسة السباحة — 8 حصص");
+  const [pkgTitleInput, setPkgTitleInput] = useState("");
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
-  const [amountEgp, setAmountEgp] = useState<string>("600");
+  const [amountEgp, setAmountEgp] = useState<string>("");
   const [isEnrolling, setIsEnrolling] = useState(false);
 
   // Subscribers Roster Filter
@@ -121,10 +133,10 @@ export default function FacilityDashboardPage() {
 
   // Add Academy Coach Form
   const [coachNameInput, setCoachNameInput] = useState("");
-  const [coachRoleInput, setCoachRoleInput] = useState("مدرب مدارس وفريق سباحة");
-  const [coachSpecialtyInput, setCoachSpecialtyInput] = useState("تأسيس أطفال وتصحيح حركات");
-  const [coachCertsInput, setCoachCertsInput] = useState("شهادة الاتحاد المصري للسباحة\nشهادة إنقاذ وإسعافات أولية معتمدة");
-  const [coachScheduleInput, setCoachScheduleInput] = useState("السبت والاثنين والأربعاء 4 م – 9 م");
+  const [coachRoleInput, setCoachRoleInput] = useState("");
+  const [coachSpecialtyInput, setCoachSpecialtyInput] = useState("");
+  const [coachCertsInput, setCoachCertsInput] = useState("");
+  const [coachScheduleInput, setCoachScheduleInput] = useState("");
   const [coachCodeQuery, setCoachCodeQuery] = useState("");
   const [isSavingCoach, setIsSavingCoach] = useState(false);
 
@@ -178,6 +190,29 @@ export default function FacilityDashboardPage() {
 
   const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
 
+  const [newFacCityInput, setNewFacCityInput] = useState("");
+  const [staffCandidates, setStaffCandidates] = useState<
+    Array<{
+      memberCode: string;
+      fullNameAr: string;
+      phone: string;
+      email?: string;
+      city: string;
+      role: string;
+    }>
+  >([]);
+  const [staffSearchBusy, setStaffSearchBusy] = useState(false);
+  const [pbAthleteId, setPbAthleteId] = useState("");
+  const [pbSwimmerName, setPbSwimmerName] = useState("");
+  const [pbEventTitle, setPbEventTitle] = useState("50م حرة (سباق سرعة)");
+  const [pbCurrentValue, setPbCurrentValue] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
+  const [skillFloating, setSkillFloating] = useState(4);
+  const [skillBreathing, setSkillBreathing] = useState(4);
+  const [skillFreestyle, setSkillFreestyle] = useState(4);
+  const [skillBackstroke, setSkillBackstroke] = useState(4);
+  const [skillDiving, setSkillDiving] = useState(4);
+
   if (!isAuthenticated) {
     return (
       <GuestAccountGateScreen
@@ -188,7 +223,23 @@ export default function FacilityDashboardPage() {
   }
 
   // If no facility is linked yet, allow claiming an existing facility or creating a new one
+  if (currentPersona.role !== "facility_manager" && !isStaffMode) {
+    return (
+      <RoleAccessDeniedScreen
+        descriptionAr="لوحة إدارة المنشأة متاحة فقط لحساب مدير المنشأة أو الموظفين المفعلين بصلاحية منشأة."
+        fallbackHref={currentPersona.role === "coach" ? "/dashboard/coach" : "/dashboard/athlete"}
+        fallbackLabelAr="الانتقال إلى لوحتي"
+      />
+    );
+  }
+
   if (!facility) {
+    const myFacilityClaims = roleClaims.filter((c) => c.claimType === "facility");
+    const latestFacilityClaim = myFacilityClaims[0];
+    const acceptedStaffInvites = myStaffAssignments.filter(
+      (st) => !st.invitationStatus || st.invitationStatus === "accepted"
+    );
+
     return (
       <div className="min-h-screen bg-canvas-alabaster pt-8 pb-16">
         <div className="max-w-3xl mx-auto px-margin flex flex-col gap-6 animate-captenly-enter">
@@ -199,91 +250,85 @@ export default function FacilityDashboardPage() {
               </div>
               <div>
                 <h1 className="font-section-title text-dark-slate">
-                  ربط أو تأسيس منشأتك الرياضية على كابتنلي
+                  لا توجد منشأة مرتبطة بحسابك حتى الآن
                 </h1>
                 <p className="text-xs text-text-muted mt-0.5">
-                  اختر منشأتك الحالية من الدليل أو أنشئ صفحة أكاديميتك الجديدة للبدء في إدارة المشتركين والفرق والكباتن.
+                  لتفعيل لوحة إدارة الأكاديمية أو المسبح، يلزم اعتماد طلب التوثيق عبر الإدارة أو قبول دعوة وظيفية من مدير منشأة موثقة.
                 </p>
               </div>
             </div>
 
-            {facilities.length > 0 && (
-              <div className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex flex-col gap-3">
-                <label className="text-xs font-bold text-dark-slate">
-                  اختيار منشأة مسجلة في الدليل لإدارتها:
-                </label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <select
-                    value={selectedFacilityId}
-                    onChange={(e) => setSelectedFacilityId(e.target.value)}
-                    className="flex-1 rounded-xl bg-surface-card px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+            {latestFacilityClaim && (
+              <div className="rounded-2xl bg-lime-tint/60 p-4 border border-deep-olive/30 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-bold text-xs text-dark-slate">
+                    حالة طلبك:{" "}
+                    {latestFacilityClaim.targetFacilityNameAr ||
+                      (typeof latestFacilityClaim.proposedPayload?.nameAr === "string"
+                        ? latestFacilityClaim.proposedPayload.nameAr
+                        : undefined) ||
+                      "توثيق منشأة"}
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                      latestFacilityClaim.status === "pending_review"
+                        ? "bg-amber-100 text-amber-900"
+                        : latestFacilityClaim.status === "rejected"
+                        ? "bg-red-100 text-red-800"
+                        : latestFacilityClaim.status === "withdrawn"
+                        ? "bg-surface-container text-text-muted"
+                        : "bg-deep-olive text-white"
+                    }`}
                   >
-                    <option value="">-- اختر المنشأة أو الأكاديمية --</option>
-                    {facilities.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.nameAr} ({f.city})
-                      </option>
-                    ))}
-                  </select>
+                    {latestFacilityClaim.status === "pending_review"
+                      ? "⏳ قيد مراجعة الإدارة"
+                      : latestFacilityClaim.status === "rejected"
+                      ? "مرفوض"
+                      : latestFacilityClaim.status === "withdrawn"
+                      ? "تم سحب الطلب"
+                      : "معتمد"}
+                  </span>
+                </div>
+                {latestFacilityClaim.reviewerNoteAr && (
+                  <p className="text-xs text-text-muted">{latestFacilityClaim.reviewerNoteAr}</p>
+                )}
+              </div>
+            )}
+
+            {acceptedStaffInvites.length > 0 && (
+              <div className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex flex-col gap-2.5">
+                <span className="text-xs font-bold text-dark-slate">
+                  منشآت لديك فيها صلاحية موظف مفعّلة:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {acceptedStaffInvites.map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => switchToStaffMode(st.id)}
+                      className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                    >
+                      الدخول كـ {st.roleTitleAr} في {st.facilityNameAr} ←
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newFacName.trim()) return;
-                const created = seedNewFacilityConcierge({
-                  nameAr: newFacName.trim(),
-                  city: currentPersona.city || "القاهرة",
-                  district: newFacDistrict.trim() || currentPersona.city || "المنطقة الرئيسية",
-                  sportSector: "swimming",
-                  baseMonthlyPrice: 600,
-                  whatsappNumber: newFacPhone.trim() || currentPersona.phone,
-                  isHeatedWinter: true,
-                  hasLadiesSlots: true,
-                });
-                claimFacilityAndVerify(created.id, {
-                  managerName: currentPersona.fullNameAr,
-                  roleTitleAr: "مدير المنشأة",
-                  phone: newFacPhone.trim() || currentPersona.phone || "01000000000",
-                  whatsappNumber: newFacPhone.trim() || currentPersona.phone || "01000000000",
-                });
-                setSelectedFacilityId(created.id);
-              }}
-              className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col gap-3"
-            >
-              <h2 className="font-card-title-sm text-dark-slate">
-                أو إضافة منشأة / أكاديمية سباحة جديدة باسمك:
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input
-                  required
-                  value={newFacName}
-                  onChange={(e) => setNewFacName(e.target.value)}
-                  placeholder="اسم الأكاديمية أو المسبح *"
-                  className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs border border-surface-container outline-none"
-                />
-                <input
-                  value={newFacDistrict}
-                  onChange={(e) => setNewFacDistrict(e.target.value)}
-                  placeholder="الحي / العنوان المختصر"
-                  className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs border border-surface-container outline-none"
-                />
-                <input
-                  value={newFacPhone}
-                  onChange={(e) => setNewFacPhone(e.target.value)}
-                  placeholder="رقم واتساب الإدارة *"
-                  className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs border border-surface-container outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-fit px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/claim"
+                className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95"
               >
-                إنشاء وتوثيق صفحة المنشأة الآن ✓
-              </button>
-            </form>
+                تقديم طلب توثيق أو إضافة منشأة (/claim) ←
+              </Link>
+              <Link
+                href="/dashboard/athlete"
+                className="px-5 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate font-bold text-xs"
+              >
+                العودة للوحة العضو
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -297,6 +342,7 @@ export default function FacilityDashboardPage() {
     if (!manualSubCode.trim()) return;
     const res = checkInBySubscriptionCode(
       manualSubCode.trim(),
+      facility.id,
       manualSubNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المنشأة"
     );
     setFeedback({ ok: res.ok, msg: res.messageAr });
@@ -310,9 +356,8 @@ export default function FacilityDashboardPage() {
     e.preventDefault();
     if (isEnrolling) return;
     setIsEnrolling(true);
-    const trackObj = TRACK_OPTIONS.find((t) => t.id === selectedTrack) || TRACK_OPTIONS[0];
-
-    setTimeout(() => {
+    try {
+      const trackObj = TRACK_OPTIONS.find((t) => t.id === selectedTrack) || TRACK_OPTIONS[0];
       const res = enrollSwimmerByMemberCode({
         memberCode: memberCodeInput.trim() || `CAP-M-${Math.floor(1000 + Math.random() * 8999)}`,
         athleteNameAr: athleteNameInput.trim() || matchedMember?.fullNameAr || "سباح مشترك",
@@ -323,25 +368,26 @@ export default function FacilityDashboardPage() {
         trackType: selectedTrack,
         trackLabelAr: trackObj.labelAr,
       });
-      setIsEnrolling(false);
       setFeedback({ ok: res.ok, msg: res.messageAr });
       if (res.ok) {
         setAthleteNameInput("");
         setMemberCodeInput("");
       }
-    }, 1400);
+    } finally {
+      setIsEnrolling(false);
+    }
   };
 
   const handleAddCoachRoster = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSavingCoach || !coachNameInput.trim()) return;
     setIsSavingCoach(true);
-    const certs = coachCertsInput
-      .split(/[\n,،]+/)
-      .map((c) => c.trim())
-      .filter(Boolean);
+    try {
+      const certs = coachCertsInput
+        .split(/[\n,،]+/)
+        .map((c) => c.trim())
+        .filter(Boolean);
 
-    setTimeout(() => {
       const res = addFacilityCoachRosterEntry(facility.id, {
         fullNameAr: coachNameInput.trim(),
         roleTitleAr: coachRoleInput.trim(),
@@ -350,21 +396,21 @@ export default function FacilityDashboardPage() {
         scheduleAr: coachScheduleInput.trim(),
         coachIdOrCode: coachCodeQuery.trim() || undefined,
       });
-      setIsSavingCoach(false);
       setFeedback({ ok: res.ok, msg: res.messageAr });
       if (res.ok) {
         setCoachNameInput("");
         setCoachCodeQuery("");
       }
-    }, 1500);
+    } finally {
+      setIsSavingCoach(false);
+    }
   };
 
   const handleAddStaff = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSavingStaff || !staffNameInput.trim()) return;
     setIsSavingStaff(true);
-
-    setTimeout(() => {
+    try {
       const res = addFacilityStaffMember(facility.id, {
         fullNameAr: staffNameInput.trim(),
         role: staffRoleInput,
@@ -372,7 +418,6 @@ export default function FacilityDashboardPage() {
         phone: staffPhoneInput.trim() || undefined,
         memberCodeOrQuery: staffAccountQuery.trim() || undefined,
       });
-      setIsSavingStaff(false);
       setFeedback({ ok: res.ok, msg: res.messageAr });
       if (res.ok) {
         setStaffNameInput("");
@@ -380,7 +425,9 @@ export default function FacilityDashboardPage() {
         setStaffPhoneInput("");
         setStaffAccountQuery("");
       }
-    }, 1500);
+    } finally {
+      setIsSavingStaff(false);
+    }
   };
 
   // Combine affiliated registered coaches + facility coachRoster for display
@@ -481,7 +528,7 @@ export default function FacilityDashboardPage() {
             )}
 
             <Link
-              href={`/f/${facility.slug}`}
+              href={`/academy/${facility.slug}`}
               className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/15"
             >
               معاينة صفحة المنشأة العامة ←
@@ -567,7 +614,8 @@ export default function FacilityDashboardPage() {
         {/* TAB 1: المشتركون والفرق + مسح الكاميرا وإدخال كود الاشتراك يدوياً */}
         {activeTab === "subscribers" && (
           <div className="flex flex-col gap-6 animate-captenly-enter">
-            {/* Direct Scanner & Manual Subscription Code Input Card */}
+            {/* Direct Scanner & Manual Subscription Code Input Card (Blocked for Accounts Manager) */}
+            {(!isStaffMode || staffRole !== "accounts_manager") && (
             <section className="rounded-[22px] bg-dark-slate text-white p-5 md:p-6 shadow-md border border-electric-volt/25 flex flex-col gap-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -641,125 +689,213 @@ export default function FacilityDashboardPage() {
                 </div>
               </form>
             </section>
+            )}
 
-            {/* Enroll New Swimmer into a Track / School */}
-            <form
-              onSubmit={handleEnrollSubmit}
-              className="bg-surface-card rounded-[22px] p-5 md:p-6 shadow-sm border border-surface-container flex flex-col gap-4"
-            >
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="font-card-title text-dark-slate flex items-center gap-2">
-                    <Icon name="person_add" className="text-[20px] text-deep-olive" />
-                    <span>إضافة مشترك جديد وتوليد كود اشتراك متجدد (SUB-XXXX)</span>
-                  </h3>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    أدخل اسم السباح (أو كود حسابه إن وجد) وحدد المسار وعدد الحصص؛ سيُولّد النظام كود اشتراك خاصاً بهذه الباقة ينتهي بانتهاء حصصها.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-dark-slate">اسم السباح / المشترك *</label>
-                  <input
-                    required={!matchedMember}
-                    value={athleteNameInput}
-                    onChange={(e) => setAthleteNameInput(e.target.value)}
-                    placeholder={matchedMember?.fullNameAr || "اسم السباح ثلاثياً"}
-                    className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-dark-slate">
-                    كود حساب السباح (اختياري)
-                  </label>
-                  <input
-                    value={memberCodeInput}
-                    onChange={(e) => setMemberCodeInput(e.target.value)}
-                    placeholder="CAP-M-XXXX (إن وجد)"
-                    className="rounded-xl bg-surface-snow px-3 py-2.5 font-mono text-xs text-dark-slate outline-none border border-surface-container"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-dark-slate">المدرسة / الفريق *</label>
-                  <select
-                    value={selectedTrack}
-                    onChange={(e) => {
-                      const val = e.target.value as typeof selectedTrack;
-                      setSelectedTrack(val);
-                      const found = TRACK_OPTIONS.find((t) => t.id === val);
-                      if (found) {
-                        setPkgTitleInput(`${found.labelAr} — ${sessionsCount} حصص`);
-                      }
-                    }}
-                    className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs font-bold text-dark-slate outline-none border border-surface-container"
-                  >
-                    {TRACK_OPTIONS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.labelAr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-dark-slate">مسمى الباقة / الموعد</label>
-                  <input
-                    value={pkgTitleInput}
-                    onChange={(e) => setPkgTitleInput(e.target.value)}
-                    placeholder="مدرسة السباحة — 8 حصص"
-                    className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-dark-slate">عدد الحصص</label>
-                    <select
-                      value={sessionsCount}
-                      onChange={(e) => {
-                        const c = Number(e.target.value) as 8 | 12 | 24;
-                        setSessionsCount(c);
-                      }}
-                      className="rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs font-bold text-dark-slate outline-none border border-surface-container"
-                    >
-                      <option value={8}>8 حصص</option>
-                      <option value={12}>12 حصة</option>
-                      <option value={24}>24 حصة</option>
-                    </select>
+            {/* Accounts & Financial Receipts Confirmation Section (Owner & Accounts Manager) */}
+            {(!isStaffMode || staffRole === "accounts_manager" || staffRole === "general_staff") && (() => {
+              const allReceipts = facilityLedgers.flatMap((l) =>
+                (l.receipts || []).map((r) => ({ ledger: l, receipt: r }))
+              );
+              const pendingReceipts = allReceipts.filter((x) => !x.receipt.confirmedByProvider);
+              if (allReceipts.length === 0) return null;
+              return (
+                <section className="bg-surface-card rounded-[22px] p-5 md:p-6 shadow-sm border border-surface-container flex flex-col gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                      <Icon name="receipt_long" className="text-[20px] text-deep-olive" />
+                      <span>مراجعة وتأكيد إيصالات الدفع المباشر ({pendingReceipts.length} بانتظار التأكيد)</span>
+                    </h3>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {allReceipts.map(({ ledger: l, receipt: r }) => (
+                      <div
+                        key={r.id}
+                        className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-bold text-dark-slate truncate">
+                            {l.athleteNameAr} • {r.amountEgp} ج.م ({r.channel})
+                          </div>
+                          <div className="text-[11px] font-mono text-text-muted mt-0.5">
+                            مرجع: {r.referenceNumber} • {r.uploadedDateAr}
+                          </div>
+                        </div>
+                        {r.confirmedByProvider ? (
+                          <span className="px-2.5 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-extrabold shrink-0">
+                            مؤكد ✓
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = confirmReceiptByProvider(l.id, r.id);
+                              setFeedback({ ok: res.ok, msg: res.messageAr });
+                            }}
+                            className="px-3.5 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0 hover:opacity-90"
+                          >
+                            تأكيد الاستلام ✓
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
+
+            {/* Enroll New Swimmer into a Track / School (Blocked for Accounts Manager) */}
+            {(!isStaffMode || staffRole !== "accounts_manager") && (
+              <form
+                onSubmit={handleEnrollSubmit}
+                className="bg-surface-card rounded-[22px] p-5 md:p-6 shadow-sm border border-surface-container flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                      <Icon name="person_add" className="text-[20px] text-deep-olive" />
+                      <span>إضافة مشترك جديد وتوليد كود اشتراك متجدد (SUB-XXXX)</span>
+                    </h3>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      أدخل اسم السباح (أو كود حسابه أو كود الابن CAP-JR) وحدد المسار وعدد الحصص؛ سيُولّد النظام كود اشتراك خاصاً بهذه الباقة ينتهي بانتهاء حصصها.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-dark-slate">الرسوم ج.م</label>
+                    <label className="text-[11px] font-bold text-dark-slate">اسم السباح / المشترك *</label>
                     <input
-                      type="number"
-                      value={amountEgp}
-                      onChange={(e) => setAmountEgp(e.target.value)}
-                      className="rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
+                      required={!matchedMember}
+                      value={athleteNameInput}
+                      onChange={(e) => setAthleteNameInput(e.target.value)}
+                      placeholder={matchedMember?.fullNameAr || "اسم السباح ثلاثياً"}
+                      className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
                     />
                   </div>
-                </div>
 
-                <div className="flex items-end">
-                  <button
-                    type="submit"
-                    disabled={isEnrolling}
-                    className="w-full py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-60 flex items-center justify-center gap-1.5"
-                  >
-                    {isEnrolling ? (
-                      <>
-                        <span className="w-3.5 h-3.5 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
-                        <span>جاري إصدار الكود...</span>
-                      </>
-                    ) : (
-                      <span>تفعيل وإصدار كود اشتراك ✓</span>
-                    )}
-                  </button>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-dark-slate">
+                      كود حساب السباح أو الابن (اختياري)
+                    </label>
+                    <input
+                      value={memberCodeInput}
+                      onChange={(e) => setMemberCodeInput(e.target.value)}
+                      placeholder="CAP-M-XXXX أو CAP-JR-XXXX"
+                      className="rounded-xl bg-surface-snow px-3 py-2.5 font-mono text-xs text-dark-slate outline-none border border-surface-container"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-dark-slate">المدرسة / الفريق *</label>
+                    <select
+                      value={selectedTrack}
+                      onChange={(e) => {
+                        const val = e.target.value as typeof selectedTrack;
+                        setSelectedTrack(val);
+                        const found = TRACK_OPTIONS.find((t) => t.id === val);
+                        if (found) {
+                          setPkgTitleInput(`${found.labelAr} — ${sessionsCount} حصص`);
+                        }
+                      }}
+                      className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs font-bold text-dark-slate outline-none border border-surface-container"
+                    >
+                      {TRACK_OPTIONS.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.labelAr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const bookablePackages = getFacilityBookablePackages(facility);
+                    if (bookablePackages.length === 0) return null;
+                    return (
+                      <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
+                        <label className="text-[11px] font-bold text-deep-olive">
+                          اختيار باقة / برنامج موثق بالمنشأة لتعبئة البيانات تلقائياً (اختياري)
+                        </label>
+                        <select
+                          defaultValue=""
+                          onChange={(e) => {
+                            const found = bookablePackages.find((p) => p.id === e.target.value);
+                            if (!found) return;
+                            setSelectedTrack(found.trackType);
+                            setPkgTitleInput(found.nameAr);
+                            setSessionsCount(toLedgerSessionBucket(found.sessionsCount));
+                            if (found.baseMonthlyEgp > 0) {
+                              setAmountEgp(String(found.baseMonthlyEgp));
+                            }
+                          }}
+                          className="rounded-xl bg-lime-tint/30 px-3 py-2 text-xs font-bold text-dark-slate outline-none border border-deep-olive/30"
+                        >
+                          <option value="">-- اختر من باقات المنشأة ({bookablePackages.length}) أو أدخل باقة مخصصة --</option>
+                          {bookablePackages.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nameAr} — {p.sessionsCount} حصة ({p.baseMonthlyEgp} ج.م)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-dark-slate">مسمى الباقة / الموعد</label>
+                    <input
+                      value={pkgTitleInput}
+                      onChange={(e) => setPkgTitleInput(e.target.value)}
+                      placeholder="مدرسة السباحة — 8 حصص"
+                      className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">عدد الحصص</label>
+                      <select
+                        value={sessionsCount}
+                        onChange={(e) => {
+                          const c = Number(e.target.value) as 8 | 12 | 24;
+                          setSessionsCount(c);
+                        }}
+                        className="rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs font-bold text-dark-slate outline-none border border-surface-container"
+                      >
+                        <option value={8}>8 حصص</option>
+                        <option value={12}>12 حصة</option>
+                        <option value={24}>24 حصة</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-dark-slate">الرسوم ج.م</label>
+                      <input
+                        type="number"
+                        value={amountEgp}
+                        onChange={(e) => setAmountEgp(e.target.value)}
+                        className="rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={isEnrolling}
+                      className="w-full py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                    >
+                      {isEnrolling ? (
+                        <>
+                          <span className="w-3.5 h-3.5 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
+                          <span>جاري إصدار الكود...</span>
+                        </>
+                      ) : (
+                        <span>تفعيل وإصدار كود اشتراك ✓</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
 
             {/* Subscribers & Teams Roster */}
             <section className="bg-surface-card rounded-[22px] p-5 md:p-6 shadow-sm border border-surface-container flex flex-col gap-4">
@@ -907,7 +1043,7 @@ export default function FacilityDashboardPage() {
 
                         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-surface-container/70">
                           <div className="flex items-center gap-2">
-                            {!isExpired ? (
+                            {!isExpired && (!isStaffMode || staffRole !== "accounts_manager") ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -925,24 +1061,26 @@ export default function FacilityDashboardPage() {
                               </button>
                             ) : null}
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const res = renewSwimmerSubscription({
-                                  ledgerId: l.id,
-                                  totalSessions: l.totalSessions,
-                                  packageTitleAr: l.packageTitleAr,
-                                });
-                                setFeedback({ ok: res.ok, msg: res.messageAr });
-                              }}
-                              className={`px-3.5 py-2 rounded-full text-xs font-bold border ${
-                                isExpired
-                                  ? "bg-deep-olive text-white border-deep-olive"
-                                  : "bg-surface-card text-dark-slate border-surface-container hover:bg-lime-tint"
-                              }`}
-                            >
-                              تجديد الاشتراك بكود جديد ↻
-                            </button>
+                            {(!isStaffMode || staffRole !== "accounts_manager") && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const res = renewSwimmerSubscription({
+                                    ledgerId: l.id,
+                                    totalSessions: l.totalSessions,
+                                    packageTitleAr: l.packageTitleAr,
+                                  });
+                                  setFeedback({ ok: res.ok, msg: res.messageAr });
+                                }}
+                                className={`px-3.5 py-2 rounded-full text-xs font-bold border ${
+                                  isExpired
+                                    ? "bg-deep-olive text-white border-deep-olive"
+                                    : "bg-surface-card text-dark-slate border-surface-container hover:bg-lime-tint"
+                                }`}
+                              >
+                                تجديد الاشتراك بكود جديد ↻
+                              </button>
+                            )}
                           </div>
 
                           <Link
@@ -958,6 +1096,142 @@ export default function FacilityDashboardPage() {
                 </div>
               )}
             </section>
+
+            {/* تقييم السباحين والأرقام القياسية (PB + مهارات السباحة) */}
+            {(!isStaffMode || activeStaffAssignment?.role !== "accounts_manager") && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const selectedLedger = facilityLedgers.find((l) => l.id === pbAthleteId);
+                  const targetName = pbSwimmerName.trim() || selectedLedger?.athleteNameAr || "";
+                  const numericVal = Number(pbCurrentValue.trim());
+                  if (!targetName || !pbEventTitle.trim() || !Number.isFinite(numericVal) || numericVal <= 0) {
+                    setFeedback({
+                      ok: false,
+                      msg: "يرجى تحديد السباح وكتابة السباق ورقم قياسي صحيح (رقم أكبر من صفر).",
+                    });
+                    return;
+                  }
+                  const targetAthleteId = selectedLedger?.athleteId || "persona-athlete";
+                  recordCoachSkillAndPB({
+                    athleteId: targetAthleteId,
+                    swimmerNameAr: targetName,
+                    eventTitleAr: pbEventTitle.trim(),
+                    currentValue: numericVal,
+                    unitAr: pbUnitAr.trim() || "ثانية",
+                    coachNameAr: currentPersona.fullNameAr,
+                    facilityNameAr: facility.nameAr,
+                    skills: {
+                      athleteId: targetAthleteId,
+                      evaluatedDateAr: "اليوم",
+                      coachNameAr: currentPersona.fullNameAr,
+                      coachFeedbackAr: `تقييم فني مسجل عبر ${facility.nameAr}`,
+                      metrics: [
+                        { labelAr: "الطفو وتوازن الماء", score: skillFloating },
+                        { labelAr: "تنظيم النفس والفقاعات", score: skillBreathing },
+                        { labelAr: "التوافق الحركي والحرّة", score: skillFreestyle },
+                        { labelAr: "سباحة الظهر والاستلقاء", score: skillBackstroke },
+                        { labelAr: "الغوص وبداية الانطلاق", score: skillDiving },
+                      ],
+                    },
+                  });
+                  setPbCurrentValue("");
+                  setFeedback({
+                    ok: true,
+                    msg: `✓ تم تسجيل الرقم القياسي (${pbEventTitle.trim()}) وتحديث التقييم الفني للسباح «${targetName}» وربطه بملفه فوراً.`,
+                  });
+                }}
+                className="bg-surface-card rounded-[22px] p-6 shadow-sm border border-surface-container flex flex-col gap-4"
+              >
+                <div>
+                  <h3 className="font-card-title text-dark-slate flex items-center gap-2">
+                    <Icon name="speed" className="text-[20px] text-deep-olive" />
+                    <span>تقييم السباحين وتسجيل الأرقام القياسية (PB)</span>
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    يظهر التقييم والأرقام المسجلة مباشرة في ملف السباح الشخصي أو ملف الابن لدى ولي الأمر.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <select
+                    value={pbAthleteId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPbAthleteId(val);
+                      const found = facilityLedgers.find((l) => l.id === val);
+                      if (found) setPbSwimmerName(found.athleteNameAr);
+                    }}
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  >
+                    <option value="">-- اختر مشتركاً من الدليل أو اكتب الاسم --</option>
+                    {facilityLedgers.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.athleteNameAr} ({l.subscriptionCode || l.ledgerCode})
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={pbSwimmerName}
+                    onChange={(e) => setPbSwimmerName(e.target.value)}
+                    placeholder="اسم السباح *"
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  />
+
+                  <input
+                    value={pbEventTitle}
+                    onChange={(e) => setPbEventTitle(e.target.value)}
+                    placeholder="الاختبار / السباق (مثلاً 50م حرة) *"
+                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                  />
+
+                  <div className="flex gap-2">
+                    <input
+                      value={pbCurrentValue}
+                      onChange={(e) => setPbCurrentValue(e.target.value)}
+                      placeholder="الزمن/المسافة (31.4)"
+                      className="flex-1 rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-bold border border-surface-container outline-none"
+                    />
+                    <input
+                      value={pbUnitAr}
+                      onChange={(e) => setPbUnitAr(e.target.value)}
+                      placeholder="ثانية"
+                      className="w-20 rounded-xl bg-surface-snow px-2.5 py-2.5 text-xs font-bold border border-surface-container outline-none text-center"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                  {[
+                    { label: "الطفو (/5)", val: skillFloating, set: setSkillFloating },
+                    { label: "التنفس (/5)", val: skillBreathing, set: setSkillBreathing },
+                    { label: "الحرّة (/5)", val: skillFreestyle, set: setSkillFreestyle },
+                    { label: "الظهر (/5)", val: skillBackstroke, set: setSkillBackstroke },
+                    { label: "الانطلاق (/5)", val: skillDiving, set: setSkillDiving },
+                  ].map((sk) => (
+                    <label key={sk.label} className="rounded-xl bg-surface-snow p-2.5 border border-surface-container flex flex-col gap-1 font-bold text-dark-slate">
+                      <span>{sk.label}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={sk.val}
+                        onChange={(e) => sk.set(Math.min(5, Math.max(1, Number(e.target.value) || 1)))}
+                        className="rounded-lg bg-surface-card px-2 py-1 text-xs border border-surface-container outline-none"
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  className="self-start px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95"
+                >
+                  حفظ الرقم القياسي والتقييم ✓
+                </button>
+              </form>
+            )}
           </div>
         )}
 
@@ -1095,7 +1369,7 @@ export default function FacilityDashboardPage() {
                   قائمة كباتن الأكاديمية الظاهرين في الصفحة العامة ({rosterCoaches.length + affiliatedRegisteredCoaches.length})
                 </h3>
                 <Link
-                  href={`/f/${facility.slug}`}
+                  href={`/academy/${facility.slug}`}
                   className="text-xs font-bold text-deep-olive hover:underline"
                 >
                   معاينة ظهورهم في تبويب «الكباتن الموثقون» ←
@@ -1261,14 +1535,63 @@ export default function FacilityDashboardPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold text-dark-slate">
-                    كود حساب الموظف لتفعيل تبديل الحساب (اختياري)
+                    ربط بحساب مسجل على كابتنلي (الاسم / الكود / الهاتف / البريد)
                   </label>
-                  <input
-                    value={staffAccountQuery}
-                    onChange={(e) => setStaffAccountQuery(e.target.value)}
-                    placeholder="CAP-M-XXXX أو اتركه فارغاً"
-                    className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-mono outline-none border border-surface-container"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={staffAccountQuery}
+                      onChange={(e) => setStaffAccountQuery(e.target.value)}
+                      placeholder="CAP-M-XXXX أو اسم الموظف أو بريده"
+                      className="flex-1 rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs font-mono outline-none border border-surface-container"
+                    />
+                    <button
+                      type="button"
+                      disabled={staffSearchBusy || !staffAccountQuery.trim()}
+                      onClick={async () => {
+                        setStaffSearchBusy(true);
+                        try {
+                          const found = await lookupStaffCandidatesRemote(staffAccountQuery);
+                          setStaffCandidates(found);
+                          if (found.length === 0) {
+                            setFeedback({
+                              ok: false,
+                              msg: "لم يتم العثور على حساب مطابق في قاعدة البيانات — تأكد من الكود أو الهاتف أو البريد.",
+                            });
+                          }
+                        } finally {
+                          setStaffSearchBusy(false);
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-lime-tint text-deep-olive text-xs font-bold border border-deep-olive/30 hover:opacity-90 disabled:opacity-50 shrink-0"
+                    >
+                      {staffSearchBusy ? "جاري البحث..." : "بحث الحساب"}
+                    </button>
+                  </div>
+                  {staffCandidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {staffCandidates.map((cand) => (
+                        <button
+                          key={cand.memberCode}
+                          type="button"
+                          onClick={() => {
+                            setStaffNameInput(cand.fullNameAr);
+                            if (cand.phone) setStaffPhoneInput(cand.phone);
+                            setStaffAccountQuery(cand.memberCode);
+                            setStaffCandidates([]);
+                            setFeedback({
+                              ok: true,
+                              msg: `تم اختيار الحساب «${cand.fullNameAr}» (${cand.memberCode}) — حدد الصلاحية واضغط إضافة الموظف.`,
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-lime-tint/70 hover:bg-lime-tint text-dark-slate text-[11px] font-bold border border-deep-olive/30 flex items-center gap-1.5"
+                        >
+                          <span>{cand.fullNameAr}</span>
+                          <span className="font-mono text-deep-olive">{cand.memberCode}</span>
+                          <span className="text-text-muted">({cand.city})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1314,39 +1637,62 @@ export default function FacilityDashboardPage() {
                           <span className="px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive text-[11px] font-extrabold">
                             {st.roleTitleAr}
                           </span>
+                          {st.hasAccount && (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                st.invitationStatus === "pending"
+                                  ? "bg-amber-100 text-amber-900"
+                                  : st.invitationStatus === "declined" || st.invitationStatus === "revoked"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-deep-olive/10 text-deep-olive"
+                              }`}
+                            >
+                              {st.invitationStatus === "pending"
+                                ? "⏳ بانتظار قبول الدعوة"
+                                : st.invitationStatus === "declined"
+                                ? "مرفوضة"
+                                : st.invitationStatus === "revoked"
+                                ? "ملغاة"
+                                : "مقبولة ✓"}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-text-muted">
                           {st.hasAccount
-                            ? `مربوط بحساب كابتنلي (${st.linkedMemberCode || "مفعل"}) — متاح له تبديل الحساب ✓`
+                            ? `مربوط بحساب كابتنلي (${st.linkedMemberCode || st.email || "مفعل"})`
                             : "مسجل إدارياً بدون حساب شخصي على المنصة"}
                         </div>
                         <div className="text-[11px] text-text-muted">
                           {st.role === "subscriptions_manager"
                             ? "الصلاحيات: مسح الـ QR بالكاميرا + إدخال كود الاشتراك يدوياً + قائمة المشتركين"
                             : st.role === "accounts_manager"
-                            ? "الصلاحيات: الإحصائيات المالية + بطاقات الأسعار والمواعيد + أرشيف الإيصالات"
+                            ? "الصلاحيات: الإحصائيات المالية + بطاقات الأسعار والمواعيد + تأكيد الإيصالات"
                             : "الصلاحيات: متابعة إدارية"}
                         </div>
                       </div>
 
                       <div className="flex flex-col items-end gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            switchToStaffMode(st.id);
-                          }}
-                          className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
-                          title="معاينة كيف يرى هذا الموظف لوحة المنشأة عند تبديل حسابه"
-                        >
-                          معاينة واجهة الموظف
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeFacilityStaffMember(facility.id, st.id)}
-                          className="text-[11px] font-bold text-status-danger hover:underline"
-                        >
-                          إلغاء الصلاحية
-                        </button>
+                        {(!st.invitationStatus || st.invitationStatus === "accepted") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              switchToStaffMode(st.id);
+                            }}
+                            className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+                            title="معاينة كيف يرى هذا الموظف لوحة المنشأة عند تبديل حسابه"
+                          >
+                            معاينة واجهة الموظف
+                          </button>
+                        )}
+                        {!isStaffMode && (
+                          <button
+                            type="button"
+                            onClick={() => removeFacilityStaffMember(facility.id, st.id)}
+                            className="text-[11px] font-bold text-status-danger hover:underline"
+                          >
+                            إلغاء الصلاحية
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1356,8 +1702,8 @@ export default function FacilityDashboardPage() {
           </div>
         )}
 
-        {/* TAB 5: مقالات ومنشورات المنشأة */}
-        {activeTab === "articles" && (
+        {/* TAB 5: مقالات ومنشورات المنشأة (للمالك فقط) */}
+        {activeTab === "articles" && !isStaffMode && (
           <section className="bg-surface-card rounded-[22px] p-6 shadow-sm border border-surface-container">
             <AuthorArticlesManager
               authorType="facility"
@@ -1374,6 +1720,7 @@ export default function FacilityDashboardPage() {
       <QrCameraScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
+        scopeFacilityId={facility.id}
         onLedgerCheckedIn={(_ledgerId, messageAr) => {
           setFeedback({ ok: true, msg: messageAr });
         }}

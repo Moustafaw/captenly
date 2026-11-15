@@ -9,6 +9,8 @@ import type { SessionLedger } from "@/types/captenly";
 interface QrCameraScannerModalProps {
   open: boolean;
   onClose: () => void;
+  scopeFacilityId?: string;
+  scopeCoachId?: string;
   onMemberDetectedForEnroll?: (payload: { memberCode: string; athleteNameAr?: string }) => void;
   onLedgerCheckedIn?: (ledgerId: string, messageAr: string) => void;
 }
@@ -77,7 +79,7 @@ function parseCaptenlyQr(raw: string): ParsedQrResult {
       memberCode: clean.slice("CAP-MEMBER:".length).trim().toUpperCase(),
     };
   }
-  if (/^CAP-[MCF]-\d{3,6}$/i.test(clean)) {
+  if (/^CAP-(M|JR|C|F)-[A-Z0-9-]+$/i.test(clean)) {
     return { kind: "member_qr", memberCode: clean.toUpperCase() };
   }
   return { kind: "unknown", raw: clean };
@@ -86,15 +88,27 @@ function parseCaptenlyQr(raw: string): ParsedQrResult {
 export function QrCameraScannerModal({
   open,
   onClose,
+  scopeFacilityId,
+  scopeCoachId,
   onMemberDetectedForEnroll,
   onLedgerCheckedIn,
 }: QrCameraScannerModalProps) {
   const {
+    currentPersona,
+    activeStaffAssignment,
     sessionLedgers,
     checkInSession,
     checkInBySubscriptionCode,
     lookupRemoteLedgersOrProfile,
   } = useCaptenly();
+
+  const effectiveFacilityId =
+    scopeFacilityId ||
+    activeStaffAssignment?.facilityId ||
+    (currentPersona.role === "facility_manager" ? currentPersona.linkedFacilityId : undefined);
+  const effectiveCoachId =
+    scopeCoachId ||
+    (currentPersona.role === "coach" ? currentPersona.linkedCoachId || currentPersona.id : undefined);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -139,7 +153,9 @@ export function QrCameraScannerModal({
         if (parsed.kind === "subscription_qr") {
           const res = checkInBySubscriptionCode(
             parsed.subscriptionCode,
-            "تم المسح المباشر لكود الاشتراك بالـ QR"
+            effectiveFacilityId,
+            "تم المسح المباشر لكود الاشتراك بالـ QR",
+            effectiveCoachId
           );
           if (res.ok && res.ledger) {
             stopCamera();
@@ -181,6 +197,20 @@ export function QrCameraScannerModal({
             return;
           }
 
+          if (
+            (effectiveFacilityId && targetLedger.facilityId !== effectiveFacilityId) ||
+            (!effectiveFacilityId &&
+              effectiveCoachId &&
+              targetLedger.coachId !== effectiveCoachId)
+          ) {
+            setScanStatus({
+              type: "error",
+              titleAr: "هذا الدفتر يتبع منشأة أو كابتن آخر",
+              detailAr: `الدفتر (${targetLedger.facilityNameAr}) خارج نطاق منشأتك أو متدربيك.`,
+            });
+            return;
+          }
+
           const res = checkInSession(
             targetLedger.id,
             parsed.pinCode || targetLedger.pinCode,
@@ -208,13 +238,26 @@ export function QrCameraScannerModal({
         }
 
         if (parsed.kind === "member_qr") {
+          if (!effectiveFacilityId && !effectiveCoachId) {
+            setScanStatus({
+              type: "error",
+              titleAr: "النطاق الوظيفي غير محدد",
+              detailAr: "يلزم فتح الماسح من لوحة منشأة أو كابتن مرتبط للتحقق من أكواد العضوية.",
+            });
+            return;
+          }
           const code = parsed.memberCode;
           const remote = await lookupRemoteLedgersOrProfile({ memberCode: code });
-          const allMatched = remote.ledgers.length > 0
+          const rawMatched = remote.ledgers.length > 0
             ? remote.ledgers
             : sessionLedgers.filter(
                 (l) => (l.memberCode || "").toUpperCase() === code
               );
+          const allMatched = rawMatched.filter((l) => {
+            if (effectiveFacilityId) return l.facilityId === effectiveFacilityId;
+            if (effectiveCoachId) return l.coachId === effectiveCoachId;
+            return false;
+          });
           const activeLedger = allMatched.find((l) => l.status !== "completed") || allMatched[0];
 
           if (activeLedger) {
@@ -266,6 +309,8 @@ export function QrCameraScannerModal({
       checkInSession,
       checkInBySubscriptionCode,
       lookupRemoteLedgersOrProfile,
+      effectiveFacilityId,
+      effectiveCoachId,
       stopCamera,
       onLedgerCheckedIn,
     ]

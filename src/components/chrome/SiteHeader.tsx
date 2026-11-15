@@ -9,34 +9,10 @@ import { Icon } from "@/components/Icon";
 import { signOut } from "next-auth/react";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 
-const STATIC_NAV_START = [
-  { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
-  {
-    href: "/explore",
-    label: "استكشف",
-    match: (p: string) =>
-      p.startsWith("/explore") ||
-      p.startsWith("/pools") ||
-      p.startsWith("/coaches") ||
-      p.startsWith("/compare") ||
-      p.startsWith("/c/") ||
-      p.startsWith("/academy") ||
-      p.startsWith("/claim"),
-  },
-];
-
-const STATIC_NAV_END = [
-  {
-    href: "/magazine",
-    label: "المجلة الرياضية",
-    match: (p: string) => p.startsWith("/magazine"),
-  },
-];
-
 const ACTIVE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#65A30D] font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-deep-olive font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 const IDLE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-[#65A30D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-deep-olive font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 
 export function SiteHeader() {
   const pathname = usePathname() || "/";
@@ -46,6 +22,7 @@ export function SiteHeader() {
     setLocationModalOpen,
     unreadNotificationsCount,
     savedFavoriteIds,
+    minorAthletes,
     currentPersona,
     isAuthenticated,
     openAuthGateModal,
@@ -54,6 +31,9 @@ export function SiteHeader() {
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
+    activeWorkspaceContext,
+    switchWorkspaceContext,
   } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,6 +58,34 @@ export function SiteHeader() {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
+  const staticNavStart = [
+    { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
+    {
+      href: "/explore",
+      label: "استكشف",
+      match: (p: string) =>
+        p.startsWith("/explore") ||
+        p.startsWith("/pools") ||
+        p.startsWith("/compare") ||
+        p.startsWith("/academy") ||
+        (isAuthenticated && (p.startsWith("/coaches") || p.startsWith("/c/"))),
+    },
+  ];
+
+  const staticNavEnd = [
+    {
+      href: "/magazine",
+      label: "المجلة الرياضية",
+      match: (p: string) => p.startsWith("/magazine"),
+    },
+  ];
+
+  const verifiedStaffAssignment =
+    activeStaffAssignment &&
+    (!activeStaffAssignment.invitationStatus || activeStaffAssignment.invitationStatus === "accepted")
+      ? activeStaffAssignment
+      : null;
+
   const roleNavItems = !isAuthenticated
     ? [
         {
@@ -86,11 +94,11 @@ export function SiteHeader() {
           match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
         },
       ]
-    : activeStaffAssignment
+    : verifiedStaffAssignment
     ? [
         {
           href: "/dashboard/facility",
-          label: `لوحة ${activeStaffAssignment.facilityNameAr} (${activeStaffAssignment.roleTitleAr})`,
+          label: `لوحة ${verifiedStaffAssignment.facilityNameAr} (${verifiedStaffAssignment.roleTitleAr})`,
           match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
         },
       ]
@@ -118,7 +126,7 @@ export function SiteHeader() {
         },
       ];
 
-  const NAV = [...STATIC_NAV_START, ...roleNavItems, ...STATIC_NAV_END];
+  const NAV = [...staticNavStart, ...roleNavItems, ...staticNavEnd];
 
   useEffect(() => {
     const updateIndicator = () => {
@@ -144,7 +152,7 @@ export function SiteHeader() {
       window.removeEventListener("resize", updateIndicator);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, currentPersona.role]);
+  }, [pathname, currentPersona.role, isAuthenticated, activeStaffAssignment?.id]);
 
   if (isChromeless(pathname)) return null;
 
@@ -294,14 +302,115 @@ export function SiteHeader() {
                       </div>
                     </div>
 
+                    {/* Workspace Context Switcher */}
+                    {currentPersona.role !== "guest" &&
+                      (currentPersona.linkedCoachId ||
+                        currentPersona.linkedFacilityId ||
+                        currentPersona.role === "coach" ||
+                        currentPersona.role === "facility_manager" ||
+                        myStaffAssignments.some(
+                          (s) => !s.invitationStatus || s.invitationStatus === "accepted"
+                        )) && (
+                        <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-surface-snow border border-surface-container flex flex-col gap-1.5">
+                          <div className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                            <Icon name="workspaces" className="text-[13px] text-deep-olive" />
+                            <span>نطاق العمل الحالي:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                switchWorkspaceContext("member");
+                                setMenuOpen(false);
+                                router.push("/dashboard/athlete");
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                activeWorkspaceContext === "member"
+                                  ? "bg-dark-slate text-electric-volt"
+                                  : "bg-surface-card text-dark-slate border border-surface-container"
+                              }`}
+                            >
+                              حسابي الشخصي
+                            </button>
+                            {(currentPersona.role === "coach" || currentPersona.linkedCoachId) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  switchWorkspaceContext("coach");
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/coach");
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                  activeWorkspaceContext === "coach"
+                                    ? "bg-dark-slate text-electric-volt"
+                                    : "bg-surface-card text-dark-slate border border-surface-container"
+                                }`}
+                              >
+                                وضع الكابتن
+                              </button>
+                            )}
+                            {(currentPersona.role === "facility_manager" ||
+                              currentPersona.linkedFacilityId) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  switchWorkspaceContext("facility");
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/facility");
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                  activeWorkspaceContext === "facility"
+                                    ? "bg-dark-slate text-electric-volt"
+                                    : "bg-surface-card text-dark-slate border border-surface-container"
+                                }`}
+                              >
+                                إدارة المنشأة
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                     {myStaffAssignments.length > 0 && (
                       <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-lime-tint/60 border border-deep-olive/20 flex flex-col gap-1.5">
                         <div className="text-[10px] font-bold text-deep-olive flex items-center gap-1">
                           <Icon name="swap_horiz" className="text-[14px]" />
-                          <span>تبديل الحساب الوظيفي بالمنشأة:</span>
+                          <span>صلاحيات ودعوات فريق العمل:</span>
                         </div>
                         {myStaffAssignments.map((assign) => {
-                          const isCurrent = activeStaffAssignment?.id === assign.id;
+                          if (assign.invitationStatus === "pending") {
+                            return (
+                              <div
+                                key={assign.id}
+                                className="w-full p-2 rounded-lg bg-surface-card border border-deep-olive/30 flex flex-col gap-1.5"
+                              >
+                                <span className="text-[10px] font-bold text-dark-slate truncate">
+                                  دعوة: {assign.roleTitleAr} ({assign.facilityNameAr})
+                                </span>
+                                <div className="flex gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      respondToStaffInvitation(assign.facilityId, assign.id, "accepted")
+                                    }
+                                    className="flex-1 py-1 rounded-md bg-deep-olive text-white text-[10px] font-bold"
+                                  >
+                                    قبول ✓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      respondToStaffInvitation(assign.facilityId, assign.id, "declined")
+                                    }
+                                    className="flex-1 py-1 rounded-md bg-red-50 text-status-danger text-[10px] font-bold"
+                                  >
+                                    رفض ✕
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          const isCurrent = verifiedStaffAssignment?.id === assign.id;
                           return (
                             <button
                               key={assign.id}
@@ -350,7 +459,14 @@ export function SiteHeader() {
                           { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
                         ]
                       : [
-                          { href: "/dashboard/athlete", icon: "person", label: "ملفي الرياضي والعائلة" },
+                          {
+                            href: "/dashboard/athlete",
+                            icon: "person",
+                            label:
+                              minorAthletes.length > 0
+                                ? "ملفي الرياضي والأبناء"
+                                : "ملفي الرياضي وأرقامي",
+                          },
                           { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
                           { href: "/favorites", icon: "bookmark", label: "المفضلة" },
                           { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
@@ -369,15 +485,17 @@ export function SiteHeader() {
 
                     <div className="h-px bg-border-hairline my-1.5" />
                     <div className="flex flex-col gap-1.5 px-1">
-                      {currentPersona.authProvider === "google" && (
-                        <Link
-                          href="/auth/onboarding?source=google"
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
-                        >
+                      <Link
+                        href="/dashboard/athlete/settings"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                      >
+                        {currentPersona.authProvider === "google" ? (
                           <GoogleMark className="w-4 h-4 shrink-0" />
-                          <span>إعداد نوع الحساب والملف</span>
-                        </Link>
-                      )}
+                        ) : (
+                          <Icon name="tune" className="text-[17px]" />
+                        )}
+                        <span>إدارة البيانات وصورة الملف</span>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
@@ -436,12 +554,12 @@ export function SiteHeader() {
               <>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#65A30D]/10 transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-deep-olive/10 transition-all duration-300 ease-out"
                   style={{ left: indicator.left, width: indicator.width }}
                 />
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-[#65A30D] transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-deep-olive transition-all duration-300 ease-out"
                   style={{
                     left: indicator.left + 12,
                     width: Math.max(16, indicator.width - 24),
@@ -470,6 +588,16 @@ export function SiteHeader() {
               className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
             >
               <span>سجّل للحصول على كود عضويتك</span>
+            </Link>
+          ) : activeStaffAssignment ? (
+            <Link
+              href="/dashboard/facility"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+            >
+              <Icon name="badge" className="text-[14px]" />
+              <span>
+                وضع موظف: {activeStaffAssignment.roleTitleAr} ({activeStaffAssignment.facilityNameAr})
+              </span>
             </Link>
           ) : currentPersona.role === "coach" ? (
             <Link

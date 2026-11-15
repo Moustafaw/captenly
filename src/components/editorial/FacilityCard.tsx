@@ -6,6 +6,7 @@ import { Facility } from "@/types/captenly";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { useState } from "react";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
 export function resolveFacilityImage(heroImage?: string): string {
   if (heroImage && heroImage.startsWith("/")) return heroImage;
@@ -26,15 +27,23 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
     toggleCompareFacility,
     createStructuredWhatsappLead,
     currentPersona,
+    minorAthletes,
+    isAuthenticated,
+    openAuthGateModal,
+    subscribeDemandRadar,
+    userLocation,
   } = useCaptenly();
 
   const [shareCopied, setShareCopied] = useState(false);
+  const [demandSent, setDemandSent] = useState(false);
 
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
-  const basePackage = facility.pricePackages[0];
-  const monthlyPrice = basePackage ? basePackage.baseMonthlyEgp : null;
+  const bookablePackages = getFacilityBookablePackages(facility);
+  const basePackage = bookablePackages[0];
+  const startingPrice = getFacilityStartingPriceEgp(facility);
+  const monthlyPrice = startingPrice > 0 ? startingPrice : null;
 
   const handleCompareClick = () => {
     const res = toggleCompareFacility(facility.id);
@@ -59,7 +68,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
       whatsappNumber: facility.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: facility.specialtiesAr[0] || "استفسار عن الباقات",
       preferredScheduleAr: "الفترة المسائية",
     });
@@ -149,12 +158,15 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
         <div className="p-space-md flex flex-col gap-2">
           <div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption">
             <span className="font-bold text-dark-slate">
-              {facility.city} • {facility.district}
+              {facility.city}
+              {facility.district ? ` • ${facility.district}` : ""}
             </span>
-            <span className="flex items-center gap-1 text-status-warning font-bold">
-              <Icon name="star" className="text-[14px]" />
-              {facility.rating} ({facility.reviewsCount})
-            </span>
+            {facility.rating > 0 ? (
+              <span className="flex items-center gap-1 text-status-warning font-bold">
+                <Icon name="star" className="text-[14px]" />
+                {facility.rating} {facility.reviewsCount > 0 ? `(${facility.reviewsCount})` : ""}
+              </span>
+            ) : null}
           </div>
 
           <Link href={`/academy/${facility.slug}`} className="group-hover:text-deep-olive transition-colors">
@@ -237,7 +249,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 pt-0.5">
+        <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
           <Link
             href={`/academy/${facility.slug}`}
             className="text-deep-olive font-badge-label text-[12px] hover:underline flex items-center gap-1.5"
@@ -245,6 +257,36 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             <span>{isUnclaimed ? "عرض الموقع والتفاصيل" : "تفاصيل الباقات والمواعيد"}</span>
             <Icon name="arrow_back" className="text-[14px]" />
           </Link>
+          {isUnclaimed && (
+            <button
+              type="button"
+              disabled={demandSent}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  openAuthGateModal(`طلب توفير مواعيد وأسعار ${facility.nameAr}`);
+                  return;
+                }
+                const res = subscribeDemandRadar({
+                  fullNameAr: currentPersona.fullNameAr || "مستخدم كابتنلي",
+                  phone: currentPersona.phone || "",
+                  city: facility.city || userLocation.city || "مصر",
+                  governorate: facility.governorate || "مصر",
+                  targetSport: "swimming",
+                  targetFacilityId: facility.id,
+                  targetFacilityNameAr: facility.nameAr,
+                  notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
+                });
+                if (res.ok) setDemandSent(true);
+              }}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors ${
+                demandSent
+                  ? "bg-lime-tint text-deep-olive"
+                  : "bg-dark-slate text-electric-volt hover:opacity-90"
+              }`}
+            >
+              {demandSent ? "تم إرسال الطلب ✓" : "🔔 اطلب الأسعار"}
+            </button>
+          )}
         </div>
       </div>
     </article>

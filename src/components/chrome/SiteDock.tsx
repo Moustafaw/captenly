@@ -9,7 +9,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 
 export function SiteDock() {
   const pathname = usePathname() || "/";
-  const { currentPersona, isAuthenticated, openAuthGateModal } = useCaptenly();
+  const { currentPersona, isAuthenticated, openAuthGateModal, activeStaffAssignment } = useCaptenly();
   const dockRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicator, setIndicator] = useState<{ left: number; width: number; ready: boolean }>({
@@ -19,7 +19,7 @@ export function SiteDock() {
   });
 
   const isCoach = currentPersona.role === "coach";
-  const isFacility = currentPersona.role === "facility_manager";
+  const isFacility = currentPersona.role === "facility_manager" || Boolean(activeStaffAssignment);
 
   const tabs = [
     { href: "/", icon: "home", label: "الرئيسية", active: pathname === "/", gated: false },
@@ -35,7 +35,7 @@ export function SiteDock() {
       icon: "compare_arrows",
       label: "قارن",
       active: pathname.startsWith("/compare"),
-      gated: true,
+      gated: false,
     },
     {
       href: "/dashboard/ledger",
@@ -93,7 +93,7 @@ export function SiteDock() {
       window.removeEventListener("resize", update);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, currentPersona.role]);
+  }, [pathname, currentPersona.role, activeStaffAssignment?.id]);
 
   if (isChromeless(pathname)) return null;
 
@@ -137,7 +137,7 @@ export function SiteDock() {
                 }
               }}
               className={`relative z-10 min-w-[52px] min-h-[46px] px-2.5 py-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-300 ${
-                t.active ? "text-[#65A30D] font-extrabold" : "text-text-muted hover:text-[#65A30D]"
+                t.active ? "text-deep-olive font-extrabold" : "text-text-muted hover:text-deep-olive"
               }`}
             >
               <Icon

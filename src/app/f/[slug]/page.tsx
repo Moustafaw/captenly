@@ -1,7 +1,5 @@
-import { ResponsiveScreen } from "@/components/ResponsiveScreen";
-import Desktop22 from "@/screens/D22";
-import Phone13 from "@/screens/P13";
+import { redirect } from "next/navigation";
 
-export default function FacilityPage() {
-  return <ResponsiveScreen desktop={<Desktop22 />} phone={<Phone13 />} />;
+export default function FacilityPage({ params }: { params: { slug: string } }) {
+  redirect(`/academy/${params.slug}`);
 }

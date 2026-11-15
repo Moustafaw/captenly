@@ -4,28 +4,97 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import { RoleAccessDeniedScreen } from "@/components/auth/RoleAccessDeniedScreen";
+import { isMemberAccountRole } from "@/types/captenly";
 
 export default function FamilySettingsPage() {
-  const { minorAthletes, addMinorAthlete } = useCaptenly();
+  const {
+    isAuthenticated,
+    currentPersona,
+    minorAthletes,
+    sessionLedgers,
+    addMinorAthlete,
+    updateMinorAthlete,
+    removeMinorAthlete,
+  } = useCaptenly();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState(8);
   const [childGender, setChildGender] = useState<"male" | "female">("male");
   const [childSport, setChildSport] = useState<"swimming" | "fitness">("swimming");
   const [law151Consent, setLaw151Consent] = useState(true);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  const handleAddChild = (e: React.FormEvent) => {
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="إدارة العائلة والأبناء"
+        descriptionAr="سجّل دخولك بحساب السبّاح وولي الأمر لإضافة ومتابعة ملفات الأبناء وحماية خصوصيتهم."
+      />
+    );
+  }
+
+  if (!isMemberAccountRole(currentPersona.role)) {
+    return (
+      <RoleAccessDeniedScreen
+        titleAr="متابعة الأبناء والأسرة خاصة بحساب السبّاح وولي الأمر"
+        descriptionAr="هذه الصفحة مخصصة لحسابات السبّاحين وأولياء الأمور لإضافة ومتابعة ملفات الأبناء من نفس الحساب الموحد."
+        fallbackHref={
+          currentPersona.role === "facility_manager"
+            ? "/dashboard/facility"
+            : currentPersona.role === "coach"
+            ? "/dashboard/coach"
+            : "/dashboard/athlete"
+        }
+        fallbackLabelAr="العودة للوحة حسابك"
+      />
+    );
+  }
+
+  const openAddModal = () => {
+    setEditingChildId(null);
+    setChildName("");
+    setChildAge(8);
+    setChildGender("male");
+    setChildSport("swimming");
+    setLaw151Consent(true);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (child: (typeof minorAthletes)[number]) => {
+    setEditingChildId(child.id);
+    setChildName(child.fullNameAr);
+    setChildAge(child.age);
+    setChildGender(child.gender);
+    setChildSport(child.primarySport);
+    setLaw151Consent(true);
+    setModalOpen(true);
+  };
+
+  const handleSaveChild = (e: React.FormEvent) => {
     e.preventDefault();
     if (!childName.trim() || !law151Consent) return;
 
-    addMinorAthlete({
-      fullNameAr: childName,
-      age: childAge,
-      gender: childGender,
-      primarySport: childSport,
-    });
+    if (editingChildId) {
+      updateMinorAthlete(editingChildId, {
+        fullNameAr: childName.trim(),
+        age: childAge,
+        gender: childGender,
+        primarySport: childSport,
+      });
+    } else {
+      addMinorAthlete({
+        fullNameAr: childName.trim(),
+        age: childAge,
+        gender: childGender,
+        primarySport: childSport,
+      });
+    }
 
+    setEditingChildId(null);
     setChildName("");
     setChildAge(8);
     setModalOpen(false);
@@ -54,7 +123,8 @@ export default function FamilySettingsPage() {
           </div>
 
           <button
-            onClick={() => setModalOpen(true)}
+            type="button"
+            onClick={openAddModal}
             className="px-4 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm flex items-center gap-1.5"
           >
             <Icon name="add" className="text-[18px]" />
@@ -85,13 +155,20 @@ export default function FamilySettingsPage() {
 
       {/* Registered Children Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {minorAthletes.map((athlete) => (
+        {minorAthletes.map((athlete) => {
+          const activeLedger =
+            sessionLedgers.find((l) => l.athleteId === athlete.id && l.status === "active") ||
+            sessionLedgers.find((l) => l.athleteId === athlete.id);
+          const childCode =
+            athlete.childMemberCode ||
+            `CAP-JR-${athlete.id.replace(/[^A-Z0-9]/gi, "").slice(-4).toUpperCase()}`;
+          return (
           <div
             key={athlete.id}
             className="p-5 rounded-2xl bg-surface-card border border-border-hairline shadow-card flex flex-col justify-between gap-4"
           >
             <div className="space-y-3">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-lime-tint text-deep-olive flex items-center justify-center font-bold text-card-title-sm">
                     {athlete.fullNameAr.slice(0, 2)}
@@ -107,19 +184,46 @@ export default function FamilySettingsPage() {
                 </div>
 
                 <span className="text-deep-olive text-[11px] font-extrabold">
-                  {athlete.starTitleAr}
+                  {athlete.currentStarLevel > 0 && athlete.starTitleAr
+                    ? athlete.starTitleAr
+                    : "حساب طفل محمي"}
                 </span>
+              </div>
+
+              {/* Child Sub-Code Banner */}
+              <div className="px-3 py-2 rounded-xl bg-lime-tint/60 border border-deep-olive/25 flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-deep-olive">كود السباح الفرعي:</span>
+                <div className="flex items-center gap-2">
+                  <code dir="ltr" className="font-mono font-black text-dark-slate">
+                    {childCode}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(childCode).catch(() => {});
+                      setCopiedCode(childCode);
+                      setTimeout(() => setCopiedCode(null), 1800);
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-dark-slate text-electric-volt text-[10px] font-bold"
+                  >
+                    {copiedCode === childCode ? "تم النسخ ✓" : "نسخ"}
+                  </button>
+                </div>
               </div>
 
               {/* Status Tickers */}
               <div className="p-3 rounded-xl bg-surface-snow border border-border-hairline space-y-1.5 text-micro-caption">
                 <div className="flex items-center justify-between">
                   <span className="text-text-muted">الأكاديمية النشطة:</span>
-                  <span className="font-bold text-dark-slate">{athlete.activeFacilityNameAr}</span>
+                  <span className="font-bold text-dark-slate">
+                    {activeLedger?.facilityNameAr || athlete.activeFacilityNameAr || "غير مرتبط بعد"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-text-muted">الكابتن المشرف:</span>
-                  <span className="font-bold text-deep-olive">{athlete.activeCoachNameAr}</span>
+                  <span className="font-bold text-deep-olive">
+                    {activeLedger?.coachNameAr || athlete.activeCoachNameAr || "متابعة ذاتية"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-border-hairline">
                   <span className="text-text-muted">حالة موافقة ولي الأمر:</span>
@@ -140,25 +244,40 @@ export default function FamilySettingsPage() {
               </Link>
               <button
                 type="button"
+                onClick={() => openEditModal(athlete)}
                 className="px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-dark-slate text-micro-caption font-bold transition-colors"
                 title="تعديل البيانات"
               >
                 تعديل
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window === "undefined" || window.confirm(`حذف ملف ${athlete.fullNameAr}؟`)) {
+                    removeMinorAthlete(athlete.id);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-status-danger text-micro-caption font-bold transition-colors"
+                title="حذف ملف الطفل"
+              >
+                حذف
+              </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Add Child Modal */}
+      {/* Add / Edit Child Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-md bg-surface-card rounded-3xl shadow-2xl overflow-hidden border border-border-hairline p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-border-hairline pb-3">
               <h3 className="font-bold text-card-title text-dark-slate">
-                إضافة ابن أو بطل رياضي جديد
+                {editingChildId ? "تعديل بيانات الابن" : "إضافة ابن أو بطل رياضي جديد"}
               </h3>
               <button
+                type="button"
                 onClick={() => setModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center"
               >
@@ -166,7 +285,7 @@ export default function FamilySettingsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAddChild} className="space-y-4">
+            <form onSubmit={handleSaveChild} className="space-y-4">
               <div>
                 <label className="block text-body-compact font-bold text-dark-slate mb-1">
                   الاسم الرباعي للطفل:
@@ -213,15 +332,14 @@ export default function FamilySettingsPage() {
 
               <div>
                 <label className="block text-body-compact font-bold text-dark-slate mb-1">
-                  الرياضة الأساسية:
+                  المسار الرياضي (السباحة):
                 </label>
                 <select
-                  value={childSport}
-                  onChange={(e) => setChildSport(e.target.value as "swimming" | "fitness")}
+                  value={childSport === "fitness" ? "swimming" : childSport}
+                  onChange={(e) => setChildSport(e.target.value as "swimming")}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-surface-snow border border-border-hairline text-dark-slate text-body-compact outline-none focus:border-deep-olive"
                 >
                   <option value="swimming">السباحة والألعاب المائية (المسار الأولمبي)</option>
-                  <option value="fitness">الإعداد البدني وتقوية السباحين الناشئين</option>
                 </select>
               </div>
 

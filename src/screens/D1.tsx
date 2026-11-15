@@ -9,76 +9,62 @@ import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 
-type OnboardRole = "adult_athlete" | "parent" | "coach" | "facility_manager";
+import type { AccountIntent } from "@/types/captenly";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
-const ROLE_OPTIONS: {
-  key: OnboardRole;
+const INTENT_OPTIONS: {
+  key: AccountIntent;
   titleAr: string;
   descAr: string;
   icon: string;
-  prefix: "CAP-M" | "CAP-C" | "CAP-F";
 }[] = [
   {
-    key: "adult_athlete",
-    titleAr: "سبّاح / رياضي مستقل",
-    descAr: "متابعة باقاتي وحصصي الـ QR وأرقامي القياسية الشخصية.",
-    icon: "person",
-    prefix: "CAP-M",
+    key: "self_athlete",
+    titleAr: "سبّاح / متدرب مستقل",
+    descAr: "متابعة باقاتك وحصصك بالـ QR وأرقامك القياسية وتقييمات الكباتن.",
+    icon: "pool",
   },
   {
-    key: "parent",
-    titleAr: "ولي أمر (إشراف عائلي)",
-    descAr: "متابعة دفاتر وحضور الأبناء تحت 14 سنة من موبايلك.",
-    icon: "groups",
-    prefix: "CAP-M",
+    key: "parent_only",
+    titleAr: "ولي أمر لمتابعة الأبناء",
+    descAr: "إنشاء ملفات الأبناء القُصّر (CAP-JR) ومتابعة حضورهم وتطورهم المائي.",
+    icon: "family_restroom",
   },
   {
-    key: "coach",
-    titleAr: "كابتن للتوثيق والاعتماد",
-    descAr: "إدارة حصص المتدربين والتقديم على الشارات الخضراء الـ 6.",
-    icon: "workspace_premium",
-    prefix: "CAP-C",
-  },
-  {
-    key: "facility_manager",
-    titleAr: "إدارة نادي أو أكاديمية",
-    descAr: "توثيق صفحة المنشأة، تحديث الباقات، وإدارة المشتركين بـ 0% عمولة.",
-    icon: "stadium",
-    prefix: "CAP-F",
+    key: "both_self_and_parent",
+    titleAr: "سبّاح وولي أمر معاً (موصى به)",
+    descAr: "إدارة نشاطك الرياضي الشخصي ومتابعة ملفات أبنائك من حساب واحد موحد.",
+    icon: "diversity_3",
   },
 ];
 
 function Desktop1Inner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentPersona, userLocation, addMinorAthlete, completeGoogleOnboarding } = useCaptenly();
+  const {
+    isAuthenticated,
+    currentPersona,
+    userLocation,
+    addMinorAthlete,
+    completeGoogleOnboarding,
+  } = useCaptenly();
 
-  const initialRole: OnboardRole =
-    currentPersona.role === "parent" ||
-    currentPersona.role === "coach" ||
-    currentPersona.role === "facility_manager"
-      ? currentPersona.role
-      : "adult_athlete";
-
-  const [selectedRole, setSelectedRole] = useState<OnboardRole>(initialRole);
+  const initialIntent: AccountIntent = currentPersona.accountIntent || "self_athlete";
+  const [selectedIntent, setSelectedIntent] = useState<AccountIntent>(initialIntent);
   const [phone, setPhone] = useState(currentPersona.phone || "");
   const [city, setCity] = useState(
-    (userLocation.isSpecified && userLocation.city) || currentPersona.city || "القاهرة"
+    (userLocation.isSpecified && userLocation.city) || currentPersona.city || "كل مصر"
   );
   const [copied, setCopied] = useState(false);
-  const [addChildOptional, setAddChildOptional] = useState(false);
+  const [addChildOptional, setAddChildOptional] = useState(initialIntent !== "self_athlete");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("8");
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   const isGoogleSource =
     searchParams?.get("source") === "google" || currentPersona.authProvider === "google";
-  const isPreview = searchParams?.get("preview") === "1";
 
-  const rawCode = currentPersona.memberCode || "";
-  const codeSuffix = rawCode ? rawCode.split("-").pop() || "" : "";
-  const selectedRoleMeta =
-    ROLE_OPTIONS.find((r) => r.key === selectedRole) || ROLE_OPTIONS[0];
-  const displayMemberCode = `${selectedRoleMeta.prefix}-${codeSuffix}`;
+  const displayMemberCode = currentPersona.memberCode || "CAP-M-PENDING";
 
   const copyCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -88,20 +74,82 @@ function Desktop1Inner() {
     setTimeout(() => setCopied(false), 1800);
   };
 
+  if (!isAuthenticated) {
+    return (
+      <GuestAccountGateScreen
+        titleAr="استكمال تجهيز الحساب وكود العضوية"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك أولاً لإصدار كود العضوية واختيار وضع الاستخدام."
+      />
+    );
+  }
+
+  if (!currentPersona.needsOnboarding && currentPersona.role !== "guest") {
+    const dashHref =
+      currentPersona.role === "facility_manager"
+        ? "/dashboard/facility"
+        : currentPersona.role === "coach"
+        ? "/dashboard/coach"
+        : "/dashboard/athlete";
+    return (
+      <div className="screen-root min-h-screen bg-canvas-alabaster flex items-center justify-center p-4 sm:p-6">
+        <div className="max-w-lg w-full bg-surface-card rounded-[24px] p-6 sm:p-8 shadow-xl border border-surface-container flex flex-col gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center mx-auto">
+            <Icon name="verified_user" className="text-[28px]" />
+          </div>
+          <h1 className="font-section-title text-dark-slate">
+            تم استكمال تجهيز حسابك مسبقاً ✓
+          </h1>
+          <p className="text-xs text-text-muted leading-relaxed">
+            كود عضويتك النشط:{" "}
+            <strong dir="ltr" className="font-mono text-dark-slate">
+              {displayMemberCode}
+            </strong>
+            . يمكنك تعديل بياناتك من الإعدادات أو تقديم طلب توثيق كابتن أو منشأة من صفحة الاعتماد.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+            <Link
+              href={dashHref}
+              className="flex-1 py-3 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center"
+            >
+              الذهاب إلى لوحتي ←
+            </Link>
+            <Link
+              href="/claim"
+              className="flex-1 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold text-center hover:bg-lime-tint/40"
+            >
+              توثيق كابتن أو منشأة
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleFinish = (e: React.FormEvent) => {
     e.preventDefault();
-    completeGoogleOnboarding({
-      role: selectedRole,
-      phone: phone.trim(),
+    setFeedbackError(null);
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone) {
+      const digitsOnly = trimmedPhone.replace(/\D/g, "");
+      const normalizedPhone =
+        digitsOnly.startsWith("20") && digitsOnly.length === 12
+          ? `0${digitsOnly.slice(2)}`
+          : digitsOnly;
+      if (!/^01[0125]\d{8}$/.test(normalizedPhone)) {
+        setFeedbackError("يرجى إدخال رقم موبايل مصري صحيح (11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015) أو تركه فارغاً الآن.");
+        return;
+      }
+    }
+
+    const res = completeGoogleOnboarding({
+      role: "adult_athlete",
+      accountIntent: selectedIntent,
+      phone: trimmedPhone,
       city,
-      hasParentSupervision: selectedRole === "parent",
+      hasParentSupervision: selectedIntent !== "self_athlete",
     });
 
-    if (
-      (selectedRole === "adult_athlete" || selectedRole === "parent") &&
-      addChildOptional &&
-      childName.trim()
-    ) {
+    if (selectedIntent !== "self_athlete" && addChildOptional && childName.trim()) {
       addMinorAthlete({
         fullNameAr: childName.trim(),
         age: Number(childAge) || 8,
@@ -110,13 +158,7 @@ function Desktop1Inner() {
       });
     }
 
-    if (selectedRole === "coach") {
-      router.push("/claim?mode=coach");
-    } else if (selectedRole === "facility_manager") {
-      router.push("/claim");
-    } else {
-      router.push("/welcome");
-    }
+    router.push(res.nextPath || "/dashboard/athlete");
   };
 
   return (
@@ -126,14 +168,12 @@ function Desktop1Inner() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold">
-                تجهيز الحساب واختيار الدور
+                تجهيز الحساب الموحد
               </span>
               {isGoogleSource && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate">
                   <GoogleMark className="w-3.5 h-3.5" />
-                  <span>
-                    {isPreview ? "تم السحب في وضع معاينة Google" : "تم التوثيق عبر Google"}
-                  </span>
+                  <span>تم التوثيق عبر Google</span>
                 </span>
               )}
             </div>
@@ -146,12 +186,12 @@ function Desktop1Inner() {
               </p>
             )}
           </div>
-          <Link href="/welcome" className="text-xs font-bold text-text-muted hover:text-dark-slate">
-            تخطي للرئيسية ←
+          <Link href="/dashboard/athlete" className="text-xs font-bold text-text-muted hover:text-dark-slate">
+            تخطي لحسابي ←
           </Link>
         </div>
 
-        {/* Pulled Google Profile + Role-Specific Identity Banner */}
+        {/* Pulled Google Profile + Member Identity Banner */}
         <div className="rounded-2xl bg-dark-slate text-surface-card p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-right">
             {currentPersona.avatarUrl ? (
@@ -166,62 +206,45 @@ function Desktop1Inner() {
               </div>
             )}
             <div className="flex flex-col gap-1.5">
-              {selectedRole === "facility_manager" ? (
-                <>
-                  <span className="text-xs text-electric-volt font-bold">
-                    حساب إدارة منشأة / أكاديمية سباحة
-                  </span>
-                  <div className="text-xl font-extrabold text-white">
-                    إدارة المشتركين والفرق ومسح أكواد الاشتراك
-                  </div>
-                  <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
-                    حساب المنشأة يمتلك ماسح كاميرا QR وخانة إدخال كود الاشتراك يدوياً لتسجيل حضور السباحين وإدارة الكباتن والموظفين.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs text-electric-volt font-bold">
-                    {selectedRole === "coach" ? "المعرّف المهني للكابتن" : "كود العضوية الفريد"}
-                  </span>
-                  <div className="text-3xl font-mono font-black tracking-wider text-white">
-                    {displayMemberCode}
-                  </div>
-                  <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
-                    {selectedRole === "coach"
-                      ? "يُستخدم هذا المعرّف لربط ملفك مع الأكاديميات والمنشآت المعتمدة على كابتنلي."
-                      : "عند الاشتراك مع أي كابتن أو أكاديمية موثقة على كابتنلي، يصدر لك كود اشتراك خاص بباقتك لتسجيل الحضور بالـ QR أوفلاين."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={copyCode}
-                    className="mt-1 px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold w-fit mx-auto sm:mx-0 flex items-center gap-1.5"
-                  >
-                    <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
-                    <span>{copied ? "تم النسخ!" : "نسخ الكود"}</span>
-                  </button>
-                </>
-              )}
+              <span className="text-xs text-electric-volt font-bold">
+                كود العضوية الفريد (سبّاح / ولي أمر)
+              </span>
+              <div className="text-3xl font-mono font-black tracking-wider text-white">
+                {displayMemberCode}
+              </div>
+              <p className="text-xs text-surface-container-high max-w-md leading-relaxed">
+                عند الاشتراك مع أي كابتن أو أكاديمية موثقة على كابتنلي، يصدر لك كود اشتراك خاص بباقتك لتسجيل الحضور بالـ QR أوفلاين.
+              </p>
+              <button
+                type="button"
+                onClick={copyCode}
+                className="mt-1 px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold w-fit mx-auto sm:mx-0 flex items-center gap-1.5"
+              >
+                <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
+                <span>{copied ? "تم النسخ!" : "نسخ الكود"}</span>
+              </button>
             </div>
           </div>
-          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
-            <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
-          )}
+          <QrCodeBox value={`CAP-MEMBER:${displayMemberCode}`} size={126} label={displayMemberCode} />
         </div>
 
         <form onSubmit={handleFinish} className="flex flex-col gap-5">
-          {/* Role Picker */}
+          {/* Account Intent Picker */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold text-dark-slate">
-              1) اختر نوع حسابك الأساسي داخل كابتنلي:
+              1) كيف ستستخدم حساب كابتنلي الموحد؟
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ROLE_OPTIONS.map((r) => {
-                const active = selectedRole === r.key;
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {INTENT_OPTIONS.map((opt) => {
+                const active = selectedIntent === opt.key;
                 return (
                   <button
-                    key={r.key}
+                    key={opt.key}
                     type="button"
-                    onClick={() => setSelectedRole(r.key)}
+                    onClick={() => {
+                      setSelectedIntent(opt.key);
+                      setAddChildOptional(opt.key !== "self_athlete");
+                    }}
                     className={`text-right p-4 rounded-2xl border transition-all flex items-start gap-3 ${
                       active
                         ? "bg-lime-tint/70 border-deep-olive shadow-sm"
@@ -233,11 +256,11 @@ function Desktop1Inner() {
                         active ? "bg-dark-slate text-electric-volt" : "bg-white text-deep-olive"
                       }`}
                     >
-                      <Icon name={r.icon} className="text-[20px]" />
+                      <Icon name={opt.icon} className="text-[20px]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-card-title-sm text-dark-slate">{r.titleAr}</div>
-                      <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">{r.descAr}</p>
+                      <div className="font-card-title-sm text-dark-slate">{opt.titleAr}</div>
+                      <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">{opt.descAr}</p>
                     </div>
                   </button>
                 );
@@ -258,7 +281,7 @@ function Desktop1Inner() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="010xxxxxxxx"
-                className="rounded-xl bg-surface-snow px-4 py-3 text-sm text-right outline-none border border-surface-container focus:border-deep-olive"
+                className="rounded-xl bg-surface-snow px-4 py-3 text-sm text-left placeholder:text-right outline-none border border-surface-container focus:border-deep-olive"
               />
             </div>
 
@@ -269,6 +292,7 @@ function Desktop1Inner() {
                 onChange={(e) => setCity(e.target.value)}
                 className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container focus:border-deep-olive"
               >
+                <option value="كل مصر">كل مصر (تصفّح عام بدون تحديد مدينة الآن)</option>
                 {EGYPT_CITY_PRESETS.map((c) => (
                   <option key={c.city} value={c.city}>
                     {c.city} ({c.governorate})
@@ -278,7 +302,7 @@ function Desktop1Inner() {
             </div>
           </div>
 
-          {(selectedRole === "adult_athlete" || selectedRole === "parent") && (
+          {selectedIntent !== "self_athlete" && (
             <>
               <label className="flex items-center gap-3 p-4 rounded-2xl bg-surface-snow cursor-pointer border border-surface-container">
                 <input
@@ -289,10 +313,10 @@ function Desktop1Inner() {
                 />
                 <div>
                   <div className="font-card-title-sm text-dark-slate">
-                    (اختياري) إضافة طفل تحت 14 سنة لمتابعته من حسابي
+                    إضافة ملف الطفل الآن لتوليد كود فرعي (CAP-JR)
                   </div>
                   <div className="text-xs text-text-muted">
-                    إن كنت تسجل لنفسك كسباح أو متدرب جيم مستقل، اتركه غير محدد واضغط حفظ ومتابعة.
+                    يمكنك إضافة الأبناء الآن أو لاحقاً من قسم متابعة الأبناء والأسرة.
                   </div>
                 </div>
               </label>
@@ -308,7 +332,7 @@ function Desktop1Inner() {
                   <input
                     type="number"
                     min={4}
-                    max={14}
+                    max={17}
                     value={childAge}
                     onChange={(e) => setChildAge(e.target.value)}
                     placeholder="العمر"
@@ -319,16 +343,25 @@ function Desktop1Inner() {
             </>
           )}
 
+          {feedbackError && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+              {feedbackError}
+            </div>
+          )}
+
           <button
             type="submit"
             className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title shadow-md hover:opacity-95"
           >
-            {selectedRole === "coach"
-              ? "حفظ الدور والانتقال لتوثيق شارات الكابتن ←"
-              : selectedRole === "facility_manager"
-              ? "حفظ الدور والانتقال لصفحة توثيق المنشأة ←"
-              : "حفظ الإعدادات والدخول للمنصة ←"}
+            حفظ الإعدادات والدخول للمنصة ←
           </button>
+
+          <div className="text-center text-xs text-text-muted pt-1">
+            هل أنت كابتن سباحة أو مدير منشأة وتريد اعتماد حسابك؟{" "}
+            <Link href="/claim" className="text-deep-olive font-bold hover:underline">
+              تقديم طلب توثيق عبر صفحة الاعتماد (/claim) ←
+            </Link>
+          </div>
         </form>
       </div>
     </div>

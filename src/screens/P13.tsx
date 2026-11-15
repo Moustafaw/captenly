@@ -30,6 +30,7 @@ export default function Phone13() {
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
+    subscribeDemandRadar,
   } = useCaptenly();
 
   const facility = useMemo(
@@ -38,9 +39,10 @@ export default function Phone13() {
   );
 
   const [gplaceLoading, setGplaceLoading] = useState(false);
+  const [demandRequested, setDemandRequested] = useState(false);
 
   useEffect(() => {
-    if (facility || !slug || !slug.startsWith("gplace-")) return;
+    if (facility || !slug || (!slug.startsWith("gplace-") && !slug.startsWith("osm-"))) return;
     let cancelled = false;
     setGplaceLoading(true);
     fetch(`/api/places/search?placeId=${encodeURIComponent(slug)}`)
@@ -133,6 +135,24 @@ export default function Phone13() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
+  const handleRequestFacilityPricing = () => {
+    if (!isAuthenticated) {
+      openAuthGateModal(`طلب توفير مواعيد وأسعار ${facility.nameAr}`);
+      return;
+    }
+    const res = subscribeDemandRadar({
+      fullNameAr: currentPersona.fullNameAr || "مستخدم كابتنلي",
+      phone: currentPersona.phone || "",
+      city: facility.city || userLocation.city || "مصر",
+      governorate: facility.governorate || "مصر",
+      targetSport: "swimming",
+      targetFacilityId: facility.id,
+      targetFacilityNameAr: facility.nameAr,
+      notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
+    });
+    if (res.ok) setDemandRequested(true);
+  };
+
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin py-4 flex flex-col gap-4 pb-24">
       {/* Verified text status only (zero unclaimed amber banner) */}
@@ -186,14 +206,18 @@ export default function Phone13() {
       <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2">
         <div className="flex items-center justify-between text-[11px]">
           <span className="font-bold text-deep-olive">
-            {facility.city} • {facility.district}
+            {facility.city}
+            {facility.district ? ` • ${facility.district}` : ""}
           </span>
-          <span className="text-status-warning font-bold inline-flex items-center gap-1">
-            <Icon name="star" className="text-[14px]" />
-            <span>
-              {facility.rating} ({facility.reviewsCount})
+          {facility.rating > 0 ? (
+            <span className="text-status-warning font-bold inline-flex items-center gap-1">
+              <Icon name="star" className="text-[14px]" />
+              <span>
+                {facility.rating}
+                {facility.reviewsCount > 0 ? ` (${facility.reviewsCount})` : ""}
+              </span>
             </span>
-          </span>
+          ) : null}
         </div>
         <h1 className="font-section-title-mobile text-dark-slate leading-snug">{facility.nameAr}</h1>
         <p className="text-xs text-text-muted">{facility.addressAr}</p>
@@ -237,6 +261,20 @@ export default function Phone13() {
                   ? "هذه المنشأة غير مسجلة على منصة Captenly بعد — لم تُضف أي باقات أو مواعيد حصص حتى الآن."
                   : "لم تقم إدارة المنشأة بنشر بطاقات المواعيد والأسعار بعد."}
               </p>
+              {isUnclaimed && (
+                <button
+                  type="button"
+                  onClick={handleRequestFacilityPricing}
+                  disabled={demandRequested}
+                  className={`mt-2 px-4 py-2 rounded-full text-[11px] font-bold transition-all ${
+                    demandRequested
+                      ? "bg-lime-tint text-deep-olive border border-deep-olive/30"
+                      : "bg-dark-slate text-electric-volt hover:opacity-95"
+                  }`}
+                >
+                  {demandRequested ? "✓ تم تسجيل طلبك" : "اطلب توفير الأسعار والمواعيد ←"}
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">

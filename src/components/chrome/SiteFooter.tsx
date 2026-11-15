@@ -12,6 +12,9 @@ export function SiteFooter() {
 
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const isCoachRole = isAuthenticated && currentPersona.role === "coach";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
 
   return (
     <footer className="hidden lg:block w-full bg-deep-carbon text-surface-card mt-space-2xl">
@@ -90,9 +93,23 @@ export function SiteFooter() {
               <li>
                 <Link
                   className="hover:text-electric-volt transition-colors"
-                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+                  href={
+                    isFacilityManager
+                      ? "/dashboard/facility"
+                      : isCoachRole
+                      ? "/dashboard/coach"
+                      : isAthleteOrParent
+                      ? "/dashboard/athlete"
+                      : "/claim"
+                  }
                 >
-                  {isFacilityManager ? "لوحة إدارة منشأتك" : isCoachRole ? "لوحة الكابتن الخاصة بك" : "طالب بصفحتك ووثقها مجاناً"}
+                  {isFacilityManager
+                    ? "لوحة إدارة منشأتك"
+                    : isCoachRole
+                    ? "لوحة الكابتن الخاصة بك"
+                    : isAthleteOrParent
+                    ? "حسابي ودفتر الحصص"
+                    : "طالب بصفحتك ووثقها مجاناً"}
                 </Link>
               </li>
               <li>
@@ -115,7 +132,7 @@ export function SiteFooter() {
           <div className="md:col-span-2">
             <h4 className="font-card-title text-card-title text-surface-card mb-space-sm">نطاق التغطية</h4>
             <p className="font-body-compact text-body-compact text-surface-variant mb-space-sm">
-              المحلة الكبرى • طنطا • زفتى • سمنود • محافظة الغربية والدلتا
+              جميع محافظات مصر • القاهرة والجيزة • الإسكندرية • الدلتا والقناة والصعيد
             </p>
             <div className="p-3 rounded-xl bg-dark-slate flex flex-col gap-1">
               <span className="font-micro-caption text-micro-caption text-text-muted">مركز الدعم والوثائق</span>

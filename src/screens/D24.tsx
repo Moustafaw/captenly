@@ -16,6 +16,7 @@ export default function Desktop24() {
     coaches,
     articles,
     userLocation,
+    setLocationModalOpen,
     isFavorite,
     toggleFavorite,
     compareFacilityIds,
@@ -26,18 +27,13 @@ export default function Desktop24() {
 
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const isCoachRole = isAuthenticated && currentPersona.role === "coach";
+  const isAthleteOrParent =
+    isAuthenticated &&
+    (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
 
   const [selectedCat, setSelectedCat] = useState<HomeCategoryKey>("all");
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
   const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
-
-  // Automatic gentle rotation across nearby swimming pools in user's city/area
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRotationSeed((prev) => prev + 1);
-    }, 45000);
-    return () => clearInterval(timer);
-  }, []);
 
   const swimmingFacilities = useMemo(
     () => facilities.filter((f) => f.sportSector !== "fitness"),
@@ -151,6 +147,8 @@ export default function Desktop24() {
                           ? "/dashboard/facility"
                           : isCoachRole
                           ? "/dashboard/coach"
+                          : isAthleteOrParent
+                          ? "/dashboard/athlete"
                           : "/claim"
                       }
                       className="inline-flex items-center justify-center gap-2 px-5 h-12 rounded-full bg-white/10 text-surface-card font-card-title-sm hover:bg-white/20 transition-all"
@@ -160,6 +158,8 @@ export default function Desktop24() {
                           ? "إدارة منشأتك والمشتركين"
                           : isCoachRole
                           ? "لوحة الكابتن والشهادات"
+                          : isAthleteOrParent
+                          ? "حسابي ودفتر الحصص"
                           : "وثّق ناديك أو سجّل ككابتن"}
                       </span>
                     </Link>
@@ -193,11 +193,18 @@ export default function Desktop24() {
                 <h2 className="font-section-title text-section-title text-dark-slate">
                   التصنيفات الرياضية المتاحة
                 </h2>
-                <span className="font-body-compact text-body-compact text-text-muted">
-                  {userLocation.isSpecified
-                    ? `النطاق الحالي: ${userLocation.city}، ${userLocation.governorate}`
-                    : "النطاق الحالي: كل مصر (نتائج متنوعة — اضغط لتحديد منطقتك)"}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setLocationModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 font-body-compact text-body-compact text-deep-olive hover:underline cursor-pointer"
+                >
+                  <Icon name="location_on" className="text-[16px]" />
+                  <span>
+                    {userLocation.isSpecified
+                      ? `النطاق الحالي: ${userLocation.city}، ${userLocation.governorate} (تغيير)`
+                      : "النطاق الحالي: كل مصر — اضغط لتحديد مدينتك"}
+                  </span>
+                </button>
               </div>
               <div className="flex items-center gap-space-xs overflow-x-auto pb-2 scrollbar-none" id="categoryFilters">
                 {categories.map((cat) => {
@@ -232,11 +239,19 @@ export default function Desktop24() {
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
                     {userLocation.isSpecified
-                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي وتتبدل تلقائياً — اضغط للتصفح الكامل"
+                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي — اضغط للتحديث أو التصفح الكامل"
                       : "تظهر 3 منشآت متنوعة من مختلف محافظات مصر لعدم تحديد نطاق جغرافي — حدّد موقعك لترتيب الأقرب لك"}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setRotationSeed((prev) => prev + 1)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card border border-surface-container text-dark-slate hover:border-deep-olive text-xs font-bold transition-colors"
+                  >
+                    <Icon name="refresh" className="text-[15px]" />
+                    <span>تحديث الترشيحات</span>
+                  </button>
                   {compareFacilityIds.length > 0 && (
                     <Link
                       href="/compare"
@@ -352,58 +367,62 @@ export default function Desktop24() {
             </section>
 
             {/* Verified Coaches Section — Zero Fake Coaches Rule */}
-            <section className="flex flex-col gap-space-md">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <h2 className="font-section-title text-section-title text-dark-slate">
-                    نخبة الكباتن المعتمدين والموثقين شخصياً
-                  </h2>
-                  <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                    لا ننشئ أي ملف كابتن وهمي — يظهر الكابتن هنا فور تسجيله برقم موبايله وتوثيق شهاداته للشارات الخضراء
-                  </p>
-                </div>
-                <Link
-                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
-                  className="px-4 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label hover:brightness-95"
-                >
-                  {isFacilityManager ? "إدارة كباتن منشأتك" : isCoachRole ? "ملفك في لوحة الكابتن" : "+ سجّل ووثّق ككابتن الآن"}
-                </Link>
-              </div>
-
-              {verifiedCoaches.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop">
-                  {verifiedCoaches.map((coach) => (
-                    <VerifiedCoachCard key={coach.id} coach={coach} />
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-surface-card rounded-[20px] p-8 shadow-sm border border-surface-container flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center shrink-0">
-                      <Icon name="verified" className="text-[24px]" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <h3 className="font-card-title text-dark-slate">
-                        {isFacilityManager
-                          ? "يمكنك إضافة وتوثيق كباتن منشأتك مباشرة"
-                          : "مساحة الكباتن الموثقين مفتوحة للانضمام المباشر"}
-                      </h3>
-                      <p className="font-body-compact text-text-muted max-w-2xl">
-                        {isFacilityManager
-                          ? "من داخل تبويب «كباتن الأكاديمية والشهادات» في لوحة منشأتك يمكنك إدراج مدربي السباحة والإنقاذ المعتمدين وتحديد التخصصات والشهادات ليظهروا للمشتركين."
-                          : "سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو إنقاذ مائي، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً."}
-                      </p>
-                    </div>
+            {!(isAthleteOrParent && verifiedCoaches.length === 0) && (
+              <section className="flex flex-col gap-space-md">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h2 className="font-section-title text-section-title text-dark-slate">
+                      نخبة الكباتن المعتمدين والموثقين شخصياً
+                    </h2>
+                    <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
+                      جميع الكباتن هنا مسجلون ومعتمدون بالشارات الخضراء الموثقة.
+                    </p>
                   </div>
-                  <Link
-                    href={isFacilityManager ? "/dashboard/facility" : "/claim?mode=coach"}
-                    className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm shrink-0 hover:opacity-95 shadow-sm"
-                  >
-                    {isFacilityManager ? "أضف كباتن المنشأة الآن" : "وثّق ملفك ككابتن الآن"}
-                  </Link>
+                  {!isAthleteOrParent && (
+                    <Link
+                      href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
+                      className="px-4 py-2 rounded-full bg-lime-tint text-deep-olive font-badge-label text-badge-label hover:brightness-95"
+                    >
+                      {isFacilityManager ? "إدارة كباتن منشأتك" : isCoachRole ? "ملفك في لوحة الكابتن" : "+ سجّل ووثّق ككابتن الآن"}
+                    </Link>
+                  )}
                 </div>
-              )}
-            </section>
+
+                {verifiedCoaches.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop">
+                    {verifiedCoaches.map((coach) => (
+                      <VerifiedCoachCard key={coach.id} coach={coach} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-surface-card rounded-[20px] p-8 shadow-sm border border-surface-container flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-lime-tint text-deep-olive flex items-center justify-center shrink-0">
+                        <Icon name="verified" className="text-[24px]" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <h3 className="font-card-title text-dark-slate">
+                          {isFacilityManager
+                            ? "يمكنك إضافة وتوثيق كباتن منشأتك مباشرة"
+                            : "مساحة الكباتن الموثقين مفتوحة للانضمام المباشر"}
+                        </h3>
+                        <p className="font-body-compact text-text-muted max-w-2xl">
+                          {isFacilityManager
+                            ? "من داخل تبويب «كباتن الأكاديمية والشهادات» في لوحة منشأتك يمكنك إدراج مدربي السباحة والإنقاذ المعتمدين وتحديد التخصصات والشهادات ليظهروا للمشتركين."
+                            : "سياسة كابتنلي تمنع نشر أي بروفايل مدرب من الفراغ. إذا كنت كابتن سباحة أو إنقاذ مائي، سجّل برقم هاتفك وارفع مرجع نقابة المهن الرياضية أو شهادة الاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي والسباحين مجاناً."}
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      href={isFacilityManager ? "/dashboard/facility" : "/claim?mode=coach"}
+                      className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm shrink-0 hover:opacity-95 shadow-sm"
+                    >
+                      {isFacilityManager ? "أضف كباتن المنشأة الآن" : "وثّق ملفك ككابتن الآن"}
+                    </Link>
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* 6 Pillars */}
             <section className="bg-surface-card rounded-[20px] p-space-xl shadow-sm relative overflow-hidden">
@@ -572,38 +591,40 @@ export default function Desktop24() {
               </div>
             </section>
 
-            {/* Bottom Claim CTA */}
-            <section className="rounded-[20px] bg-surface-snow p-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md">
-              <div className="flex items-center gap-space-md">
-                <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0">
-                  <Icon name={isFacilityManager ? "stadium" : "sports_score"} className="text-[24px]" />
+            {/* Bottom Claim CTA (hidden for logged-in athletes/parents; they can upgrade quietly from Settings) */}
+            {!isAthleteOrParent && (
+              <section className="rounded-[20px] bg-surface-snow p-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md">
+                <div className="flex items-center gap-space-md">
+                  <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0">
+                    <Icon name={isFacilityManager ? "stadium" : "sports_score"} className="text-[24px]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <h3 className="font-card-title text-card-title text-dark-slate">
+                      {isFacilityManager
+                        ? "أدر منشأتك ومواعيد مدارس السباحة والمشتركين"
+                        : "هل أنت كابتن أو صاحب نادي / أكاديمية رياضية؟"}
+                    </h3>
+                    <p className="font-body-compact text-body-compact text-text-muted">
+                      {isFacilityManager
+                        ? "حدّث كروت المواعيد، أضف طاقم الكباتن وموظفي الاشتراكات، وامسح رموز QR الحصص بـ 0% عمولة."
+                        : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً، واربط السباحين بكود العضوية لتفعيل دفاتر الـ QR بدون عمولة."}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <h3 className="font-card-title text-card-title text-dark-slate">
+                <div className="flex items-center gap-space-sm shrink-0">
+                  <Link
+                    className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-card-title-sm hover:opacity-90 transition-opacity"
+                    href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
+                  >
                     {isFacilityManager
-                      ? "أدر منشأتك ومواعيد مدارس السباحة والمشتركين"
-                      : "هل أنت كابتن أو صاحب نادي / أكاديمية رياضية؟"}
-                  </h3>
-                  <p className="font-body-compact text-body-compact text-text-muted">
-                    {isFacilityManager
-                      ? "حدّث كروت المواعيد، أضف طاقم الكباتن وموظفي الاشتراكات، وامسح رموز QR الحصص بـ 0% عمولة."
-                      : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً، واربط السباحين بكود العضوية لتفعيل دفاتر الـ QR بدون عمولة."}
-                  </p>
+                      ? "افتح لوحة المنشأة الآن"
+                      : isCoachRole
+                      ? "افتح لوحة الكابتن"
+                      : "طالب بصفحتك ووثّقها مجاناً"}
+                  </Link>
                 </div>
-              </div>
-              <div className="flex items-center gap-space-sm shrink-0">
-                <Link
-                  className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-card-title-sm hover:opacity-90 transition-opacity"
-                  href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
-                >
-                  {isFacilityManager
-                    ? "افتح لوحة المنشأة الآن"
-                    : isCoachRole
-                    ? "افتح لوحة الكابتن"
-                    : "طالب بصفحتك ووثّقها مجاناً"}
-                </Link>
-              </div>
-            </section>
+              </section>
+            )}
           </div>
         </div>
       </div>

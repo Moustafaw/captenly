@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { SWIMMING_SPECIALTIES_9 } from "@/data/seedData";
+import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
+import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
@@ -21,8 +23,10 @@ export function ClaimAndVerifyClient({
     isAuthenticated,
     currentPersona,
     facilities,
-    claimFacilityAndVerify,
-    registerAndVerifyCoach,
+    roleClaims,
+    refreshRoleClaims,
+    submitRoleClaimApplication,
+    reviewRoleClaim,
   } = useCaptenly();
 
   const [mode, setMode] = useState<"facility" | "coach">(initialMode);
@@ -34,15 +38,31 @@ export function ClaimAndVerifyClient({
       : null;
   const effectiveMode: "facility" | "coach" = lockedRoleMode ?? mode;
 
+  const switchTabMode = (nextMode: "facility" | "coach") => {
+    setMode(nextMode);
+    setStatusFeedback(null);
+    if (typeof window !== "undefined") {
+      const targetUrl = nextMode === "coach" ? "/claim?mode=coach" : "/claim";
+      window.history.replaceState(null, "", targetUrl);
+    }
+  };
+
   // Facility claim state
+  const claimableFacilities = useMemo(
+    () => facilities.filter((f) => f.supplyStatus !== "verified_active"),
+    [facilities]
+  );
   const preselected = useMemo(
-    () => facilities.find((f) => f.slug === initialSlug) || facilities[0],
-    [facilities, initialSlug]
+    () =>
+      facilities.find((f) => f.slug === initialSlug) ||
+      claimableFacilities[0] ||
+      facilities[0],
+    [facilities, claimableFacilities, initialSlug]
   );
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>(preselected?.id || "");
-  const [managerName, setManagerName] = useState("");
-  const [roleTitleAr, setRoleTitleAr] = useState("مدير المنشأة / المسؤول الرسمي");
-  const [facPhone, setFacPhone] = useState("");
+  const [managerName, setManagerName] = useState(currentPersona.fullNameAr || "");
+  const [roleTitleAr, setRoleTitleAr] = useState("");
+  const [facPhone, setFacPhone] = useState(currentPersona.phone || "");
   const [facWhatsapp, setFacWhatsapp] = useState("");
   const [facFacebook, setFacFacebook] = useState("");
   const [facInstagram, setFacInstagram] = useState("");
@@ -53,31 +73,32 @@ export function ClaimAndVerifyClient({
       : ""
   );
   const [commercialRef, setCommercialRef] = useState("");
-  const [claimSuccessFacSlug, setClaimSuccessFacSlug] = useState<string | null>(null);
+  const [facProofDocUrl, setFacProofDocUrl] = useState("");
+  const [facProofNotes, setFacProofNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Coach verification state
-  const [coachAvatarUrl, setCoachAvatarUrl] = useState<string>("");
-  const [coachName, setCoachName] = useState("");
-  const [coachTitle, setCoachTitle] = useState("مدرب سباحة وإنقاذ مائي معتمد");
-  const [coachPhone, setCoachPhone] = useState("");
+  const [coachAvatarUrl, setCoachAvatarUrl] = useState<string>(currentPersona.avatarUrl || "");
+  const [coachName, setCoachName] = useState(currentPersona.fullNameAr || "");
+  const [coachTitle, setCoachTitle] = useState("");
+  const [coachPhone, setCoachPhone] = useState(currentPersona.phone || "");
   const [coachWhatsapp, setCoachWhatsapp] = useState("");
   const [coachFacebook, setCoachFacebook] = useState("");
   const [coachInstagram, setCoachInstagram] = useState("");
-  const [coachCity, setCoachCity] = useState("المحلة الكبرى");
-  const [coachDistrict, setCoachDistrict] = useState("وسط المدينة");
-  const [yearsExp, setYearsExp] = useState("6");
-  const [coachBio, setCoachBio] = useState(
-    "خبرة في تأسيس الأطفال وكسر رهبة الماء وبناء اللياقة البدنية وفق المعايير الرياضية المعتمدة."
+  const [coachCity, setCoachCity] = useState(
+    currentPersona.city && currentPersona.city !== "كل مصر" ? currentPersona.city : ""
   );
+  const [coachDistrict, setCoachDistrict] = useState("");
+  const [yearsExp, setYearsExp] = useState("");
+  const [coachBio, setCoachBio] = useState("");
   const [pkg8Egp, setPkg8Egp] = useState("");
   const [pkg12Egp, setPkg12Egp] = useState("");
   const [syndicateRef, setSyndicateRef] = useState("");
   const [edlfRef, setEdlfRef] = useState("");
+  const [coachProofDocUrl, setCoachProofDocUrl] = useState("");
   const [affiliatedFacId, setAffiliatedFacId] = useState<string>(preselected?.id || "");
-  const [selectedSpecs, setSelectedSpecs] = useState<string[]>(["تأسيس أطفال"]);
-  const [verifiedCoachSlug, setVerifiedCoachSlug] = useState<string | null>(null);
-  const [verifiedCoachIdCode, setVerifiedCoachIdCode] = useState<string | null>(null);
+  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
 
   const selectedFacility = facilities.find((f) => f.id === selectedFacilityId) || preselected;
 
@@ -87,59 +108,109 @@ export function ClaimAndVerifyClient({
     );
   }
 
+  const myClaims = roleClaims.filter(
+    (c) =>
+      !currentPersona.memberCode ||
+      c.applicantMemberCode.toUpperCase() === currentPersona.memberCode.toUpperCase()
+  );
+
+  const handleProofFileUpload = (
+    file: File | null,
+    setter: (dataUrl: string) => void
+  ) => {
+    if (!file) return;
+    if (file.size > 1_200_000) {
+      setStatusFeedback({
+        ok: false,
+        msg: "حجم صورة المستند يتجاوز 1.2 ميجابايت — يرجى اختيار صورة أصغر أو إدخال رابط المستند.",
+      });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setter(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const toggleSpec = (spec: string) => {
     setSelectedSpecs((prev) =>
       prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
     );
   };
 
-  const handleFacilityClaimSubmit = (e: React.FormEvent) => {
+  const handleFacilityClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFacility) return;
-    const res = claimFacilityAndVerify(selectedFacility.id, {
-      managerName: managerName.trim(),
-      roleTitleAr,
-      phone: facPhone.trim(),
-      whatsappNumber: facWhatsapp.trim() || undefined,
-      facebookUrl: facFacebook.trim() || undefined,
-      instagramUrl: facInstagram.trim() || undefined,
-      instapayHandle: instapayHandle.trim() || undefined,
-      updatedBasePriceEgp: Number(updatedPrice) || undefined,
-      commercialRegRef: commercialRef.trim() || undefined,
-    });
-    setStatusFeedback({ ok: res.ok, msg: res.messageAr });
-    if (res.ok && res.facility) {
-      setClaimSuccessFacSlug(res.facility.slug);
+    if (!selectedFacility || submitting) return;
+    setSubmitting(true);
+    setStatusFeedback(null);
+    try {
+      const res = await submitRoleClaimApplication({
+        claimType: "facility",
+        targetFacilityId: selectedFacility.id,
+        fullNameAr: managerName.trim() || currentPersona.fullNameAr,
+        managerName: managerName.trim(),
+        roleTitleAr,
+        phone: facPhone.trim(),
+        city: selectedFacility.city,
+        governorate: selectedFacility.governorate,
+        whatsappNumber: facWhatsapp.trim() || undefined,
+        facebookUrl: facFacebook.trim() || undefined,
+        instagramUrl: facInstagram.trim() || undefined,
+        instapayHandle: instapayHandle.trim() || undefined,
+        updatedBasePriceEgp: Number(updatedPrice) || undefined,
+        commercialRegRef: commercialRef.trim() || undefined,
+        proofDocumentUrl: facProofDocUrl.trim() || undefined,
+        proofNotesAr:
+          facProofNotes.trim() ||
+          `مطالبة إدارة ${selectedFacility.nameAr}${commercialRef.trim() ? ` — مرجع: ${commercialRef.trim()}` : ""}`,
+      });
+      setStatusFeedback({ ok: res.ok, msg: res.messageAr });
+      if (res.ok) {
+        await refreshRoleClaims(false).catch(() => undefined);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleCoachVerifySubmit = (e: React.FormEvent) => {
+  const handleCoachVerifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = registerAndVerifyCoach({
-      fullNameAr: coachName.trim(),
-      titleAr: coachTitle.trim(),
-      phone: coachPhone.trim(),
-      city: coachCity,
-      governorate: "الغربية",
-      district: coachDistrict.trim(),
-      sportSector: "swimming",
-      yearsExperience: Number(yearsExp) || 4,
-      bioAr: coachBio.trim(),
-      avatarUrl: coachAvatarUrl || undefined,
-      whatsappNumber: coachWhatsapp.trim() || undefined,
-      facebookUrl: coachFacebook.trim() || undefined,
-      instagramUrl: coachInstagram.trim() || undefined,
-      privatePackage8Egp: Number(pkg8Egp) || 0,
-      privatePackage12Egp: Number(pkg12Egp) || 0,
-      specialtiesAr: selectedSpecs,
-      syndicateCardRef: syndicateRef.trim(),
-      edlfCertRef: edlfRef.trim() || undefined,
-      facilityId: affiliatedFacId || undefined,
-    });
-    setStatusFeedback({ ok: res.ok, msg: res.messageAr });
-    if (res.ok && res.coach) {
-      setVerifiedCoachSlug(res.coach.slug);
-      setVerifiedCoachIdCode(res.coach.SingleCoachId);
+    if (submitting) return;
+    setSubmitting(true);
+    setStatusFeedback(null);
+    try {
+      const res = await submitRoleClaimApplication({
+        claimType: "coach",
+        targetFacilityId: affiliatedFacId || undefined,
+        affiliatedFacilityId: affiliatedFacId || undefined,
+        fullNameAr: coachName.trim(),
+        titleAr: coachTitle.trim(),
+        phone: coachPhone.trim(),
+        city: coachCity,
+        governorate: resolveGovernorateFromCity(coachCity, "كل مصر"),
+        district: coachDistrict.trim(),
+        sportSector: "swimming",
+        yearsExperience: Number(yearsExp) || 0,
+        bioAr: coachBio.trim(),
+        avatarUrl: coachAvatarUrl || undefined,
+        whatsappNumber: coachWhatsapp.trim() || undefined,
+        facebookUrl: coachFacebook.trim() || undefined,
+        instagramUrl: coachInstagram.trim() || undefined,
+        privatePackage8Egp: Number(pkg8Egp) || 0,
+        privatePackage12Egp: Number(pkg12Egp) || 0,
+        specialtiesAr: selectedSpecs,
+        syndicateCardRef: syndicateRef.trim(),
+        edlfCertRef: edlfRef.trim() || undefined,
+        proofDocumentUrl: coachProofDocUrl.trim() || undefined,
+        proofNotesAr: `كارنيه النقابة: ${syndicateRef.trim()}${edlfRef.trim() ? ` | شهادة إنقاذ: ${edlfRef.trim()}` : ""}`,
+      });
+      setStatusFeedback({ ok: res.ok, msg: res.messageAr });
+      if (res.ok) {
+        await refreshRoleClaims(false).catch(() => undefined);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -160,10 +231,10 @@ export function ClaimAndVerifyClient({
                 ? "إدارة وتوثيق منشأتك أو ناديك مجاناً بالشارة الخضراء"
                 : lockedRoleMode === "coach"
                 ? "وثّق ملفك وشهاداتك ككابتن معتمد في أقل من 3 دقائق"
-                : "طالب بإدارة منشأتك أو وثّق ملفك ككابتن مجاناً في أقل من 3 دقائق"}
+                : "طالب بإدارة منشأتك أو وثّق ملفك ككابتن للمراجعة الإدارية"}
             </h1>
             <p className="font-body-default text-surface-container-high">
-              تحوّل صفحتك فوراً إلى صفحة موثقة بشارات الأمان الخضراء، وتفتح لك لوحة التحكم لربط السباحين بكود الاشتراك وتفعيل دفاتر الحصص الأوفلاين.
+              تُراجع طلبات المنشآت والكباتن عبر فريق كابتنلي قبل تفعيل الشارات الخضراء ولوحة الإدارة، ويبقى حسابك الحالي مفعلاً بالكامل لحين صدور الاعتماد.
             </p>
           </div>
 
@@ -171,10 +242,7 @@ export function ClaimAndVerifyClient({
             <div className="flex flex-col sm:flex-row gap-2 shrink-0 bg-deep-carbon p-1.5 rounded-full">
               <button
                 type="button"
-                onClick={() => {
-                  setMode("facility");
-                  setStatusFeedback(null);
-                }}
+                onClick={() => switchTabMode("facility")}
                 className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
                   effectiveMode === "facility"
                     ? "bg-electric-volt text-dark-slate"
@@ -185,10 +253,7 @@ export function ClaimAndVerifyClient({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setMode("coach");
-                  setStatusFeedback(null);
-                }}
+                onClick={() => switchTabMode("coach")}
                 className={`px-5 py-2.5 rounded-full font-badge-label text-badge-label transition-all ${
                   effectiveMode === "coach"
                     ? "bg-electric-volt text-dark-slate"
@@ -205,6 +270,72 @@ export function ClaimAndVerifyClient({
           )}
         </section>
 
+        {/* Active User Claims Status Tracker */}
+        {myClaims.length > 0 && (
+          <section className="bg-surface-card rounded-[20px] p-5 border border-surface-container shadow-sm flex flex-col gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="font-card-title-sm text-dark-slate flex items-center gap-2">
+                <Icon name="pending_actions" className="text-[18px] text-deep-olive" />
+                <span>سجل طلبات التوثيق الخاصة بك ({myClaims.length})</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => refreshRoleClaims(false)}
+                className="text-xs font-bold text-deep-olive hover:underline"
+              >
+                تحديث الحالة ↻
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {myClaims.map((claim) => {
+                const badge =
+                  claim.status === "approved"
+                    ? { text: "معتمد ومفعل ✓", cls: "bg-lime-tint text-deep-olive" }
+                    : claim.status === "rejected"
+                    ? { text: "مرفوض — راجع الملاحظة", cls: "bg-red-50 text-status-danger" }
+                    : claim.status === "withdrawn"
+                    ? { text: "تم سحب الطلب", cls: "bg-surface-container text-text-muted" }
+                    : { text: "قيد المراجعة الإدارية ⏳", cls: "bg-amber-50 text-amber-900" };
+                return (
+                  <div
+                    key={claim.id}
+                    className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex flex-col gap-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-dark-slate">
+                        {claim.claimType === "facility"
+                          ? `إدارة منشأة: ${claim.targetFacilityNameAr || claim.targetFacilityId || ""}`
+                          : `توثيق كابتن: ${claim.applicantNameAr}`}
+                      </span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${badge.cls}`}>
+                        {badge.text}
+                      </span>
+                    </div>
+                    {claim.reviewerNoteAr && (
+                      <p className="text-text-muted leading-relaxed">
+                        ملاحظة المراجع: {claim.reviewerNoteAr}
+                      </p>
+                    )}
+                    {claim.status === "pending_review" && (
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await reviewRoleClaim(claim.id, "withdraw");
+                          }}
+                          className="text-[11px] font-bold text-status-danger hover:underline"
+                        >
+                          سحب الطلب
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {statusFeedback && (
           <div
             className={`rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border ${
@@ -215,52 +346,24 @@ export function ClaimAndVerifyClient({
           >
             <div className="flex items-start gap-3">
               <Icon
-                name={statusFeedback.ok ? "verified" : "warning"}
+                name={statusFeedback.ok ? "schedule_send" : "warning"}
                 className={`text-[22px] mt-0.5 ${statusFeedback.ok ? "text-deep-olive" : "text-red-600"}`}
               />
               <div>
                 <p className="font-card-title-sm text-card-title-sm">{statusFeedback.msg}</p>
-                {verifiedCoachIdCode && (
-                  <p className="font-mono text-xs mt-1 text-deep-olive">
-                    كود الكابتن المعتمد: {verifiedCoachIdCode}
+                {statusFeedback.ok && (
+                  <p className="text-xs text-deep-olive mt-1 font-bold">
+                    حالة الطلب: ⏳ قيد المراجعة — حساب السبّاح/ولي الأمر ({currentPersona.memberCode}) مستمر بالعمل دون انقطاع.
                   </p>
                 )}
               </div>
             </div>
-
-            {statusFeedback.ok && effectiveMode === "facility" && claimSuccessFacSlug && (
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href={`/academy/${claimSuccessFacSlug}`}
-                  className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm"
-                >
-                  معاينة الصفحة الموثقة
-                </Link>
-                <Link
-                  href="/dashboard/facility"
-                  className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label shadow-sm"
-                >
-                  فتح لوحة التحكم
-                </Link>
-              </div>
-            )}
-
-            {statusFeedback.ok && effectiveMode === "coach" && verifiedCoachSlug && (
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href={`/c/${verifiedCoachSlug}`}
-                  className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm"
-                >
-                  ملفي بالشارات الخضراء
-                </Link>
-                <Link
-                  href="/dashboard/coach"
-                  className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label shadow-sm"
-                >
-                  لوحة الكابتن والـ QR
-                </Link>
-              </div>
-            )}
+            <Link
+              href="/dashboard/athlete"
+              className="px-4 py-2 rounded-full bg-surface-card text-dark-slate font-badge-label text-badge-label shadow-sm shrink-0"
+            >
+              العودة لمساحتي
+            </Link>
           </div>
         )}
 
@@ -288,12 +391,21 @@ export function ClaimAndVerifyClient({
                     className="w-full rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   >
                     {facilities.map((f) => (
-                      <option key={f.id} value={f.id}>
+                      <option
+                        key={f.id}
+                        value={f.id}
+                        disabled={f.supplyStatus === "verified_active"}
+                      >
                         {f.nameAr} — {f.city} (
-                        {f.supplyStatus === "seeded_unclaimed" ? "بانتظار التفعيل" : "موثقة"})
+                        {f.supplyStatus === "seeded_unclaimed" ? "بانتظار التفعيل" : "موثقة بالفعل — لا يمكن إعادة الاستلام"})
                       </option>
                     ))}
                   </select>
+                  {facilities.find((f) => f.id === selectedFacilityId)?.supplyStatus === "verified_active" && (
+                    <p className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
+                      هذه المنشأة موثقة ومفعلة بالفعل ولا يمكن إعادة المطالبة بها. اختر منشأة بانتظار التفعيل من القائمة.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -313,6 +425,7 @@ export function ClaimAndVerifyClient({
                     required
                     value={roleTitleAr}
                     onChange={(e) => setRoleTitleAr(e.target.value)}
+                    placeholder="مثال: مدير المنشأة / المسؤول الرسمي"
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
                 </div>
@@ -402,27 +515,67 @@ export function ClaimAndVerifyClient({
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
                 </div>
+
+                <div className="md:col-span-2 flex flex-col gap-2 pt-1">
+                  <label className="font-badge-label text-dark-slate">
+                    إثبات الإدارة أو التفويض (صورة كارنيه / سجل / تفويض رسمي)
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="px-4 py-2 rounded-xl bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate cursor-pointer hover:border-deep-olive">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          handleProofFileUpload(e.target.files?.[0] || null, setFacProofDocUrl)
+                        }
+                      />
+                      {facProofDocUrl ? "تغيير صورة المستند ✓" : "رفع صورة المستند (PNG/JPG)"}
+                    </label>
+                    <input
+                      dir="ltr"
+                      value={facProofDocUrl.startsWith("data:") ? "" : facProofDocUrl}
+                      onChange={(e) => setFacProofDocUrl(e.target.value)}
+                      placeholder="أو ضع رابط المستند https://..."
+                      className="flex-1 min-w-[200px] rounded-xl bg-surface-snow px-3.5 py-2 text-xs text-dark-slate outline-none border border-surface-container text-left"
+                    />
+                  </div>
+                  {facProofDocUrl && facProofDocUrl.startsWith("data:") && (
+                    <img
+                      src={facProofDocUrl}
+                      alt="معاينة مستند المنشأة"
+                      className="h-24 w-auto object-contain rounded-xl border border-surface-container self-start bg-white p-1"
+                    />
+                  )}
+                  <input
+                    value={facProofNotes}
+                    onChange={(e) => setFacProofNotes(e.target.value)}
+                    placeholder="ملاحظات إضافية لفريق المراجعة (اختياري)"
+                    className="rounded-xl bg-surface-snow px-4 py-2.5 text-xs text-dark-slate outline-none border border-surface-container"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title text-card-title hover:opacity-95 transition-opacity shadow-md"
+                disabled={submitting || selectedFacility?.supplyStatus === "verified_active"}
+                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title text-card-title hover:opacity-95 transition-opacity shadow-md disabled:opacity-60"
               >
-                اعتماد المطالبة وتوثيق الصفحة بالشارة الخضراء مجاناً
+                {submitting ? "جاري إرسال الطلب..." : "إرسال طلب توثيق المنشأة للمراجعة الإدارية ←"}
               </button>
             </form>
 
             <aside className="lg:col-span-4 flex flex-col gap-4">
               <div className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3">
-                <h3 className="font-card-title text-dark-slate">ماذا تفتح لك المطالبة؟</h3>
+                <h3 className="font-card-title text-dark-slate">مسار مراجعة واعتماد المنشآت</h3>
                 <ul className="flex flex-col gap-2.5 font-body-compact text-text-muted">
                   <li className="flex items-start gap-2">
-                    <Icon name="check_circle" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>تفعيل شارة التوثيق الخضراء لصفحتك وتحديث بيانات المنشأة مباشرة.</span>
+                    <Icon name="pending_actions" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>يراجع فريق كابتنلي مستندات الإدارة خلال 24–48 ساعة لمنع انتحال الصفحات.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Icon name="qr_code_2" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
-                    <span>ربط المشتركين الجدد بكود العضوية وتفعيل دفاتر الحصص الأوفلاين.</span>
+                    <Icon name="check_circle" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
+                    <span>فور الاعتماد تظهر شارات التوثيق الخضراء وتُفتح لوحة المنشأة والـ QR.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Icon name="payments" className="text-[18px] text-deep-olive shrink-0 mt-0.5" />
@@ -473,6 +626,7 @@ export function ClaimAndVerifyClient({
                     required
                     value={coachTitle}
                     onChange={(e) => setCoachTitle(e.target.value)}
+                    placeholder="مثال: مدرب سباحة وإنقاذ مائي"
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
                 </div>
@@ -534,16 +688,19 @@ export function ClaimAndVerifyClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-badge-label text-dark-slate">المدينة</label>
+                  <label className="font-badge-label text-dark-slate">المدينة *</label>
                   <select
+                    required
                     value={coachCity}
                     onChange={(e) => setCoachCity(e.target.value)}
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   >
-                    <option value="المحلة الكبرى">المحلة الكبرى</option>
-                    <option value="طنطا">طنطا</option>
-                    <option value="سمنود">سمنود</option>
-                    <option value="زفتى">زفتى</option>
+                    <option value="">-- اختر المدينة / المحافظة --</option>
+                    {EGYPT_CITY_PRESETS.map((preset) => (
+                      <option key={preset.city} value={preset.city}>
+                        {preset.city} ({preset.governorate})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -627,8 +784,42 @@ export function ClaimAndVerifyClient({
                     required
                     value={coachBio}
                     onChange={(e) => setCoachBio(e.target.value)}
+                    placeholder="اكتب نبذتك المهنية وتخصصك في تعليم أو تدريب السباحة..."
                     className="rounded-xl bg-surface-snow px-4 py-3 text-dark-slate outline-none border border-surface-container focus:border-deep-olive"
                   />
+                </div>
+
+                <div className="md:col-span-2 flex flex-col gap-2">
+                  <label className="font-badge-label text-dark-slate">
+                    صورة كارنيه النقابة / الشهادة المعتمدة للتحقق (اختياري)
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="px-4 py-2 rounded-xl bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate cursor-pointer hover:border-deep-olive">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          handleProofFileUpload(e.target.files?.[0] || null, setCoachProofDocUrl)
+                        }
+                      />
+                      {coachProofDocUrl ? "تغيير صورة الكارنيه ✓" : "رفع صورة الكارنيه / الشهادة"}
+                    </label>
+                    <input
+                      dir="ltr"
+                      value={coachProofDocUrl.startsWith("data:") ? "" : coachProofDocUrl}
+                      onChange={(e) => setCoachProofDocUrl(e.target.value)}
+                      placeholder="أو رابط الشهادة https://..."
+                      className="flex-1 min-w-[200px] rounded-xl bg-surface-snow px-3.5 py-2 text-xs text-dark-slate outline-none border border-surface-container text-left"
+                    />
+                  </div>
+                  {coachProofDocUrl && coachProofDocUrl.startsWith("data:") && (
+                    <img
+                      src={coachProofDocUrl}
+                      alt="معاينة شهادة الكابتن"
+                      className="h-24 w-auto object-contain rounded-xl border border-surface-container self-start bg-white p-1"
+                    />
+                  )}
                 </div>
 
                 <div className="md:col-span-2 flex flex-col gap-2">
@@ -657,9 +848,10 @@ export function ClaimAndVerifyClient({
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title text-card-title hover:opacity-95 transition-opacity shadow-md"
+                disabled={submitting}
+                className="w-full py-3.5 rounded-full bg-dark-slate text-electric-volt font-card-title text-card-title hover:opacity-95 transition-opacity shadow-md disabled:opacity-60"
               >
-                تسجيل وتوثيق ملفي وإصدار الشارات الخضراء
+                {submitting ? "جاري إرسال طلب التوثيق..." : "إرسال طلب التوثيق ككابتن للمراجعة الإدارية ←"}
               </button>
             </form>
 
@@ -667,16 +859,16 @@ export function ClaimAndVerifyClient({
               <div className="bg-surface-card rounded-[20px] p-6 shadow-sm flex flex-col gap-3">
                 <h3 className="font-card-title text-dark-slate">ميثاق توثيق الكباتن</h3>
                 <p className="font-body-compact text-text-muted">
-                  تلتزم كابتنلي بعدم اختلاق أي ملف كابتن. بمجرد اعتماد شهاداتك برقم الهاتف والكارنيه:
+                  تلتزم كابتنلي بعدم نشر أي مدرب دون فحص مستنداته المهنية ومخالفة قانون 3 لسنة 1985. بعد إرسال الطلب والموافقة عليه:
                 </p>
                 <ul className="flex flex-col gap-2 font-body-compact text-text-muted">
                   <li className="flex items-start gap-2">
-                    <Icon name="verified" className="text-[18px] text-deep-olive shrink-0" />
-                    <span>تظهر الشارات الخضراء رسمياً في نتائج البحث.</span>
+                    <Icon name="pending_actions" className="text-[18px] text-deep-olive shrink-0" />
+                    <span>يبقى حساب السبّاح/ولي الأمر مفعلاً لديك خلال فترة المراجعة (24–48 ساعة).</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Icon name="qr_code_scanner" className="text-[18px] text-deep-olive shrink-0" />
-                    <span>تتمكن من إدخال كود العضوية للسباح لتفعيل باقته وQR الحضور أوفلاين.</span>
+                    <Icon name="verified" className="text-[18px] text-deep-olive shrink-0" />
+                    <span>عند الاعتماد تظهر الشارات الخضراء رسمياً وتُفتح لوحة الكابتن والـ QR.</span>
                   </li>
                 </ul>
               </div>
