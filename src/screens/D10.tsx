@@ -164,11 +164,11 @@ function Desktop10Inner() {
             </Link>
             <h1 className="font-hero-headline text-[26px] leading-tight">
               {tab === "register"
-                ? "أنشئ حسابك واحصل على كود عضويتك الفريد"
+                ? "أنشئ حسابك على منصة كابتنلي"
                 : "مرحباً بعودتك إلى كابتنلي"}
             </h1>
             <p className="font-body-compact text-surface-container-high mt-3">
-              بمجرد تسجيلك يتولد لك كود عضوية فوري لتسليمه للكابتن أو إدارة الأكاديمية وتفعيل دفتر الحصص الـ QR أوفلاين.
+              إدارة اشتراكاتك، حصصك التدريبية، ومتابعة نشاطك الرياضي في مكان واحد.
             </p>
           </div>
 

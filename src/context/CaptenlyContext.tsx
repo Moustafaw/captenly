@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { signOut as nextAuthSignOut } from "next-auth/react";
 import {
   AccountIntent,
   Coach,
@@ -200,6 +201,7 @@ interface CaptenlyContextType {
     hasParentSupervision?: boolean;
   }) => { ok: boolean; persona: PersonaAccount; nextPath?: string };
   signOutToGuest: () => void;
+  deleteCurrentAccount: () => Promise<{ ok: boolean }>;
 
   // Location & Proximity (Dynamic Geolocation & Coverage Fallback)
   userLocation: UserLocation;
@@ -553,6 +555,55 @@ const LEGACY_FAKE_PERSONA_IDS = new Set([
   "persona-coach",
 ]);
 
+type AccountActivitySnapshot = {
+  savedFavoriteIds: string[];
+  compareFacilityIds: string[];
+  minorAthletes: MinorAthleteProfile[];
+  pbRecords: PersonalBestRecord[];
+  skillEvaluationsByAthlete: Record<string, SkillEvaluation5Point>;
+  notifications: NotificationItem[];
+  userSettings: {
+    familyLaw151Consent: boolean;
+    notifyWhatsappSessions: boolean;
+    notifyWhatsappRenewals: boolean;
+    notifyEmailMarketing: boolean;
+    privacyProfilePublic: boolean;
+  };
+  userLocation?: UserLocation;
+};
+
+function getAccountSnapshotKeys(persona: Pick<PersonaAccount, "memberCode" | "email">): string[] {
+  const keys: string[] = [];
+  if (persona.memberCode && persona.memberCode.trim()) {
+    keys.push(`code:${persona.memberCode.trim().toUpperCase()}`);
+  }
+  if (persona.email && persona.email.trim()) {
+    keys.push(`email:${persona.email.trim().toLowerCase()}`);
+  }
+  return keys;
+}
+
+function findAccountSnapshot(
+  snapshots: Record<string, AccountActivitySnapshot>,
+  persona: Pick<PersonaAccount, "memberCode" | "email">
+): AccountActivitySnapshot | undefined {
+  for (const k of getAccountSnapshotKeys(persona)) {
+    if (snapshots[k]) return snapshots[k];
+  }
+  return undefined;
+}
+
+function generateDeterministicEmailMemberCode(email: string): string {
+  const clean = email.trim().toLowerCase();
+  let h = 2166136261;
+  for (let i = 0; i < clean.length; i++) {
+    h ^= clean.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const num = 1000 + ((h >>> 0) % 9000);
+  return `CAP-M-${num}`;
+}
+
 export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [allPersonas, setAllPersonas] = useState<PersonaAccount[]>(PERSONA_ACCOUNTS);
   const [currentPersona, setCurrentPersona] = useState<PersonaAccount>(GUEST_PERSONA);
@@ -602,6 +653,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceContext, setActiveWorkspaceContextState] =
     useState<WorkspaceContextMode>("member");
   const [roleClaims, setRoleClaims] = useState<MemberRoleClaim[]>([]);
+  const [accountSnapshots, setAccountSnapshots] = useState<
+    Record<string, AccountActivitySnapshot>
+  >({});
   const [userSettings, setUserSettings] = useState({
     familyLaw151Consent: false,
     notifyWhatsappSessions: true,
@@ -690,6 +744,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           parsed.activeWorkspaceContext === "staff"
         ) {
           setActiveWorkspaceContextState(parsed.activeWorkspaceContext);
+        }
+        if (parsed.accountSnapshots && typeof parsed.accountSnapshots === "object") {
+          setAccountSnapshots(parsed.accountSnapshots);
         }
         if (parsed.userSettings) setUserSettings(parsed.userSettings);
         if (parsed.newsletterEmails) setNewsletterEmails(parsed.newsletterEmails);
@@ -851,6 +908,41 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
+  // Keep per-account local activity snapshot up to date for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const keys = getAccountSnapshotKeys(currentPersona);
+    if (keys.length === 0) return;
+    const snap: AccountActivitySnapshot = {
+      savedFavoriteIds,
+      compareFacilityIds,
+      minorAthletes,
+      pbRecords,
+      skillEvaluationsByAthlete,
+      notifications,
+      userSettings,
+      userLocation: userLocation.isSpecified ? userLocation : undefined,
+    };
+    setAccountSnapshots((prev) => {
+      const next = { ...prev };
+      for (const k of keys) {
+        next[k] = snap;
+      }
+      return next;
+    });
+  }, [
+    isAuthenticated,
+    currentPersona,
+    savedFavoriteIds,
+    compareFacilityIds,
+    minorAthletes,
+    pbRecords,
+    skillEvaluationsByAthlete,
+    notifications,
+    userSettings,
+    userLocation,
+  ]);
+
   // Persist changes back to localStorage
   useEffect(() => {
     try {
@@ -876,6 +968,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           articles,
           activeStaffAssignmentId,
           activeWorkspaceContext,
+          accountSnapshots,
           userSettings,
           newsletterEmails,
           userLocation,
@@ -904,6 +997,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     articles,
     activeStaffAssignmentId,
     activeWorkspaceContext,
+    accountSnapshots,
     userSettings,
     newsletterEmails,
     userLocation,
@@ -1066,8 +1160,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
               memberCode: nextCode,
               hasParentSupervision:
                 remote.hasParentSupervision ?? prev.hasParentSupervision,
-              needsOnboarding:
-                remote.needsOnboarding !== undefined ? remote.needsOnboarding : prev.needsOnboarding,
+              needsOnboarding: false,
             };
             setAllPersonas((list) => list.map((p) => (p.id === nextPersona.id ? nextPersona : p)));
             return nextPersona;
@@ -1746,20 +1839,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
     setMemberRegistry((prev) => [regEntry, ...prev]);
 
-    pushNotification({
-      titleAr: `مرحباً بك في كابتنلي يا ${firstName}!`,
-      messageAr:
-        payload.role === "coach" || payload.role === "facility_manager"
-          ? `تم إنشاء حسابك بكود عضويتك (${memberCode}). استكمل الآن طلب التوثيق للمراجعة الإدارية.`
-          : `تم توليد كود عضويتك الفريد ${memberCode}. عند الاشتراك مع أي أكاديمية سيتولد لك كود اشتراك متجدد خاص بالباقة.`,
-      type: "school_card",
-      actionLabelAr:
-        payload.role === "coach" || payload.role === "facility_manager"
-          ? "استكمال طلب التوثيق"
-          : "عرض حسابي",
-      actionHref: nextPath,
-    });
-
     postSupabaseSync("/api/supabase/sync-profile", {
       memberCode,
       fullNameAr: payload.fullNameAr,
@@ -1838,24 +1917,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         ...data.profile,
         memberCode: data.profile.memberCode || dbMemberCode,
         accountIntent: resolvedIntent,
+        needsOnboarding: false,
       });
       setActiveWorkspaceContextState("member");
       applyAccountCityToUserLocation(cleanCity, cleanGov);
-
-      pushNotification({
-        targetMemberCode: dbMemberCode,
-        titleAr: `مرحباً بك في كابتنلي يا ${cleanName.split(" ")[0]}!`,
-        messageAr:
-          payload.role === "coach" || payload.role === "facility_manager"
-            ? `تم إنشاء حسابك بكود (${dbMemberCode}). يمكنك الآن إرسال طلب التوثيق ككابتن أو إدارة منشأة للمراجعة.`
-            : `تم إنشاء حسابك بكود عضويتك الفريد ${dbMemberCode} وتشفير بيانات الدخول بنجاح.`,
-        type: "school_card",
-        actionLabelAr:
-          payload.role === "coach" || payload.role === "facility_manager"
-            ? "استكمال التوثيق الآن"
-            : "عرض حسابي",
-        actionHref: nextPath,
-      });
 
       return {
         ok: true,
@@ -1883,6 +1948,46 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return `${prefix}-${String(Date.now()).slice(-4)}`;
   };
 
+  const getSnapshotPool = (): Record<string, AccountActivitySnapshot> => {
+    if (Object.keys(accountSnapshots).length > 0) return accountSnapshots;
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.accountSnapshots && typeof parsed.accountSnapshots === "object") {
+            return parsed.accountSnapshots as Record<string, AccountActivitySnapshot>;
+          }
+        }
+      } catch {
+        // Ignore storage read errors
+      }
+    }
+    return accountSnapshots;
+  };
+
+  const applyAccountSnapshotForPersona = (persona: Pick<PersonaAccount, "memberCode" | "email">) => {
+    const snap = findAccountSnapshot(getSnapshotPool(), persona);
+    if (snap) {
+      setSavedFavoriteIds(snap.savedFavoriteIds || []);
+      setCompareFacilityIds(snap.compareFacilityIds || []);
+      setMinorAthletes(snap.minorAthletes || []);
+      setPbRecords(snap.pbRecords || []);
+      setSkillEvaluationsByAthlete(snap.skillEvaluationsByAthlete || {});
+      setNotifications(snap.notifications || []);
+      if (snap.userSettings) setUserSettings(snap.userSettings);
+      if (snap.userLocation?.isSpecified) setUserLocation(snap.userLocation);
+      return true;
+    }
+    setSavedFavoriteIds([]);
+    setCompareFacilityIds([]);
+    setMinorAthletes([]);
+    setPbRecords([]);
+    setSkillEvaluationsByAthlete({});
+    setNotifications([]);
+    return false;
+  };
+
   const loginOrCreateWithGoogle = (payload: {
     name: string;
     email: string;
@@ -1894,23 +1999,29 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const existing = allPersonas.find((p) => p.email?.toLowerCase() === cleanEmail);
 
     if (existing) {
+      const stableCode =
+        existing.role === "facility_manager"
+          ? existing.memberCode || ""
+          : existing.memberCode || generateDeterministicEmailMemberCode(cleanEmail);
       const updated: PersonaAccount = {
         ...existing,
+        memberCode: stableCode || existing.memberCode,
         fullNameAr: existing.fullNameAr || cleanName,
         avatarUrl: existing.avatarUrl || payload.image || undefined,
         email: cleanEmail,
         authProvider: "google",
+        needsOnboarding: false,
       };
       setAllPersonas((prev) => prev.map((p) => (p.id === existing.id ? updated : p)));
+      if (currentPersona.id !== updated.id) {
+        applyAccountSnapshotForPersona(updated);
+      }
       setCurrentPersona(updated);
       setActiveStaffAssignmentId(null);
+      setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(updated));
       applyAccountCityToUserLocation(updated.city);
-      const fallbackCode =
-        updated.role === "facility_manager"
-          ? ""
-          : existing.memberCode || generateUniqueMemberCode("CAP-M");
       postSupabaseSync("/api/supabase/sync-profile", {
-        memberCode: fallbackCode || `FAC-${updated.id.slice(-6)}`,
+        memberCode: stableCode || `FAC-${updated.id.slice(-6)}`,
         email: cleanEmail,
         fullNameAr: updated.fullNameAr,
         role: updated.role,
@@ -1919,17 +2030,17 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         avatarUrl: updated.avatarUrl,
         authProvider: "google",
         hasParentSupervision: updated.hasParentSupervision,
-        needsOnboarding: Boolean(updated.needsOnboarding),
+        needsOnboarding: false,
       });
       return {
         ok: true,
         isNewUser: false,
         persona: updated,
-        memberCode: fallbackCode,
+        memberCode: stableCode,
       };
     }
 
-    const memberCode = generateUniqueMemberCode("CAP-M");
+    const memberCode = generateDeterministicEmailMemberCode(cleanEmail);
     const safeSlug = cleanEmail.replace(/[^a-z0-9]/g, "-");
     const newId = `google-${safeSlug}`;
     const firstName = cleanName.split(" ")[0];
@@ -1944,19 +2055,24 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: payload.image || undefined,
       email: cleanEmail,
       authProvider: "google",
-      needsOnboarding: true,
+      needsOnboarding: false,
       shortLabelAr: `${firstName} (${memberCode})`,
       fullNameAr: cleanName,
       personaTitleAr: `رياضي مسجّل عبر Google — كود ${memberCode}`,
       city: defaultUserCity,
       phone: "",
       descriptionAr: payload.isSimulatedPreview
-        ? `حساب معاينة مسجّل بالبريد (${cleanEmail}) بكود عضوية فوري جاهز لتجربة الرحلة الكاملة.`
-        : `حساب موثّق عبر Google (${cleanEmail}) مع كود عضوية رقمي فوري للربط مع الكباتن والأكاديميات.`,
+        ? `حساب معاينة مسجّل بالبريد (${cleanEmail}).`
+        : `حساب موثّق عبر Google (${cleanEmail}).`,
     };
 
     setAllPersonas((prev) => [newPersona, ...prev.filter((p) => p.id !== newId)]);
+    if (currentPersona.id !== newId) {
+      applyAccountSnapshotForPersona(newPersona);
+    }
     setCurrentPersona(newPersona);
+    setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState("member");
 
     const regEntry: MemberRegistryEntry = {
       memberCode,
@@ -1969,14 +2085,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
     setMemberRegistry((prev) => [regEntry, ...prev.filter((m) => m.athleteId !== newId)]);
 
-    pushNotification({
-      titleAr: `أهلاً بك عبر Google يا ${firstName}!`,
-      messageAr: `تم توليد كود عضويتك الفريد ${memberCode} وسحب بياناتك من Google. يمكنك الآن اختيار نوع حسابك وإضافة رقم الموبايل اختيارياً.`,
-      type: "school_card",
-      actionLabelAr: "إكمال الإعداد",
-      actionHref: "/auth/onboarding",
-    });
-
     postSupabaseSync("/api/supabase/sync-profile", {
       memberCode,
       email: cleanEmail,
@@ -1986,7 +2094,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: payload.image || undefined,
       authProvider: "google",
       hasParentSupervision: false,
-      needsOnboarding: true,
+      needsOnboarding: false,
     });
 
     return { ok: true, isNewUser: true, persona: newPersona, memberCode };
@@ -2168,7 +2276,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: remote.avatarUrl || existing?.avatarUrl || undefined,
       email: remote.email || existing?.email,
       authProvider: remote.authProvider || existing?.authProvider || "phone",
-      needsOnboarding: Boolean(remote.needsOnboarding),
+      needsOnboarding: false,
       shortLabelAr: isFacilityRole
         ? `إدارة (${firstName})`
         : cleanCode
@@ -2187,7 +2295,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         "حساب محفوظ ومزامن عبر كابتنلي لاستعادة كافة البيانات عبر الأجهزة.",
     };
 
+    const isSwitchingPersona = currentPersona.id !== persona.id;
     setAllPersonas((prev) => [persona, ...prev.filter((p) => p.id !== persona.id && (!persona.email || p.email?.toLowerCase() !== persona.email.toLowerCase()))]);
+    if (isSwitchingPersona) {
+      applyAccountSnapshotForPersona(persona);
+    }
     setCurrentPersona(persona);
     setActiveStaffAssignmentId(null);
     setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(persona));
@@ -2226,6 +2338,41 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     payload
   ) => {
     const cleanEmail = payload.email.trim().toLowerCase();
+    const cleanName = payload.name.trim() || cleanEmail.split("@")[0] || "عضو كابتنلي";
+
+    try {
+      const authRes = await fetch("/api/auth/member-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "google_login",
+          email: cleanEmail,
+          fullNameAr: cleanName,
+          avatarUrl: payload.image || undefined,
+          city: userLocation.isSpecified ? userLocation.city : undefined,
+        }),
+      });
+      if (authRes.ok) {
+        const authData = await authRes.json().catch(() => null);
+        if (authData?.ok && authData?.profile) {
+          const restored = hydratePersonaFromRemoteProfile({
+            ...authData.profile,
+            needsOnboarding: false,
+            avatarUrl: authData.profile.avatarUrl || payload.image || undefined,
+            authProvider: "google",
+          });
+          return {
+            ok: true,
+            isNewUser: Boolean(authData.isNewUser),
+            persona: restored,
+            memberCode: restored.memberCode || "",
+          };
+        }
+      }
+    } catch {
+      // Fall through to sync-profile GET or local fallback
+    }
+
     try {
       const res = await fetch(`/api/supabase/sync-profile?email=${encodeURIComponent(cleanEmail)}`);
       if (res.ok) {
@@ -2233,6 +2380,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (data?.found && data?.profile) {
           const restored = hydratePersonaFromRemoteProfile({
             ...data.profile,
+            needsOnboarding: false,
             avatarUrl: data.profile.avatarUrl || payload.image || undefined,
             authProvider: "google",
           });
@@ -2293,12 +2441,48 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOutToGuest = () => {
+    if (isAuthenticated) {
+      const snapKeys = getAccountSnapshotKeys(currentPersona);
+      if (snapKeys.length > 0) {
+        const snap: AccountActivitySnapshot = {
+          savedFavoriteIds,
+          compareFacilityIds,
+          minorAthletes,
+          pbRecords,
+          skillEvaluationsByAthlete,
+          notifications,
+          userSettings,
+          userLocation: userLocation.isSpecified ? userLocation : undefined,
+        };
+        setAccountSnapshots((prev) => {
+          const next = { ...prev };
+          for (const k of snapKeys) {
+            next[k] = snap;
+          }
+          return next;
+        });
+      }
+      const syncCode = getProfileSyncKey(currentPersona);
+      if (syncCode) {
+        persistPrefsToRemote(
+          {
+            favorites: savedFavoriteIds,
+            compareIds: compareFacilityIds,
+            userSettings,
+            userLocation: userLocation as unknown as Record<string, unknown>,
+          },
+          syncCode
+        );
+      }
+    }
+
     if (typeof window !== "undefined") {
       fetch("/api/auth/member-auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "logout" }),
       }).catch(() => {});
+      nextAuthSignOut({ redirect: false }).catch(() => {});
     }
     const guest =
       allPersonas.find((p) => p.role === "guest") ||
@@ -2318,9 +2502,101 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setNotifications([]);
   };
 
+  const deleteCurrentAccount: CaptenlyContextType["deleteCurrentAccount"] = async () => {
+    const targetPersona = currentPersona;
+    const targetCode = (targetPersona.memberCode || "").trim().toUpperCase();
+    const targetEmail = (targetPersona.email || "").trim().toLowerCase();
+    const targetId = targetPersona.id;
+    const childIds = new Set(minorAthletes.map((m) => m.id));
+    const keysToRemove = getAccountSnapshotKeys(targetPersona);
+
+    let serverOk = true;
+    if (typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/auth/member-auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete_account",
+            memberCode: targetCode || undefined,
+            email: targetEmail || undefined,
+            athleteId: targetId,
+          }),
+        });
+        if (!res.ok && res.status !== 401 && res.status !== 503) {
+          serverOk = false;
+        }
+      } catch {
+        // Proceed with full local cleanup even when offline
+      }
+      nextAuthSignOut({ redirect: false }).catch(() => {});
+    }
+
+    setAccountSnapshots((prev) => {
+      const next = { ...prev };
+      for (const k of keysToRemove) {
+        delete next[k];
+      }
+      return next;
+    });
+
+    setAllPersonas((prev) =>
+      prev.filter(
+        (p) =>
+          p.id !== targetId &&
+          (!targetCode || (p.memberCode || "").toUpperCase() !== targetCode) &&
+          (!targetEmail || (p.email || "").toLowerCase() !== targetEmail)
+      )
+    );
+    setMemberRegistry((prev) =>
+      prev.filter(
+        (m) =>
+          m.athleteId !== targetId &&
+          (!targetCode || m.memberCode.toUpperCase() !== targetCode)
+      )
+    );
+    setSessionLedgers((prev) =>
+      prev.filter(
+        (l) =>
+          l.athleteId !== targetId &&
+          !childIds.has(l.athleteId) &&
+          (!targetCode || (l.memberCode || "").toUpperCase() !== targetCode)
+      )
+    );
+
+    const guest =
+      PERSONA_ACCOUNTS.find((p) => p.role === "guest") || GUEST_PERSONA;
+    setCurrentPersona(guest);
+    setActiveStaffAssignmentId(null);
+    setActiveWorkspaceContextState("member");
+    setRoleClaims([]);
+    setSavedFavoriteIds([]);
+    setCompareFacilityIds([]);
+    setMinorAthletes([]);
+    setPbRecords([]);
+    setSkillEvaluationsByAthlete({});
+    setSkillEvaluation(INITIAL_SKILL_EVALUATION);
+    setVerifiedLeads([]);
+    setNotifications([]);
+
+    return { ok: serverOk };
+  };
+
   const switchPersona = (personaId: string) => {
     const target = allPersonas.find((p) => p.id === personaId);
     if (target) {
+      if (target.id !== currentPersona.id) {
+        if (target.role === "guest") {
+          setSavedFavoriteIds([]);
+          setCompareFacilityIds([]);
+          setMinorAthletes([]);
+          setPbRecords([]);
+          setSkillEvaluationsByAthlete({});
+          setNotifications([]);
+        } else {
+          applyAccountSnapshotForPersona(target);
+        }
+      }
       setCurrentPersona(target);
       setActiveStaffAssignmentId(null);
       setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(target));
@@ -2358,7 +2634,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         avatarUrl: avatarDataUrl,
         authProvider: currentPersona.authProvider || "captenly",
         hasParentSupervision: currentPersona.hasParentSupervision,
-        needsOnboarding: Boolean(currentPersona.needsOnboarding),
+        needsOnboarding: false,
         linkedFacilityId: currentPersona.linkedFacilityId,
         linkedCoachId: currentPersona.linkedCoachId,
       });
@@ -2464,7 +2740,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         socialLinks: next.socialLinks,
         authProvider: next.authProvider || "captenly",
         hasParentSupervision: next.hasParentSupervision,
-        needsOnboarding: Boolean(next.needsOnboarding),
+        needsOnboarding: false,
         linkedFacilityId: next.linkedFacilityId,
         linkedCoachId: next.linkedCoachId,
       });
@@ -4551,6 +4827,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         restoreProfileByLogin,
         completeGoogleOnboarding,
         signOutToGuest,
+        deleteCurrentAccount,
         userLocation,
         setUserCity,
         setUserCoordinates,

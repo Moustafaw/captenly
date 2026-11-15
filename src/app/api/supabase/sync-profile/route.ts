@@ -223,8 +223,16 @@ export async function POST(request: Request) {
     let existingRow: Record<string, unknown> | undefined;
     if (admin) {
       const lookup = email
-        ? await admin.from("captenly_profiles").select("role, needs_onboarding, social_links, phone").eq("email", email).limit(1)
-        : await admin.from("captenly_profiles").select("role, needs_onboarding, social_links, phone").eq("member_code", memberCode).limit(1);
+        ? await admin
+            .from("captenly_profiles")
+            .select("member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar")
+            .eq("email", email)
+            .limit(1)
+        : await admin
+            .from("captenly_profiles")
+            .select("member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar")
+            .eq("member_code", memberCode)
+            .limit(1);
       if (!lookup.error && Array.isArray(lookup.data) && lookup.data[0]) {
         existingRow = lookup.data[0] as Record<string, unknown>;
       }
@@ -232,13 +240,19 @@ export async function POST(request: Request) {
     if (!existingRow) {
       const pgExisting = await withPgClient(async (client) => {
         const sql = email
-          ? `select role, needs_onboarding, social_links, phone from public.captenly_profiles where lower(email) = lower($1) limit 1`
-          : `select role, needs_onboarding, social_links, phone from public.captenly_profiles where upper(member_code) = upper($1) limit 1`;
+          ? `select member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar from public.captenly_profiles where lower(email) = lower($1) limit 1`
+          : `select member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar from public.captenly_profiles where upper(member_code) = upper($1) limit 1`;
         const { rows } = await client.query(sql, [email || memberCode]);
         return rows[0] as Record<string, unknown> | undefined;
       });
       if (pgExisting.ok && pgExisting.value) existingRow = pgExisting.value;
     }
+
+    // Preserve existing member_code so returning users never receive a new code
+    const effectiveMemberCode =
+      typeof existingRow?.member_code === "string" && existingRow.member_code.trim()
+        ? existingRow.member_code.trim().toUpperCase()
+        : memberCode;
 
     const existingSocial =
       existingRow?.social_links && typeof existingRow.social_links === "object"
@@ -291,11 +305,23 @@ export async function POST(request: Request) {
           : caller.linkedCoachId;
     }
 
+    const incomingPhone = typeof body.phone === "string" ? body.phone.trim() : "";
+    const existingPhone = typeof existingRow?.phone === "string" ? existingRow.phone : "";
+    const effectivePhone = incomingPhone || existingPhone || null;
+
+    const incomingCity = typeof body.city === "string" ? body.city.trim() : "";
+    const existingCity = typeof existingRow?.city === "string" ? existingRow.city : "";
+    const effectiveCity = incomingCity || existingCity || null;
+
+    const incomingGov = typeof body.governorate === "string" ? body.governorate.trim() : "";
+    const existingGov = typeof existingRow?.governorate === "string" ? existingRow.governorate : "";
+    const effectiveGov = incomingGov || existingGov || null;
+
     const sessionCookieInput = {
-      memberCode,
+      memberCode: effectiveMemberCode,
       role: effectiveRole as AccountRole,
       email: email || caller.email,
-      phone: typeof body.phone === "string" ? body.phone.trim() || caller.phone : caller.phone,
+      phone: effectivePhone || caller.phone,
       linkedFacilityId: effectiveLinkedFacilityId,
       linkedCoachId: effectiveLinkedCoachId,
     };
@@ -331,26 +357,32 @@ export async function POST(request: Request) {
     };
 
     const baseRecord: Record<string, unknown> = {
-      member_code: memberCode,
+      member_code: effectiveMemberCode,
       email,
       full_name_ar: fullNameAr,
       role: effectiveRole,
-      phone: typeof body.phone === "string" ? body.phone.trim() || null : null,
-      city: typeof body.city === "string" ? body.city.trim() || null : null,
-      governorate: typeof body.governorate === "string" ? body.governorate.trim() || null : null,
+      phone: effectivePhone,
+      city: effectiveCity,
+      governorate: effectiveGov,
       auth_provider: typeof body.authProvider === "string" ? body.authProvider : "captenly",
       has_parent_supervision: Boolean(body.hasParentSupervision),
-      needs_onboarding: Boolean(body.needsOnboarding),
+      needs_onboarding: false,
       updated_at: new Date().toISOString(),
     };
 
     if (typeof body.avatarUrl === "string" && body.avatarUrl.trim()) {
       baseRecord.avatar_url = body.avatarUrl.trim();
+    } else if (typeof existingRow?.avatar_url === "string" && existingRow.avatar_url.trim()) {
+      baseRecord.avatar_url = existingRow.avatar_url.trim();
     }
 
     const extendedRecord: Record<string, unknown> = {
       ...baseRecord,
-      ...(typeof body.bioAr === "string" ? { bio_ar: body.bioAr.trim() || null } : {}),
+      ...(typeof body.bioAr === "string"
+        ? { bio_ar: body.bioAr.trim() || null }
+        : typeof existingRow?.bio_ar === "string"
+          ? { bio_ar: existingRow.bio_ar }
+          : {}),
       social_links: mergedSocialLinks,
     };
 
@@ -365,14 +397,22 @@ export async function POST(request: Request) {
       }
 
       if (!error) {
-        return attachMemberSessionCookie(NextResponse.json({ persisted: true }), sessionCookieInput);
+        return attachMemberSessionCookie(
+          NextResponse.json({ persisted: true, memberCode: effectiveMemberCode }),
+          sessionCookieInput
+        );
       }
     }
 
     await ensureProfileTableViaPg();
     const pgRes = await withPgClient(async (client) => {
-      const avatarVal = typeof body.avatarUrl === "string" && body.avatarUrl.trim() ? body.avatarUrl.trim() : null;
-      const bioVal = typeof body.bioAr === "string" ? body.bioAr.trim() || null : null;
+      const avatarVal = typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : null;
+      const bioVal =
+        typeof body.bioAr === "string"
+          ? body.bioAr.trim() || null
+          : typeof existingRow?.bio_ar === "string"
+            ? existingRow.bio_ar
+            : null;
       const socialVal = JSON.stringify(mergedSocialLinks);
 
       if (email) {
@@ -380,8 +420,8 @@ export async function POST(request: Request) {
           `insert into public.captenly_profiles
             (member_code, email, full_name_ar, role, phone, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, bio_ar, social_links, updated_at)
            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, now())
-           on conflict (email) where email is not null do update set
-            member_code = excluded.member_code,
+           on conflict (email) do update set
+            member_code = coalesce(nullif(public.captenly_profiles.member_code, ''), excluded.member_code),
             full_name_ar = excluded.full_name_ar,
             role = excluded.role,
             phone = coalesce(excluded.phone, public.captenly_profiles.phone),
@@ -390,12 +430,12 @@ export async function POST(request: Request) {
             avatar_url = coalesce(excluded.avatar_url, public.captenly_profiles.avatar_url),
             auth_provider = excluded.auth_provider,
             has_parent_supervision = excluded.has_parent_supervision,
-            needs_onboarding = excluded.needs_onboarding,
+            needs_onboarding = false,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
             social_links = excluded.social_links,
             updated_at = now()`,
           [
-            memberCode,
+            effectiveMemberCode,
             email,
             fullNameAr,
             effectiveRole,
@@ -405,7 +445,7 @@ export async function POST(request: Request) {
             avatarVal,
             baseRecord.auth_provider,
             baseRecord.has_parent_supervision,
-            baseRecord.needs_onboarding,
+            false,
             bioVal,
             socialVal,
           ]
@@ -424,12 +464,12 @@ export async function POST(request: Request) {
             avatar_url = coalesce(excluded.avatar_url, public.captenly_profiles.avatar_url),
             auth_provider = excluded.auth_provider,
             has_parent_supervision = excluded.has_parent_supervision,
-            needs_onboarding = excluded.needs_onboarding,
+            needs_onboarding = false,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
             social_links = excluded.social_links,
             updated_at = now()`,
           [
-            memberCode,
+            effectiveMemberCode,
             fullNameAr,
             effectiveRole,
             baseRecord.phone,
@@ -438,7 +478,7 @@ export async function POST(request: Request) {
             avatarVal,
             baseRecord.auth_provider,
             baseRecord.has_parent_supervision,
-            baseRecord.needs_onboarding,
+            false,
             bioVal,
             socialVal,
           ]
@@ -448,7 +488,10 @@ export async function POST(request: Request) {
     });
 
     if (pgRes.ok) {
-      return attachMemberSessionCookie(NextResponse.json({ persisted: true }), sessionCookieInput);
+      return attachMemberSessionCookie(
+        NextResponse.json({ persisted: true, memberCode: effectiveMemberCode }),
+        sessionCookieInput
+      );
     }
 
     return NextResponse.json({

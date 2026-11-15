@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCaptenly } from "@/context/CaptenlyContext";
@@ -23,7 +23,23 @@ export default function SettingsHubPage() {
     activeStaffAssignment,
     switchToStaffMode,
     respondToStaffInvitation,
+    signOutToGuest,
+    deleteCurrentAccount,
   } = useCaptenly();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    setDeletingAccount(true);
+    try {
+      const res = await deleteCurrentAccount();
+      if (res.ok) {
+        router.push("/");
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -310,6 +326,69 @@ export default function SettingsHubPage() {
           </div>
         </div>
       )}
+
+      {/* 6. Sign Out & Permanent Account Deletion */}
+      <div className="p-5 rounded-2xl bg-surface-card border border-status-danger/25 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-cairo font-bold text-card-title-sm text-dark-slate">
+              الجلسة وحذف الحساب
+            </h3>
+            <p className="text-micro-caption text-text-muted mt-0.5 leading-relaxed">
+              تسجيل الخروج يحفظ حسابك وكافة عملياتك كما هي عند عودتك. حذف الحساب يمسح الحساب وجميع السجلات نهائياً.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                signOutToGuest();
+                router.push("/");
+              }}
+              className="px-4 py-2 rounded-full bg-surface-snow hover:bg-surface-container text-dark-slate text-xs font-bold border border-border-hairline"
+            >
+              تسجيل الخروج
+            </button>
+            {!confirmDeleteOpen && (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="px-4 py-2 rounded-full bg-status-danger text-white text-xs font-bold hover:opacity-90"
+              >
+                حذف الحساب نهائياً
+              </button>
+            )}
+          </div>
+        </div>
+
+        {confirmDeleteOpen && (
+          <div className="p-4 rounded-xl bg-red-50/70 border border-status-danger/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs font-bold text-status-danger">
+              سيتم حذف حسابك وكل عملياتك وسجلاتك المحفوظة نهائياً. هل تريد المتابعة؟
+            </p>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={deletingAccount}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-full bg-status-danger text-white text-xs font-bold disabled:opacity-60"
+              >
+                {deletingAccount
+                  ? "جاري الحذف..."
+                  : "تأكيد حذف الحساب وجميع البيانات نهائياً"}
+              </button>
+              <button
+                type="button"
+                disabled={deletingAccount}
+                onClick={() => setConfirmDeleteOpen(false)}
+                className="px-4 py-2 rounded-full bg-white text-dark-slate border border-border-hairline text-xs font-bold"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

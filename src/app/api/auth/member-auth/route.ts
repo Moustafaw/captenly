@@ -4,9 +4,17 @@ import type { AccountRole } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getAuthInstance } from "@/auth";
-import { attachMemberSessionCookie, clearMemberSessionCookie } from "@/lib/memberSession";
+import { attachMemberSessionCookie, clearMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
 
 export const runtime = "nodejs";
+
+function generateDeterministicMemberCode(email: string, attempt = 0): string {
+  const clean = email.trim().toLowerCase();
+  const seed = attempt === 0 ? clean : `${clean}#${attempt}`;
+  const hash = crypto.createHash("sha256").update(seed).digest();
+  const digits = 1000 + (hash.readUInt16BE(0) % 9000);
+  return `CAP-M-${digits}`;
+}
 
 function normalizePhoneDigits(phone?: string | null): string {
   const digits = (phone || "").replace(/\D/g, "");
@@ -494,6 +502,355 @@ export async function POST(request: Request) {
         linkedFacilityId: profile.linkedFacilityId,
         linkedCoachId: profile.linkedCoachId,
       });
+    }
+
+    if (action === "google_login") {
+      const authInstance = getAuthInstance();
+      const session = authInstance ? await authInstance.auth() : null;
+      const sessionEmail = session?.user?.email?.trim().toLowerCase();
+      const bodyEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      const cleanEmail = sessionEmail || bodyEmail;
+
+      if (!cleanEmail || !cleanEmail.includes("@")) {
+        return NextResponse.json(
+          { ok: false, reason: "missing_email", messageAr: "البريد الإلكتروني مطلوب لتسجيل الدخول." },
+          { status: 400 }
+        );
+      }
+
+      const incomingName =
+        (typeof body.fullNameAr === "string" ? body.fullNameAr.trim() : "") ||
+        session?.user?.name?.trim() ||
+        cleanEmail.split("@")[0] ||
+        "عضو كابتنلي";
+      const incomingAvatar =
+        (typeof body.avatarUrl === "string" ? body.avatarUrl.trim() : "") ||
+        session?.user?.image?.trim() ||
+        null;
+      const incomingCity =
+        (typeof body.city === "string" && body.city.trim()) ? body.city.trim() : "كل مصر";
+
+      await ensureAuthSchemaViaPg();
+      const existing = await findProfileByQuery(cleanEmail);
+      if (!existing.dbAvailable) {
+        return NextResponse.json(
+          { ok: false, reason: "database_not_configured" },
+          { status: 503 }
+        );
+      }
+
+      if (existing.row) {
+        const existingCode = String(existing.row.member_code || "").trim().toUpperCase();
+        const needsBackfill =
+          Boolean(existing.row.needs_onboarding) ||
+          (!existing.row.avatar_url && Boolean(incomingAvatar));
+
+        if (needsBackfill && existingCode) {
+          const patchPayload: Record<string, unknown> = {
+            needs_onboarding: false,
+            updated_at: new Date().toISOString(),
+          };
+          if (!existing.row.avatar_url && incomingAvatar) {
+            patchPayload.avatar_url = incomingAvatar;
+          }
+          const admin = getSupabaseAdminClient();
+          let updated = false;
+          if (admin) {
+            const { error } = await admin
+              .from("captenly_profiles")
+              .update(patchPayload)
+              .eq("member_code", existingCode);
+            updated = !error;
+          }
+          if (!updated) {
+            await withPgClient(async (client) => {
+              await client.query(
+                `update public.captenly_profiles
+                 set needs_onboarding = false,
+                     avatar_url = coalesce(avatar_url, $2),
+                     updated_at = now()
+                 where upper(member_code) = upper($1)`,
+                [existingCode, incomingAvatar]
+              );
+              return true;
+            });
+          }
+        }
+
+        const profile = sanitizeProfileRow({
+          ...existing.row,
+          needs_onboarding: false,
+          avatar_url: existing.row.avatar_url || incomingAvatar || undefined,
+        });
+        const res = NextResponse.json({
+          ok: true,
+          persisted: true,
+          isNewUser: false,
+          profile,
+        });
+        return attachMemberSessionCookie(res, {
+          memberCode: profile.memberCode,
+          role: (profile.role as AccountRole) || "adult_athlete",
+          email: profile.email || cleanEmail,
+          phone: profile.phone,
+          linkedFacilityId: profile.linkedFacilityId,
+          linkedCoachId: profile.linkedCoachId,
+        });
+      }
+
+      // New Google user: derive deterministic member code without collisions
+      let chosenCode = generateDeterministicMemberCode(cleanEmail, 0);
+      for (let attempt = 1; attempt <= 12; attempt++) {
+        const codeCheck = await findProfileByQuery(chosenCode);
+        if (!codeCheck.row) break;
+        chosenCode = generateDeterministicMemberCode(cleanEmail, attempt);
+      }
+
+      const admin = getSupabaseAdminClient();
+      if (admin) {
+        const { data, error } = await admin
+          .from("captenly_profiles")
+          .insert({
+            member_code: chosenCode,
+            email: cleanEmail,
+            full_name_ar: incomingName,
+            role: "adult_athlete",
+            city: incomingCity,
+            governorate: "مصر",
+            avatar_url: incomingAvatar,
+            auth_provider: "google",
+            has_parent_supervision: false,
+            needs_onboarding: false,
+            updated_at: new Date().toISOString(),
+          })
+          .select("*")
+          .limit(1);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const profile = sanitizeProfileRow(data[0] as Record<string, unknown>);
+          const res = NextResponse.json({
+            ok: true,
+            persisted: true,
+            isNewUser: true,
+            profile,
+          });
+          return attachMemberSessionCookie(res, {
+            memberCode: profile.memberCode,
+            role: (profile.role as AccountRole) || "adult_athlete",
+            email: profile.email || cleanEmail,
+            phone: profile.phone,
+            linkedFacilityId: profile.linkedFacilityId,
+            linkedCoachId: profile.linkedCoachId,
+          });
+        }
+
+        // Race-condition safety: if email already existed concurrently, re-fetch
+        if (error && (error.code === "23505" || String(error.message || "").toLowerCase().includes("duplicate"))) {
+          const raceExisting = await findProfileByQuery(cleanEmail);
+          if (raceExisting.row) {
+            const profile = sanitizeProfileRow({ ...raceExisting.row, needs_onboarding: false });
+            const res = NextResponse.json({
+              ok: true,
+              persisted: true,
+              isNewUser: false,
+              profile,
+            });
+            return attachMemberSessionCookie(res, {
+              memberCode: profile.memberCode,
+              role: (profile.role as AccountRole) || "adult_athlete",
+              email: profile.email || cleanEmail,
+              phone: profile.phone,
+              linkedFacilityId: profile.linkedFacilityId,
+              linkedCoachId: profile.linkedCoachId,
+            });
+          }
+        }
+      }
+
+      const pgInsert = await withPgClient(async (client) => {
+        const { rows } = await client.query(
+          `insert into public.captenly_profiles
+            (member_code, email, full_name_ar, role, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, updated_at)
+           values ($1,$2,$3,'adult_athlete',$4,'مصر',$5,'google',false,false,now())
+           on conflict (email) do update set
+             needs_onboarding = false,
+             avatar_url = coalesce(public.captenly_profiles.avatar_url, excluded.avatar_url),
+             updated_at = now()
+           returning *`,
+          [chosenCode, cleanEmail, incomingName, incomingCity, incomingAvatar]
+        );
+        return (rows[0] as Record<string, unknown>) || null;
+      });
+
+      if (pgInsert.ok && pgInsert.value) {
+        const insertedNew = String(pgInsert.value.member_code || "").toUpperCase() === chosenCode.toUpperCase();
+        const profile = sanitizeProfileRow({ ...pgInsert.value, needs_onboarding: false });
+        const res = NextResponse.json({
+          ok: true,
+          persisted: true,
+          isNewUser: insertedNew,
+          profile,
+        });
+        return attachMemberSessionCookie(res, {
+          memberCode: profile.memberCode,
+          role: (profile.role as AccountRole) || "adult_athlete",
+          email: profile.email || cleanEmail,
+          phone: profile.phone,
+          linkedFacilityId: profile.linkedFacilityId,
+          linkedCoachId: profile.linkedCoachId,
+        });
+      }
+
+      return NextResponse.json(
+        { ok: false, reason: "database_write_failed" },
+        { status: 503 }
+      );
+    }
+
+    if (action === "delete_account") {
+      const caller = await getServerCaller();
+      if (!caller.authenticated) {
+        return NextResponse.json(
+          { ok: false, error: "unauthorized", messageAr: "يرجى تسجيل الدخول أولاً لتنفيذ حذف الحساب." },
+          { status: 401 }
+        );
+      }
+
+      const reqCode = typeof body.memberCode === "string" ? body.memberCode.trim().toUpperCase() : "";
+      const reqEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      const reqAthleteId = typeof body.athleteId === "string" ? body.athleteId.trim() : "";
+
+      if (!caller.isAdmin) {
+        if (reqCode && caller.memberCode && reqCode !== caller.memberCode.toUpperCase()) {
+          return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+        }
+        if (reqEmail && caller.email && reqEmail !== caller.email.toLowerCase()) {
+          return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+        }
+      }
+
+      const targetCode = caller.isAdmin
+        ? reqCode || caller.memberCode || ""
+        : caller.memberCode || reqCode || "";
+      const targetEmail = caller.isAdmin
+        ? reqEmail || caller.email || ""
+        : caller.email || reqEmail || "";
+
+      const lookupQuery = targetEmail || targetCode;
+      if (!lookupQuery) {
+        return NextResponse.json(
+          { ok: false, error: "missing_identity", messageAr: "تعذر تحديد هوية الحساب للحذف." },
+          { status: 400 }
+        );
+      }
+
+      const found = await findProfileByQuery(lookupQuery);
+      const effectiveCode = (
+        (found.row?.member_code ? String(found.row.member_code) : targetCode) || ""
+      )
+        .trim()
+        .toUpperCase();
+      const effectiveEmail = (
+        (found.row?.email ? String(found.row.email) : targetEmail) || ""
+      )
+        .trim()
+        .toLowerCase();
+      const profileId = found.row?.id ? String(found.row.id) : "";
+
+      const athleteIdSet = new Set<string>(
+        [profileId, reqAthleteId].filter((id) => Boolean(id && id !== "persona-guest"))
+      );
+
+      const admin = getSupabaseAdminClient();
+      if (admin) {
+        try {
+          if (effectiveCode) {
+            const { data: children } = await admin
+              .from("captenly_minor_athletes")
+              .select("id")
+              .eq("parent_member_code", effectiveCode);
+            if (Array.isArray(children)) {
+              for (const c of children) {
+                if (c?.id) athleteIdSet.add(String(c.id));
+              }
+            }
+          }
+
+          const athleteIds = Array.from(athleteIdSet);
+          if (effectiveCode) {
+            await admin.from("captenly_pb_records").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_skill_evaluations").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_minor_athletes").delete().eq("parent_member_code", effectiveCode);
+            await admin.from("captenly_user_prefs").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_notifications").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_role_claims").delete().eq("applicant_member_code", effectiveCode);
+            await admin.from("captenly_session_ledgers").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_leads").delete().eq("member_code", effectiveCode);
+            await admin.from("captenly_profiles").delete().eq("member_code", effectiveCode);
+          }
+          if (athleteIds.length > 0) {
+            await admin.from("captenly_pb_records").delete().in("athlete_id", athleteIds);
+            await admin.from("captenly_skill_evaluations").delete().in("athlete_id", athleteIds);
+            await admin.from("captenly_session_ledgers").delete().in("athlete_id", athleteIds);
+          }
+          if (effectiveEmail) {
+            await admin.from("captenly_role_claims").delete().eq("applicant_email", effectiveEmail);
+            await admin.from("captenly_profiles").delete().eq("email", effectiveEmail);
+          }
+        } catch {
+          // fall through to pg cleanup as safety net
+        }
+      }
+
+      await withPgClient(async (client) => {
+        const safeExec = async (sql: string, params: unknown[]) => {
+          try {
+            await client.query(sql, params);
+          } catch {
+            // ignore missing optional table
+          }
+        };
+
+        if (effectiveCode) {
+          try {
+            const { rows: childRows } = await client.query(
+              `select id from public.captenly_minor_athletes where upper(parent_member_code) = upper($1)`,
+              [effectiveCode]
+            );
+            for (const r of childRows) {
+              if (r?.id) athleteIdSet.add(String(r.id));
+            }
+          } catch {
+            // ignore if minor table not initialized
+          }
+        }
+
+        const athleteIds = Array.from(athleteIdSet);
+        if (effectiveCode) {
+          await safeExec(`delete from public.captenly_pb_records where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_skill_evaluations where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_minor_athletes where upper(parent_member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_user_prefs where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_notifications where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_role_claims where upper(applicant_member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_session_ledgers where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_leads where upper(member_code) = upper($1)`, [effectiveCode]);
+          await safeExec(`delete from public.captenly_profiles where upper(member_code) = upper($1)`, [effectiveCode]);
+        }
+        if (athleteIds.length > 0) {
+          await safeExec(`delete from public.captenly_pb_records where athlete_id = any($1::text[])`, [athleteIds]);
+          await safeExec(`delete from public.captenly_skill_evaluations where athlete_id = any($1::text[])`, [athleteIds]);
+          await safeExec(`delete from public.captenly_session_ledgers where athlete_id = any($1::text[])`, [athleteIds]);
+        }
+        if (effectiveEmail) {
+          await safeExec(`delete from public.captenly_role_claims where lower(applicant_email) = lower($1)`, [effectiveEmail]);
+          await safeExec(`delete from public.captenly_profiles where lower(email) = lower($1)`, [effectiveEmail]);
+        }
+        return true;
+      });
+
+      const res = NextResponse.json({ ok: true, deleted: true, memberCode: effectiveCode || undefined });
+      return clearMemberSessionCookie(res);
     }
 
     if (action === "logout") {

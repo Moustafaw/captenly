@@ -162,13 +162,11 @@ export function GoogleSignInButton({
       });
 
       const targetPath =
-        res.isNewUser || res.persona.needsOnboarding
-          ? "/auth/onboarding?source=google&preview=1"
-          : res.persona.role === "coach"
-            ? "/dashboard/coach"
-            : res.persona.role === "facility_manager"
-              ? "/dashboard/facility"
-              : "/dashboard/ledger";
+        res.persona.role === "coach"
+          ? "/dashboard/coach"
+          : res.persona.role === "facility_manager"
+            ? "/dashboard/facility"
+            : "/dashboard/athlete";
 
       setPreviewOpen(false);
       if (onSuccessNavigate) onSuccessNavigate();

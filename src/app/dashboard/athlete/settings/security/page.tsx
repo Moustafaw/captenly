@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
 import { signOut } from "next-auth/react";
@@ -10,12 +11,14 @@ import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen
 import { isMemberAccountRole } from "@/types/captenly";
 
 export default function SecuritySettingsPage() {
+  const router = useRouter();
   const {
     isAuthenticated,
     currentPersona,
     userSettings,
     updateUserSettings,
     signOutToGuest,
+    deleteCurrentAccount,
     pbRecords,
     sessionLedgers,
     minorAthletes,
@@ -26,6 +29,24 @@ export default function SecuritySettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDeleteAccount = async () => {
+    setDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      const res = await deleteCurrentAccount();
+      if (res.ok) {
+        router.push("/");
+      } else {
+        setDeleteError("حدث خطأ أثناء حذف الحساب من الخادم. يرجى المحاولة مرة أخرى.");
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -164,7 +185,7 @@ export default function SecuritySettingsPage() {
                 <p className="text-micro-caption text-text-muted">
                   {currentPersona.authProvider === "google" && currentPersona.email
                     ? `مربوط حالياً بالبريد: ${currentPersona.email}`
-                    : "دخول فوري بضغطة واحدة مع جلب الاسم والصورة وتوليد كود العضوية"}
+                    : "دخول فوري بضغطة واحدة عبر حساب Google"}
                 </p>
               </div>
             </div>
@@ -317,6 +338,68 @@ export default function SecuritySettingsPage() {
               تنزيل أرشيفي
             </button>
           </div>
+        </div>
+
+        {/* Card 4: Permanent Account Deletion */}
+        <div className="p-5 rounded-2xl bg-red-50/60 border border-status-danger/30 shadow-card space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 text-status-danger flex items-center justify-center shrink-0">
+                <Icon name="delete_forever" className="text-[20px]" />
+              </div>
+              <div>
+                <h3 className="font-bold text-card-title-sm text-status-danger">
+                  حذف الحساب نهائياً
+                </h3>
+                <p className="text-micro-caption text-text-muted mt-0.5 leading-relaxed">
+                  تسجيل الخروج يحفظ حسابك وكودك وجميع عملياتك للعودة لاحقاً. أما حذف الحساب فيمسح الملف الشخصي، الأرقام القياسية، المفضلة، الحصص، الإشعارات، وبيانات الأبناء نهائياً ولا يمكن التراجع عنه.
+                </p>
+              </div>
+            </div>
+            {!confirmDeleteOpen && (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="px-4 py-2 rounded-xl bg-status-danger text-white font-bold text-micro-caption hover:opacity-90 transition-opacity shrink-0"
+              >
+                حذف الحساب نهائياً
+              </button>
+            )}
+          </div>
+
+          {confirmDeleteOpen && (
+            <div className="p-4 rounded-xl bg-white border border-status-danger/30 space-y-3">
+              <p className="text-xs font-bold text-dark-slate">
+                هل أنت متأكد؟ سيتم حذف حسابك وكل السجلات والعمليات المرتبطة به نهائياً.
+              </p>
+              {deleteError && (
+                <p className="text-xs font-bold text-status-danger">{deleteError}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={deletingAccount}
+                  onClick={handleConfirmDeleteAccount}
+                  className="px-4 py-2 rounded-xl bg-status-danger text-white font-bold text-xs disabled:opacity-60"
+                >
+                  {deletingAccount
+                    ? "جاري حذف الحساب..."
+                    : "تأكيد حذف الحساب وجميع البيانات نهائياً"}
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingAccount}
+                  onClick={() => {
+                    setConfirmDeleteOpen(false);
+                    setDeleteError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-surface-snow text-dark-slate border border-border-hairline font-bold text-xs"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
