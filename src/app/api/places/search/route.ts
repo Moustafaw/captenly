@@ -160,11 +160,18 @@ function inferGovernorateFromCity(city: string, address: string): string {
   if (city === "الزقازيق") return "الشرقية";
   if (city === "شبين الكوم") return "المنوفية";
   if (city === "بنها") return "القليوبية";
+  if (city === "دمياط") return "دمياط";
+  if (city === "كفر الشيخ") return "كفر الشيخ";
+  if (city === "دمنهور") return "البحيرة";
+  if (city === "بورسعيد") return "بورسعيد";
+  if (city === "الإسماعيلية") return "الإسماعيلية";
   if (address.includes("الغربية")) return "الغربية";
   if (address.includes("القاهرة")) return "القاهرة";
   if (address.includes("الجيزة")) return "الجيزة";
   if (address.includes("الإسكندرية") || address.includes("الاسكندرية")) return "الإسكندرية";
   if (address.includes("الدقهلية")) return "الدقهلية";
+  if (address.includes("المنوفية")) return "المنوفية";
+  if (address.includes("دمياط")) return "دمياط";
   if (address.includes("السويس")) return "السويس";
   if (address.includes("البحر الأحمر")) return "البحر الأحمر";
   return city || "مصر";
@@ -514,6 +521,39 @@ const VERIFIED_OSM_EGYPT_SEEDS: VerifiedOsmSeed[] = [
     addressAr: "شارع النصر، السقالة، الهضبة، الغردقة، البحر الأحمر",
     lat: 27.1324632,
     lng: 33.8293366,
+  },
+  {
+    id: "osm-W-826184279",
+    nameAr: "نادي سيتي كلوب - شبين الكوم",
+    nameEn: "City Club Shebin El-Kom",
+    governorate: "المنوفية",
+    city: "شبين الكوم",
+    district: "شبين الكوم",
+    addressAr: "شبين الكوم، محافظة المنوفية",
+    lat: 30.5650354,
+    lng: 31.010347,
+  },
+  {
+    id: "osm-N-5551667437",
+    nameAr: "نادي ضباط الشرطة - رأس البر",
+    nameEn: "Police Officers Club Ras El-Bar Damietta",
+    governorate: "دمياط",
+    city: "دمياط",
+    district: "رأس البر",
+    addressAr: "رأس البر، محافظة دمياط",
+    lat: 31.4931507,
+    lng: 31.8258819,
+  },
+  {
+    id: "osm-N-5551667436",
+    nameAr: "نادي الحكمة - رأس البر",
+    nameEn: "Al Hekma Club Ras El-Bar Damietta",
+    governorate: "دمياط",
+    city: "دمياط",
+    district: "رأس البر",
+    addressAr: "رأس البر، محافظة دمياط",
+    lat: 31.4936135,
+    lng: 31.8259709,
   },
 ];
 

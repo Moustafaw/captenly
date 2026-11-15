@@ -68,10 +68,25 @@ export function partitionFacilities3Tier(
   const cleanUserCity = (userGeo?.city || "")
     .replace(/\s*\(GPS\)/g, "")
     .replace(/موقعك الحالي/g, "")
+    .replace(/موقع محدد على الخريطة/g, "")
     .replace(/كل مصر/g, "")
+    .replace(/^الكل$/g, "")
     .trim();
 
-  const hasSpecificLocation = Boolean(userGeo?.isSpecified && cleanUserCity.length > 0);
+  const hasSpecificLocation = Boolean(userGeo?.isSpecified);
+
+  const isLocalMatch = (f: Facility): boolean => {
+    if (cleanUserCity) {
+      const hay = `${f.city || ""} ${f.governorate || ""} ${f.district || ""} ${f.addressAr || ""}`;
+      if (hay.includes(cleanUserCity)) return true;
+    }
+    if (userGeo && Number.isFinite(userGeo.lat) && Number.isFinite(userGeo.lng)) {
+      return calculateDistanceKm(userGeo.lat, userGeo.lng, f.coordinates.lat, f.coordinates.lng) <= 28;
+    }
+    return false;
+  };
+
+  const scopedPool = hasSpecificLocation ? deduped.filter(isLocalMatch) : deduped;
 
   const sortByProximity = (list: Facility[]): Facility[] => {
     if (!userGeo || !hasSpecificLocation) {
@@ -79,45 +94,45 @@ export function partitionFacilities3Tier(
     }
     return [...list].sort((a, b) => {
       const aCityMatch =
-        cleanUserCity && (a.city === cleanUserCity || (a.addressAr || "").includes(cleanUserCity))
+        cleanUserCity &&
+        (a.city === cleanUserCity ||
+          (a.addressAr || "").includes(cleanUserCity) ||
+          (a.governorate || "") === cleanUserCity)
           ? 0
           : 1;
       const bCityMatch =
-        cleanUserCity && (b.city === cleanUserCity || (b.addressAr || "").includes(cleanUserCity))
+        cleanUserCity &&
+        (b.city === cleanUserCity ||
+          (b.addressAr || "").includes(cleanUserCity) ||
+          (b.governorate || "") === cleanUserCity)
           ? 0
           : 1;
+      if (aCityMatch !== bCityMatch) return aCityMatch - bCityMatch;
       const distA = calculateDistanceKm(userGeo.lat, userGeo.lng, a.coordinates.lat, a.coordinates.lng);
       const distB = calculateDistanceKm(userGeo.lat, userGeo.lng, b.coordinates.lat, b.coordinates.lng);
-      // Prioritize same-city or nearby <= 25km first, then ascending distance
-      const tierA = distA <= 25 || aCityMatch === 0 ? 0 : 1;
-      const tierB = distB <= 25 || bCityMatch === 0 ? 0 : 1;
-      if (tierA !== tierB) return tierA - tierB;
       return distA - distB;
     });
   };
 
-  const featured = sortByProximity(
-    deduped.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed")
+  const maybeRotateLocal = (list: Facility[]): Facility[] =>
+    hasSpecificLocation && rotationSeed > 0 ? rotateArray(list, rotationSeed) : list;
+
+  const featured = maybeRotateLocal(
+    sortByProximity(
+      scopedPool.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed")
+    )
   );
   const featuredIds = new Set(featured.map((f) => f.id));
 
-  const registeredSorted = sortByProximity(
-    deduped.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !featuredIds.has(f.id))
-  );
-  const registered = hasSpecificLocation
-    ? rotateArray(registeredSorted, rotationSeed)
-    : registeredSorted;
-
-  const unclaimedSorted = sortByProximity(
-    deduped.filter((f) => f.supplyStatus === "seeded_unclaimed")
+  const registered = maybeRotateLocal(
+    sortByProximity(
+      scopedPool.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !featuredIds.has(f.id))
+    )
   );
 
-  const unclaimedDirectory = hasSpecificLocation
-    ? [
-        ...rotateArray(unclaimedSorted.slice(0, 8), rotationSeed),
-        ...unclaimedSorted.slice(8),
-      ]
-    : unclaimedSorted;
+  const unclaimedDirectory = maybeRotateLocal(
+    sortByProximity(scopedPool.filter((f) => f.supplyStatus === "seeded_unclaimed"))
+  );
 
   return {
     featured,

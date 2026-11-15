@@ -28,14 +28,9 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
     createStructuredWhatsappLead,
     currentPersona,
     minorAthletes,
-    isAuthenticated,
-    openAuthGateModal,
-    subscribeDemandRadar,
-    userLocation,
   } = useCaptenly();
 
   const [shareCopied, setShareCopied] = useState(false);
-  const [demandSent, setDemandSent] = useState(false);
 
   const fav = isFavorite(facility.id);
   const inCompare = compareFacilityIds.includes(facility.id);
@@ -257,36 +252,6 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             <span>{isUnclaimed ? "عرض الموقع والتفاصيل" : "تفاصيل الباقات والمواعيد"}</span>
             <Icon name="arrow_back" className="text-[14px]" />
           </Link>
-          {isUnclaimed && (
-            <button
-              type="button"
-              disabled={demandSent}
-              onClick={() => {
-                if (!isAuthenticated) {
-                  openAuthGateModal(`طلب توفير مواعيد وأسعار ${facility.nameAr}`);
-                  return;
-                }
-                const res = subscribeDemandRadar({
-                  fullNameAr: currentPersona.fullNameAr || "مستخدم كابتنلي",
-                  phone: currentPersona.phone || "",
-                  city: facility.city || userLocation.city || "مصر",
-                  governorate: facility.governorate || "مصر",
-                  targetSport: "swimming",
-                  targetFacilityId: facility.id,
-                  targetFacilityNameAr: facility.nameAr,
-                  notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
-                });
-                if (res.ok) setDemandSent(true);
-              }}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors ${
-                demandSent
-                  ? "bg-lime-tint text-deep-olive"
-                  : "bg-dark-slate text-electric-volt hover:opacity-90"
-              }`}
-            >
-              {demandSent ? "تم إرسال الطلب ✓" : "🔔 اطلب الأسعار"}
-            </button>
-          )}
         </div>
       </div>
     </article>

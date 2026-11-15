@@ -36,14 +36,19 @@ export default function Phone21() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<MobileCat>("all");
   const [toast, setToast] = useState<string | null>(null);
-  const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
+  const [rotationSeed, setRotationSeed] = useState<number>(0);
 
   useEffect(() => {
+    setRotationSeed(0);
+  }, [userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
+
+  useEffect(() => {
+    if (userLocation.isSpecified) return;
     const timer = setInterval(() => {
       setRotationSeed((prev) => prev + 1);
     }, 45000);
     return () => clearInterval(timer);
-  }, []);
+  }, [userLocation.isSpecified]);
   const articlesRailRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ down: boolean; startX: number; scrollLeft: number }>({
     down: false,
@@ -117,7 +122,7 @@ export default function Phone21() {
   );
 
   const cats: { key: MobileCat; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${swimmingFacilities.length})` },
+    { key: "all", label: `الكل (${partitioned.allSorted.length})` },
     { key: "swimming", label: "سباحة", icon: "pool" },
     { key: "kids", label: "تأسيس أطفال", icon: "child_care" },
     { key: "heated", label: "مدفأ شتاءً", icon: "thermostat" },
@@ -325,8 +330,8 @@ export default function Phone21() {
           href={exploreCityHref}
           className="w-full py-3 rounded-full bg-surface-card text-dark-slate text-xs font-bold text-center shadow-sm border border-surface-container"
         >
-          {filtered.length > homeSuggestions.length
-            ? `تصفح باقي المسابح في ${cleanCityLabel} (${filtered.length - homeSuggestions.length} إضافية) ←`
+          {partitioned.allSorted.length > homeSuggestions.length
+            ? `تصفح باقي المسابح في ${cleanCityLabel} (${partitioned.allSorted.length - homeSuggestions.length} إضافية) ←`
             : `عرض كل مسابح ${cleanCityLabel} والخريطة ←`}
         </Link>
       </section>

@@ -33,7 +33,11 @@ export default function Desktop24() {
 
   const [selectedCat, setSelectedCat] = useState<HomeCategoryKey>("all");
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
-  const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
+  const [rotationSeed, setRotationSeed] = useState<number>(0);
+
+  useEffect(() => {
+    setRotationSeed(0);
+  }, [userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const swimmingFacilities = useMemo(
     () => facilities.filter((f) => f.sportSector !== "fitness"),
@@ -95,7 +99,7 @@ export default function Desktop24() {
   );
 
   const categories: { key: HomeCategoryKey; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${swimmingFacilities.length} مسبح وأكاديمية)` },
+    { key: "all", label: `الكل (${partitioned.allSorted.length} مسبح وأكاديمية)` },
     { key: "swimming", label: "مدارس السباحة", icon: "pool" },
     { key: "kids", label: "أطفال وتأسيس", icon: "child_care" },
     { key: "heated", label: "مسابح مدفأة شتاءً", icon: "thermostat" },
@@ -267,8 +271,8 @@ export default function Desktop24() {
                   >
                     <span>
                       {userLocation.isSpecified
-                        ? `عرض كل المسابح في ${cleanCityLabel} (${filteredFacilities.length})`
-                        : `تصفح كل المسابح في مصر (${filteredFacilities.length})`}
+                        ? `عرض كل المسابح في ${cleanCityLabel} (${partitioned.allSorted.length})`
+                        : `تصفح كل المسابح في مصر (${partitioned.allSorted.length})`}
                     </span>
                     <Icon name="chevron_left" className="text-[16px]" />
                   </Link>
@@ -359,8 +363,8 @@ export default function Desktop24() {
                   href={exploreCityHref}
                   className="px-6 py-3 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate font-card-title-sm shadow-sm transition-colors border border-surface-container"
                 >
-                  {filteredFacilities.length > homeSuggestions.length
-                    ? `تصفح باقي المسابح والأكاديميات في ${cleanCityLabel} (${filteredFacilities.length - homeSuggestions.length} إضافية) ←`
+                  {partitioned.allSorted.length > homeSuggestions.length
+                    ? `تصفح باقي المسابح والأكاديميات في ${cleanCityLabel} (${partitioned.allSorted.length - homeSuggestions.length} إضافية) ←`
                     : `استكشف جميع مسابح وأكاديميات ${cleanCityLabel} على الخريطة ←`}
                 </Link>
               </div>

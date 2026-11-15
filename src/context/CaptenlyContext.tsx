@@ -641,7 +641,11 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (Array.isArray(parsed.facilities)) {
           setFacilities(
             (parsed.facilities as Facility[]).filter(
-              (f) => f && f.sportSector !== "fitness" && !f.id.startsWith("fac-")
+              (f) =>
+                f &&
+                f.sportSector !== "fitness" &&
+                !f.id.startsWith("fac-") &&
+                f.supplyStatus !== "seeded_unclaimed"
             )
           );
         }
@@ -794,13 +798,21 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-fetch live swimming pools from Google Places (Egypt-wide when unspecified, or localized when selected)
+  // Auto-fetch live swimming pools from Places / OSM (Egypt-wide when unspecified, or localized when selected)
   useEffect(() => {
     let cancelled = false;
     setPlacesHydrating(true);
     const params = new URLSearchParams();
+    const cleanCityParam = (userLocation.city || "")
+      .replace(/\s*\(GPS\)/g, "")
+      .replace(/موقعك الحالي/g, "")
+      .replace(/موقع محدد على الخريطة/g, "")
+      .replace(/كل مصر/g, "")
+      .replace(/^الكل$/g, "")
+      .trim();
+
     if (userLocation.isSpecified) {
-      if (userLocation.city) params.set("city", userLocation.city);
+      if (cleanCityParam) params.set("city", cleanCityParam);
       params.set("lat", String(userLocation.lat));
       params.set("lng", String(userLocation.lng));
     } else {
@@ -811,8 +823,21 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return;
-        if (Array.isArray(data?.places) && data.places.length > 0) {
-          mergeExternalPlacesFacilities(data.places as Facility[]);
+        if (Array.isArray(data?.places)) {
+          const freshExternal = data.places as Facility[];
+          setFacilities((prev) => {
+            const registered = prev.filter((f) => f.supplyStatus !== "seeded_unclaimed");
+            const registeredPlaceIds = new Set(
+              registered.map((f) => f.googlePlaceId).filter(Boolean)
+            );
+            const registeredIds = new Set(registered.map((f) => f.id));
+            const uniqueExternal = freshExternal.filter(
+              (ext) =>
+                !registeredIds.has(ext.id) &&
+                (!ext.googlePlaceId || !registeredPlaceIds.has(ext.googlePlaceId))
+            );
+            return [...registered, ...uniqueExternal];
+          });
         }
       })
       .catch(() => undefined)
