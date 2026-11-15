@@ -79,7 +79,7 @@ function parseCaptenlyQr(raw: string): ParsedQrResult {
       memberCode: clean.slice("CAP-MEMBER:".length).trim().toUpperCase(),
     };
   }
-  if (/^CAP-[MCF]-\d{3,6}$/i.test(clean)) {
+  if (/^CAP-(M|JR|C|F)-[A-Z0-9-]+$/i.test(clean)) {
     return { kind: "member_qr", memberCode: clean.toUpperCase() };
   }
   return { kind: "unknown", raw: clean };
@@ -238,6 +238,14 @@ export function QrCameraScannerModal({
         }
 
         if (parsed.kind === "member_qr") {
+          if (!effectiveFacilityId && !effectiveCoachId) {
+            setScanStatus({
+              type: "error",
+              titleAr: "النطاق الوظيفي غير محدد",
+              detailAr: "يلزم فتح الماسح من لوحة منشأة أو كابتن مرتبط للتحقق من أكواد العضوية.",
+            });
+            return;
+          }
           const code = parsed.memberCode;
           const remote = await lookupRemoteLedgersOrProfile({ memberCode: code });
           const rawMatched = remote.ledgers.length > 0
@@ -248,7 +256,7 @@ export function QrCameraScannerModal({
           const allMatched = rawMatched.filter((l) => {
             if (effectiveFacilityId) return l.facilityId === effectiveFacilityId;
             if (effectiveCoachId) return l.coachId === effectiveCoachId;
-            return true;
+            return false;
           });
           const activeLedger = allMatched.find((l) => l.status !== "completed") || allMatched[0];
 

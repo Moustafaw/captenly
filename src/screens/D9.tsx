@@ -288,7 +288,8 @@ function Desktop9Inner() {
                 >
                   {minorAthletes.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.fullNameAr} ({m.age} سنوات — {m.starTitleAr})
+                      {m.fullNameAr} ({m.age} سنوات
+                      {m.currentStarLevel > 0 && m.starTitleAr ? ` — ${m.starTitleAr}` : ""})
                     </option>
                   ))}
                   <option value="">حجز باسمي الشخصي مباشرة</option>

@@ -35,8 +35,21 @@ function verifyPassword(plain: string, storedHash?: string | null): boolean {
   }
 }
 
-function hashOtp(otp: string, targetKey: string): string {
-  const secret = process.env.AUTH_SECRET || process.env.CAPTENLY_OTP_SECRET || "captenly-otp-hmac";
+const globalForOtpSecret = globalThis as unknown as { __captenlyOtpDevSecret?: string };
+
+function getOtpHmacSecret(): string | null {
+  const configured = (process.env.AUTH_SECRET || process.env.CAPTENLY_OTP_SECRET || "").trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") return null;
+  if (!globalForOtpSecret.__captenlyOtpDevSecret) {
+    globalForOtpSecret.__captenlyOtpDevSecret = crypto.randomBytes(32).toString("hex");
+  }
+  return globalForOtpSecret.__captenlyOtpDevSecret;
+}
+
+function hashOtp(otp: string, targetKey: string): string | null {
+  const secret = getOtpHmacSecret();
+  if (!secret) return null;
   return crypto.createHmac("sha256", secret).update(`${targetKey}:${otp}`).digest("hex");
 }
 
@@ -261,7 +274,8 @@ export async function POST(request: Request) {
       const memberCode = String(body.memberCode || "").trim().toUpperCase();
       const city = String(body.city || "").trim() || "كل مصر";
       const governorate = String(body.governorate || "").trim() || "مصر";
-      const role = String(body.role || "adult_athlete");
+      const rawRole = String(body.role || "adult_athlete");
+      const role: "adult_athlete" | "parent" = rawRole === "parent" ? "parent" : "adult_athlete";
       const hasParentSupervision = Boolean(body.hasParentSupervision) || role === "parent";
 
       if (!fullNameAr || !memberCode || password.length < 6) {
@@ -274,6 +288,18 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { ok: false, reason: "missing_contact", messageAr: "يرجى إدخال رقم الهاتف أو البريد الإلكتروني." },
           { status: 400 }
+        );
+      }
+
+      const existingCode = await findProfileByQuery(memberCode);
+      if (existingCode.dbAvailable && existingCode.row) {
+        return NextResponse.json(
+          {
+            ok: false,
+            reason: "code_conflict",
+            messageAr: "كود العضوية قيد الاستخدام بالفعل، يرجى المحاولة مرة أخرى لتوليد كود جديد.",
+          },
+          { status: 409 }
         );
       }
 
@@ -311,25 +337,29 @@ export async function POST(request: Request) {
       if (admin) {
         const { data, error } = await admin
           .from("captenly_profiles")
-          .upsert(
-            {
-              member_code: memberCode,
-              email,
-              full_name_ar: fullNameAr,
-              role,
-              phone: phone || null,
-              city,
-              governorate,
-              auth_provider: "phone_otp",
-              has_parent_supervision: hasParentSupervision,
-              needs_onboarding: false,
-              password_hash: passwordHash,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "member_code" }
-          )
+          .insert({
+            member_code: memberCode,
+            email,
+            full_name_ar: fullNameAr,
+            role,
+            phone: phone || null,
+            city,
+            governorate,
+            auth_provider: "phone_otp",
+            has_parent_supervision: hasParentSupervision,
+            needs_onboarding: false,
+            password_hash: passwordHash,
+            updated_at: new Date().toISOString(),
+          })
           .select("*")
           .limit(1);
+
+        if (error && (error.code === "23505" || String(error.message || "").toLowerCase().includes("duplicate"))) {
+          return NextResponse.json(
+            { ok: false, reason: "already_exists", messageAr: "الحساب أو كود العضوية مسجل بالفعل." },
+            { status: 409 }
+          );
+        }
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const profile = sanitizeProfileRow(data[0] as Record<string, unknown>);
@@ -354,19 +384,19 @@ export async function POST(request: Request) {
           `insert into public.captenly_profiles
             (member_code, email, full_name_ar, role, phone, city, governorate, auth_provider, has_parent_supervision, needs_onboarding, password_hash, updated_at)
            values ($1,$2,$3,$4,$5,$6,$7,'phone_otp',$8,false,$9,now())
-           on conflict (member_code) do update set
-            full_name_ar = excluded.full_name_ar,
-            phone = coalesce(excluded.phone, public.captenly_profiles.phone),
-            email = coalesce(excluded.email, public.captenly_profiles.email),
-            city = excluded.city,
-            governorate = excluded.governorate,
-            password_hash = excluded.password_hash,
-            updated_at = now()
+           on conflict (member_code) do nothing
            returning *`,
           [memberCode, email, fullNameAr, role, phone || null, city, governorate, hasParentSupervision, passwordHash]
         );
-        return rows[0] as Record<string, unknown>;
+        return (rows[0] as Record<string, unknown>) || null;
       });
+
+      if (pgRes.ok && pgRes.value === null) {
+        return NextResponse.json(
+          { ok: false, reason: "code_conflict", messageAr: "كود العضوية قيد الاستخدام بالفعل." },
+          { status: 409 }
+        );
+      }
 
       if (pgRes.ok && pgRes.value) {
         const profile = sanitizeProfileRow(pgRes.value);
@@ -500,7 +530,7 @@ export async function POST(request: Request) {
       const expiresAtMs = found.row.otp_expires_at ? new Date(String(found.row.otp_expires_at)).getTime() : 0;
       const expectedOtpHash = hashOtp(otpCode, memberCode);
 
-      if (!storedOtpHash || expiresAtMs < Date.now() || storedOtpHash !== expectedOtpHash) {
+      if (!storedOtpHash || !expectedOtpHash || expiresAtMs < Date.now() || storedOtpHash !== expectedOtpHash) {
         return NextResponse.json(
           { ok: false, messageAr: "رمز التحقق غير صحيح أو منتهي الصلاحية." },
           { status: 401 }
@@ -565,6 +595,12 @@ export async function POST(request: Request) {
       const memberCode = String(found.row.member_code || "");
       const otp = String(crypto.randomInt(100000, 999999));
       const otpHash = hashOtp(otp, memberCode);
+      if (!otpHash) {
+        return NextResponse.json(
+          { ok: false, deliveryUnavailable: true, messageAr: "مفتاح تشفير OTP غير مضبوط في بيئة الإنتاج." },
+          { status: 503 }
+        );
+      }
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       const delivery = await sendExternalOtpIfConfigured({
@@ -685,7 +721,7 @@ export async function POST(request: Request) {
       const expiresAtMs = found.row.otp_expires_at ? new Date(String(found.row.otp_expires_at)).getTime() : 0;
       const expectedOtpHash = hashOtp(otpCode, memberCode);
 
-      if (!storedOtpHash || expiresAtMs < Date.now() || storedOtpHash !== expectedOtpHash) {
+      if (!storedOtpHash || !expectedOtpHash || expiresAtMs < Date.now() || storedOtpHash !== expectedOtpHash) {
         return NextResponse.json(
           { ok: false, messageAr: "رمز التحقق غير صحيح أو منتهي الصلاحية." },
           { status: 401 }

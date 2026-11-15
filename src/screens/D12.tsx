@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
-import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
 export default function Desktop12() {
@@ -16,17 +15,8 @@ export default function Desktop12() {
     clearComparison,
     createStructuredWhatsappLead,
     currentPersona,
-    isAuthenticated,
+    minorAthletes,
   } = useCaptenly();
-
-  if (!isAuthenticated) {
-    return (
-      <GuestAccountGateScreen
-        titleAr="يرجى إنشاء حساب أو تسجيل الدخول لاستخدام المقارنة"
-        descriptionAr="أنشئ حسابك المجاني على Captenly لمقارنة حتى 4 منشآت وأكاديميات جنباً إلى جنب حسب الأسعار والمواصفات والمسافة."
-      />
-    );
-  }
 
   const compared = facilities.filter((f) => compareFacilityIds.includes(f.id));
   const availableToAdd = facilities.filter((f) => !compareFacilityIds.includes(f.id));
@@ -46,7 +36,7 @@ export default function Desktop12() {
       whatsappNumber: f.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: f.specialtiesAr[0] || "اشتراك",
       preferredScheduleAr: "بالتنسيق",
     });

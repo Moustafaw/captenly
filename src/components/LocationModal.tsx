@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { LocationAutocompleteInput } from "@/components/maps/LocationAutocompleteInput";
@@ -21,6 +21,15 @@ export function LocationModal() {
 
   const [selectedRadius, setSelectedRadius] = useState<number>(10);
   const [isLocating, setIsLocating] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!locationModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLocationModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [locationModalOpen, setLocationModalOpen]);
 
   if (!locationModalOpen) return null;
 
@@ -72,6 +81,12 @@ export function LocationModal() {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="تحديد النطاق والموقع الجغرافي"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setLocationModalOpen(false);
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in"
       dir="rtl"
     >

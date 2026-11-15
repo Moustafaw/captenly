@@ -31,11 +31,23 @@ export default function FounderAdminPage() {
     validateAndSaveCoachBio,
     switchPersona,
     allPersonas,
+    roleClaims,
+    refreshRoleClaims,
+    reviewRoleClaim,
   } = useCaptenly();
 
   const [activeAdminTab, setActiveAdminTab] = useState<
-    "simulation_lab" | "concierge_seed" | "badges_queue" | "gates_kpis"
+    "simulation_lab" | "concierge_seed" | "badges_queue" | "role_claims" | "gates_kpis"
   >("simulation_lab");
+  const [claimFilter, setClaimFilter] = useState<
+    "all" | "pending_review" | "approved" | "rejected"
+  >("pending_review");
+  const [reviewNotesById, setReviewNotesById] = useState<Record<string, string>>({});
+  const [claimBusyId, setClaimBusyId] = useState<string | null>(null);
+  const [claimActionFeedback, setClaimActionFeedback] = useState<{
+    ok: boolean;
+    msg: string;
+  } | null>(null);
 
   // 12-Step Concierge Pre-Builder State
   const [seedName, setSeedName] = useState(
@@ -58,12 +70,16 @@ export default function FounderAdminPage() {
       .then((res) => res.json())
       .then((data: { configured?: boolean; authorized?: boolean; reason?: string }) => {
         if (!active) return;
+        const authOk = Boolean(data.authorized);
         setAdminStatus({
           loading: false,
           configured: Boolean(data.configured),
-          authorized: Boolean(data.authorized),
+          authorized: authOk,
           reason: data.reason,
         });
+        if (authOk) {
+          refreshRoleClaims(true).catch(() => undefined);
+        }
       })
       .catch(() => {
         if (!active) return;
@@ -72,6 +88,7 @@ export default function FounderAdminPage() {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAdminKeySubmit = async (e: React.FormEvent) => {
@@ -101,6 +118,7 @@ export default function FounderAdminPage() {
         authorized: true,
       });
       setAdminKeyInput("");
+      await refreshRoleClaims(true).catch(() => undefined);
     } catch {
       setAdminAuthError("تعذر الاتصال بخادم التحقق من صلاحية الإدارة.");
     } finally {
@@ -296,6 +314,15 @@ export default function FounderAdminPage() {
               icon: Award,
             },
             {
+              id: "role_claims",
+              label: `🛡️ طلبات اعتماد الأدوار (كابتن / منشأة)${
+                roleClaims.filter((c) => c.status === "pending_review").length > 0
+                  ? ` (${roleClaims.filter((c) => c.status === "pending_review").length})`
+                  : ""
+              }`,
+              icon: Users,
+            },
+            {
               id: "gates_kpis",
               label: "📈 بوابات الشهر السادس الست والـ 16 مؤشر KPI",
               icon: BarChart3,
@@ -311,6 +338,7 @@ export default function FounderAdminPage() {
                       | "simulation_lab"
                       | "concierge_seed"
                       | "badges_queue"
+                      | "role_claims"
                       | "gates_kpis"
                   )
                 }
@@ -713,6 +741,232 @@ export default function FounderAdminPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3B: ADMIN ROLE CLAIMS QUEUE (COACH / FACILITY VERIFICATION) */}
+      {activeAdminTab === "role_claims" && (
+        <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-dark-slate flex items-center gap-2">
+                <ShieldCheck className="w-6 h-6 text-deep-olive" />
+                <span>طابور طلبات اعتماد الأدوار (كابتن / إدارة منشأة)</span>
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                لا يحصل أي متقدم على صلاحية الكابتن أو إدارة المنشأة إلا بعد مراجعة المستندات وفحص قانون 3 لسنة 1985 من هنا.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(["pending_review", "approved", "rejected", "all"] as const).map((flt) => (
+                <button
+                  key={flt}
+                  type="button"
+                  onClick={() => setClaimFilter(flt)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                    claimFilter === flt
+                      ? "bg-dark-slate text-electric-volt"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  {flt === "pending_review"
+                    ? "قيد المراجعة"
+                    : flt === "approved"
+                    ? "معتمد"
+                    : flt === "rejected"
+                    ? "مرفوض"
+                    : "الكل"}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => refreshRoleClaims(true)}
+                className="px-3.5 py-1.5 rounded-full bg-lime-tint text-deep-olive text-xs font-extrabold"
+              >
+                تحديث الطابور ↻
+              </button>
+            </div>
+          </div>
+
+          {claimActionFeedback && (
+            <div
+              className={`rounded-2xl p-3.5 text-xs font-bold border ${
+                claimActionFeedback.ok
+                  ? "bg-lime-tint/70 border-deep-olive text-dark-slate"
+                  : "bg-red-50 border-red-200 text-red-800"
+              }`}
+            >
+              {claimActionFeedback.msg}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {roleClaims
+              .filter((c) => claimFilter === "all" || c.status === claimFilter)
+              .map((claim) => {
+                const payload = (claim.proposedPayload || {}) as Record<string, unknown>;
+                const bio = typeof payload.bioAr === "string" ? payload.bioAr : "";
+                const syndicateRef =
+                  typeof payload.syndicateCardRef === "string" ? payload.syndicateCardRef : "";
+                const commercialRef =
+                  typeof payload.commercialRegRef === "string" ? payload.commercialRegRef : "";
+                const noteVal = reviewNotesById[claim.id] || "";
+                const isBusy = claimBusyId === claim.id;
+
+                return (
+                  <div
+                    key={claim.id}
+                    className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-5 space-y-3 text-xs"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-dark-slate text-electric-volt font-extrabold">
+                            {claim.claimType === "facility" ? "إدارة منشأة" : "كابتن سباحة"}
+                          </span>
+                          <span className="font-black text-base text-dark-slate">
+                            {claim.applicantNameAr}
+                          </span>
+                          <span className="font-mono font-bold text-deep-olive">
+                            ({claim.applicantMemberCode})
+                          </span>
+                        </div>
+                        <div className="text-slate-600 flex flex-wrap gap-3">
+                          <span>الهاتف: {claim.applicantPhone || "غير متاح"}</span>
+                          {claim.applicantEmail && <span>البريد: {claim.applicantEmail}</span>}
+                          <span>المدينة: {claim.cityAr || "غير محددة"}</span>
+                          {claim.targetFacilityNameAr && (
+                            <span className="font-bold text-dark-slate">
+                              المنشأة: {claim.targetFacilityNameAr}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <span
+                        className={`px-3 py-1 rounded-full font-extrabold ${
+                          claim.status === "approved"
+                            ? "bg-lime-tint text-deep-olive"
+                            : claim.status === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : claim.status === "withdrawn"
+                            ? "bg-slate-200 text-slate-700"
+                            : "bg-amber-100 text-amber-900"
+                        }`}
+                      >
+                        {claim.status === "approved"
+                          ? "معتمد ✓"
+                          : claim.status === "rejected"
+                          ? "مرفوض ✕"
+                          : claim.status === "withdrawn"
+                          ? "مسحوب"
+                          : "قيد المراجعة ⏳"}
+                      </span>
+                    </div>
+
+                    {(syndicateRef || commercialRef || claim.proofNotesAr) && (
+                      <div className="bg-white rounded-xl p-3 border border-slate-200 text-slate-700 space-y-1">
+                        {syndicateRef && <div>رقم كارنيه النقابة/الشهادة: {syndicateRef}</div>}
+                        {commercialRef && <div>مرجع السجل/التفويض: {commercialRef}</div>}
+                        {claim.proofNotesAr && <div>ملاحظات المتقدم: {claim.proofNotesAr}</div>}
+                      </div>
+                    )}
+
+                    {bio && (
+                      <div className="bg-white rounded-xl p-3 border border-slate-200 text-slate-700">
+                        <div className="font-bold text-deep-olive mb-1">
+                          السيرة المهنية (مفحوصة بقانون 3 لسنة 1985 ✓):
+                        </div>
+                        <p className="leading-relaxed">{bio}</p>
+                      </div>
+                    )}
+
+                    {claim.proofDocumentUrl && (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="font-bold text-dark-slate">المستند المرفق:</span>
+                        {claim.proofDocumentUrl.startsWith("data:image/") ? (
+                          <img
+                            src={claim.proofDocumentUrl}
+                            alt={`مستند ${claim.applicantNameAr}`}
+                            className="max-h-48 w-auto object-contain rounded-xl border border-slate-300 self-start bg-white p-1"
+                          />
+                        ) : (
+                          <a
+                            href={claim.proofDocumentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-deep-olive font-bold underline w-fit"
+                          >
+                            فتح رابط المستند المرفق ↗
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {claim.reviewerNoteAr && (
+                      <div className="text-slate-600 font-bold">
+                        ملاحظة المراجع السابقة: {claim.reviewerNoteAr}
+                      </div>
+                    )}
+
+                    {claim.status === "pending_review" && (
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-slate-200">
+                        <input
+                          value={noteVal}
+                          onChange={(e) =>
+                            setReviewNotesById((prev) => ({ ...prev, [claim.id]: e.target.value }))
+                          }
+                          placeholder="ملاحظة للمتقدم (اختياري للموافقة / سبب الرفض)..."
+                          className="flex-1 rounded-xl bg-white border border-slate-300 px-3.5 py-2 outline-none"
+                        />
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={async () => {
+                            setClaimBusyId(claim.id);
+                            setClaimActionFeedback(null);
+                            const res = await reviewRoleClaim(
+                              claim.id,
+                              "approve",
+                              noteVal.trim() || undefined
+                            );
+                            setClaimActionFeedback({ ok: res.ok, msg: res.messageAr });
+                            setClaimBusyId(null);
+                          }}
+                          className="bg-dark-slate text-electric-volt font-black px-4 py-2.5 rounded-xl disabled:opacity-50"
+                        >
+                          {isBusy ? "جاري التنفيذ..." : "اعتماد وتفعيل الدور ✓"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={async () => {
+                            setClaimBusyId(claim.id);
+                            setClaimActionFeedback(null);
+                            const res = await reviewRoleClaim(
+                              claim.id,
+                              "reject",
+                              noteVal.trim() || "يرجى استيفاء صورة كارنيه أو تفويض واضح وإعادة الإرسال."
+                            );
+                            setClaimActionFeedback({ ok: res.ok, msg: res.messageAr });
+                            setClaimBusyId(null);
+                          }}
+                          className="bg-red-50 text-red-700 border border-red-200 font-black px-4 py-2.5 rounded-xl disabled:opacity-50"
+                        >
+                          رفض الطلب ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+            {roleClaims.filter((c) => claimFilter === "all" || c.status === claimFilter).length === 0 && (
+              <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600">
+                لا توجد طلبات توثيق في هذا التصنيف حالياً.
+              </div>
             )}
           </div>
         </div>

@@ -13,6 +13,7 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
     articles,
     createStructuredWhatsappLead,
     currentPersona,
+    minorAthletes,
     isAuthenticated,
     openAuthGateModal,
   } = useCaptenly();
@@ -80,7 +81,7 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
       whatsappNumber: coach.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: `${coach.specialties[0]?.nameAr || "تدريب سباحة"} (${selectedSessions} حصص)`,
       preferredScheduleAr: "بالتنسيق مع الكابتن",
     });
@@ -96,11 +97,17 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
         {/* Hero */}
         <section className="rounded-[20px] bg-dark-slate text-surface-card p-8 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           <div className="lg:col-span-8 flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <img
-              src={coach.avatarUrl || "/screens/3dff88737bec.jpg"}
-              alt={coach.fullNameAr}
-              className="w-24 h-24 rounded-2xl object-cover border-2 border-electric-volt shrink-0"
-            />
+            {coach.avatarUrl ? (
+              <img
+                src={coach.avatarUrl}
+                alt={coach.fullNameAr}
+                className="w-24 h-24 rounded-2xl object-cover border-2 border-electric-volt shrink-0"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-2xl bg-deep-carbon text-electric-volt flex items-center justify-center font-extrabold text-2xl border-2 border-electric-volt shrink-0">
+                {coach.fullNameAr.slice(0, 2)}
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive font-badge-label text-xs font-bold">
@@ -113,20 +120,32 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
               <h1 className="font-hero-headline text-[28px] md:text-[32px] text-surface-card">
                 {coach.fullNameAr}
               </h1>
-              <p className="font-body-default text-surface-container-high">{coach.titleAr}</p>
+              {coach.titleAr && (
+                <p className="font-body-default text-surface-container-high">{coach.titleAr}</p>
+              )}
               <div className="flex flex-wrap gap-4 text-xs text-surface-variant pt-1">
                 <span className="inline-flex items-center gap-1">
                   <Icon name="location_on" className="text-[14px] text-electric-volt" />
-                  <span>{coach.city} • {coach.district}</span>
+                  <span>
+                    {coach.city}
+                    {coach.district ? ` • ${coach.district}` : ""}
+                  </span>
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <Icon name="star" className="text-[14px] text-status-warning" />
-                  <span>{coach.rating} ({coach.verifiedReviewsCount} تقييم)</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Icon name="trophy" className="text-[14px] text-electric-volt" />
-                  <span>{coach.yearsExperience} سنوات خبرة</span>
-                </span>
+                {(coach.verifiedReviewsCount > 0 || coach.rating > 0) && (
+                  <span className="inline-flex items-center gap-1">
+                    <Icon name="star" className="text-[14px] text-status-warning" />
+                    <span>
+                      {coach.rating}
+                      {coach.verifiedReviewsCount > 0 ? ` (${coach.verifiedReviewsCount} تقييم)` : ""}
+                    </span>
+                  </span>
+                )}
+                {coach.yearsExperience > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Icon name="trophy" className="text-[14px] text-electric-volt" />
+                    <span>{coach.yearsExperience} سنوات خبرة</span>
+                  </span>
+                )}
                 <span>0% عمولة وساطة</span>
               </div>
             </div>
@@ -136,7 +155,9 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
             <div className="bg-deep-carbon rounded-2xl p-4 w-full lg:w-auto text-right">
               <div className="text-xs text-surface-variant">سعر باقة {selectedSessions} حصص</div>
               <div className="text-2xl font-black text-electric-volt mt-1">
-                {selectedSessions === 8 ? coach.privatePackage8Egp : coach.privatePackage12Egp} ج.م
+                {(selectedSessions === 8 ? coach.privatePackage8Egp : coach.privatePackage12Egp) > 0
+                  ? `${selectedSessions === 8 ? coach.privatePackage8Egp : coach.privatePackage12Egp} ج.م`
+                  : "بالتواصل المباشر"}
               </div>
               <div className="text-[11px] text-surface-container-high mt-1">
                 يشمل متابعة التقييم ودفتر الحصص الـ QR
@@ -319,7 +340,9 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                     }`}
                   >
                     <div className="text-xs font-bold">8 حصص</div>
-                    <div className="text-lg font-black text-deep-olive">{coach.privatePackage8Egp} ج.م</div>
+                    <div className="text-lg font-black text-deep-olive">
+                      {coach.privatePackage8Egp > 0 ? `${coach.privatePackage8Egp} ج.م` : "بالتنسيق"}
+                    </div>
                   </button>
                   <button
                     type="button"
@@ -331,7 +354,9 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                     }`}
                   >
                     <div className="text-xs font-bold">12 حصة</div>
-                    <div className="text-lg font-black text-deep-olive">{coach.privatePackage12Egp} ج.م</div>
+                    <div className="text-lg font-black text-deep-olive">
+                      {coach.privatePackage12Egp > 0 ? `${coach.privatePackage12Egp} ج.م` : "بالتنسيق"}
+                    </div>
                   </button>
                 </div>
               )}

@@ -21,6 +21,7 @@ async function ensureLeadsTableViaPg() {
         notes text,
         created_at timestamptz default now()
       );
+      alter table public.captenly_leads enable row level security;
     `);
     return true;
   });
@@ -136,9 +137,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const resolvedMemberCode =
-      caller.isAdmin && body.memberCode
-        ? String(body.memberCode)
-        : caller.memberCode || (body.memberCode ? String(body.memberCode) : null);
+      caller.isAdmin && body.memberCode ? String(body.memberCode) : caller.memberCode || null;
+    const allowedStatuses = new Set(["pending", "whatsapp_initiated"]);
+    const rawStatus = body.status ? String(body.status) : "whatsapp_initiated";
+    const status = caller.isAdmin || allowedStatuses.has(rawStatus) ? rawStatus : "whatsapp_initiated";
     const row = {
       facility_id: String(body.facilityId || ""),
       facility_name_ar: body.facilityNameAr ? String(body.facilityNameAr) : null,
@@ -150,7 +152,7 @@ export async function POST(request: Request) {
         body.estimatedTotalEgp !== undefined && body.estimatedTotalEgp !== null
           ? Number(body.estimatedTotalEgp)
           : null,
-      status: body.status ? String(body.status) : "whatsapp_initiated",
+      status,
       notes: body.notes ? String(body.notes) : null,
     };
 

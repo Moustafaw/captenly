@@ -32,6 +32,10 @@ const PROFILE_BOOTSTRAP_STATEMENTS = [
   `alter table public.captenly_profiles add column if not exists bio_ar text`,
   `alter table public.captenly_profiles add column if not exists social_links jsonb default '{}'::jsonb`,
   `alter table public.captenly_profiles add column if not exists governorate text`,
+  `alter table public.captenly_profiles add column if not exists password_hash text`,
+  `alter table public.captenly_profiles add column if not exists otp_code_hash text`,
+  `alter table public.captenly_profiles add column if not exists otp_expires_at timestamptz`,
+  `alter table public.captenly_profiles add column if not exists account_intent text`,
   `alter table public.captenly_profiles enable row level security`,
 ];
 
@@ -57,6 +61,12 @@ function normalizeRowToProfile(row: Record<string, unknown>) {
     typeof rawSocial._linkedFacilityId === "string" ? rawSocial._linkedFacilityId : undefined;
   const linkedCoachId =
     typeof rawSocial._linkedCoachId === "string" ? rawSocial._linkedCoachId : undefined;
+  const accountIntent =
+    typeof rawSocial._accountIntent === "string"
+      ? rawSocial._accountIntent
+      : typeof row.account_intent === "string"
+        ? row.account_intent
+        : undefined;
   const cleanSocialLinks: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawSocial)) {
     if (!k.startsWith("_") && typeof v === "string" && v.trim()) {
@@ -67,10 +77,11 @@ function normalizeRowToProfile(row: Record<string, unknown>) {
   return {
     id: String(row.id || `member-${rawCode || Date.now()}`),
     dbProfileKey: rawCode,
-    memberCode: role === "facility_manager" ? "" : rawCode,
+    memberCode: rawCode,
     email: typeof row.email === "string" ? row.email : undefined,
     fullNameAr: String(row.full_name_ar || "عضو كابتنلي"),
     role,
+    accountIntent,
     phone: typeof row.phone === "string" ? row.phone : "",
     city: typeof row.city === "string" ? row.city : "مصر",
     governorate: typeof row.governorate === "string" ? row.governorate : undefined,
@@ -188,7 +199,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const memberCode = typeof body.memberCode === "string" ? body.memberCode.trim().toUpperCase() : "";
     const fullNameAr = typeof body.fullNameAr === "string" ? body.fullNameAr.trim() : "";
-    const role = typeof body.role === "string" && ALLOWED_ROLES.has(body.role) ? body.role : "adult_athlete";
+    const requestedRole =
+      typeof body.role === "string" && ALLOWED_ROLES.has(body.role) ? body.role : "adult_athlete";
 
     if (!memberCode || !fullNameAr) {
       return NextResponse.json({ persisted: false, error: "missing_required_fields" }, { status: 400 });
@@ -207,41 +219,122 @@ export async function POST(request: Request) {
       }
     }
 
-    const sessionCookieInput = {
-      memberCode,
-      role: role as AccountRole,
-      email: email || caller.email,
-      phone: typeof body.phone === "string" ? body.phone.trim() || caller.phone : caller.phone,
-      linkedFacilityId:
+    const admin = getSupabaseAdminClient();
+    let existingRow: Record<string, unknown> | undefined;
+    if (admin) {
+      const lookup = email
+        ? await admin.from("captenly_profiles").select("role, needs_onboarding, social_links, phone").eq("email", email).limit(1)
+        : await admin.from("captenly_profiles").select("role, needs_onboarding, social_links, phone").eq("member_code", memberCode).limit(1);
+      if (!lookup.error && Array.isArray(lookup.data) && lookup.data[0]) {
+        existingRow = lookup.data[0] as Record<string, unknown>;
+      }
+    }
+    if (!existingRow) {
+      const pgExisting = await withPgClient(async (client) => {
+        const sql = email
+          ? `select role, needs_onboarding, social_links, phone from public.captenly_profiles where lower(email) = lower($1) limit 1`
+          : `select role, needs_onboarding, social_links, phone from public.captenly_profiles where upper(member_code) = upper($1) limit 1`;
+        const { rows } = await client.query(sql, [email || memberCode]);
+        return rows[0] as Record<string, unknown> | undefined;
+      });
+      if (pgExisting.ok && pgExisting.value) existingRow = pgExisting.value;
+    }
+
+    const existingSocial =
+      existingRow?.social_links && typeof existingRow.social_links === "object"
+        ? (existingRow.social_links as Record<string, unknown>)
+        : {};
+    const existingRole = typeof existingRow?.role === "string" ? existingRow.role : undefined;
+    const existingNeedsOnboarding = existingRow ? Boolean(existingRow.needs_onboarding) : true;
+
+    let effectiveRole: string = requestedRole;
+    let effectiveLinkedFacilityId: string | undefined;
+    let effectiveLinkedCoachId: string | undefined;
+
+    if (caller.isAdmin) {
+      effectiveRole = requestedRole;
+      effectiveLinkedFacilityId =
         typeof body.linkedFacilityId === "string" && body.linkedFacilityId.trim()
           ? body.linkedFacilityId.trim()
-          : caller.linkedFacilityId,
-      linkedCoachId:
+          : typeof existingSocial._linkedFacilityId === "string"
+            ? existingSocial._linkedFacilityId
+            : caller.linkedFacilityId;
+      effectiveLinkedCoachId =
         typeof body.linkedCoachId === "string" && body.linkedCoachId.trim()
           ? body.linkedCoachId.trim()
-          : caller.linkedCoachId,
+          : typeof existingSocial._linkedCoachId === "string"
+            ? existingSocial._linkedCoachId
+            : caller.linkedCoachId;
+    } else {
+      // Non-admins can NEVER self-promote to coach/facility_manager or attach unapproved entities
+      const safeMemberRequested = requestedRole === "parent" ? "parent" : "adult_athlete";
+      if (!existingRow) {
+        effectiveRole = safeMemberRequested;
+      } else if (existingNeedsOnboarding) {
+        effectiveRole =
+          existingRole === "coach" || existingRole === "facility_manager" || existingRole === "super_admin"
+            ? existingRole
+            : safeMemberRequested;
+      } else if (existingRole === "adult_athlete" || existingRole === "parent") {
+        effectiveRole = safeMemberRequested;
+      } else {
+        effectiveRole = existingRole || safeMemberRequested;
+      }
+
+      effectiveLinkedFacilityId =
+        typeof existingSocial._linkedFacilityId === "string"
+          ? existingSocial._linkedFacilityId
+          : caller.linkedFacilityId;
+      effectiveLinkedCoachId =
+        typeof existingSocial._linkedCoachId === "string"
+          ? existingSocial._linkedCoachId
+          : caller.linkedCoachId;
+    }
+
+    const sessionCookieInput = {
+      memberCode,
+      role: effectiveRole as AccountRole,
+      email: email || caller.email,
+      phone: typeof body.phone === "string" ? body.phone.trim() || caller.phone : caller.phone,
+      linkedFacilityId: effectiveLinkedFacilityId,
+      linkedCoachId: effectiveLinkedCoachId,
     };
 
-    const mergedSocialLinks: Record<string, unknown> | undefined =
-      (body.socialLinks && typeof body.socialLinks === "object") ||
-      typeof body.linkedFacilityId === "string" ||
-      typeof body.linkedCoachId === "string"
-        ? {
-            ...(body.socialLinks && typeof body.socialLinks === "object" ? body.socialLinks : {}),
-            ...(typeof body.linkedFacilityId === "string" && body.linkedFacilityId
-              ? { _linkedFacilityId: body.linkedFacilityId }
-              : {}),
-            ...(typeof body.linkedCoachId === "string" && body.linkedCoachId
-              ? { _linkedCoachId: body.linkedCoachId }
-              : {}),
-          }
-        : undefined;
+    const incomingIntent =
+      typeof body.accountIntent === "string" &&
+      ["self_athlete", "parent_only", "both_self_and_parent"].includes(body.accountIntent)
+        ? body.accountIntent
+        : typeof existingSocial._accountIntent === "string"
+          ? existingSocial._accountIntent
+          : undefined;
+
+    const cleanIncomingSocial: Record<string, string> = {};
+    if (body.socialLinks && typeof body.socialLinks === "object") {
+      for (const [k, v] of Object.entries(body.socialLinks as Record<string, unknown>)) {
+        if (!k.startsWith("_") && typeof v === "string") {
+          cleanIncomingSocial[k] = v;
+        }
+      }
+    } else {
+      for (const [k, v] of Object.entries(existingSocial)) {
+        if (!k.startsWith("_") && typeof v === "string") {
+          cleanIncomingSocial[k] = v;
+        }
+      }
+    }
+
+    const mergedSocialLinks: Record<string, unknown> = {
+      ...cleanIncomingSocial,
+      ...(effectiveLinkedFacilityId ? { _linkedFacilityId: effectiveLinkedFacilityId } : {}),
+      ...(effectiveLinkedCoachId ? { _linkedCoachId: effectiveLinkedCoachId } : {}),
+      ...(incomingIntent ? { _accountIntent: incomingIntent } : {}),
+    };
 
     const baseRecord: Record<string, unknown> = {
       member_code: memberCode,
       email,
       full_name_ar: fullNameAr,
-      role,
+      role: effectiveRole,
       phone: typeof body.phone === "string" ? body.phone.trim() || null : null,
       city: typeof body.city === "string" ? body.city.trim() || null : null,
       governorate: typeof body.governorate === "string" ? body.governorate.trim() || null : null,
@@ -258,10 +351,9 @@ export async function POST(request: Request) {
     const extendedRecord: Record<string, unknown> = {
       ...baseRecord,
       ...(typeof body.bioAr === "string" ? { bio_ar: body.bioAr.trim() || null } : {}),
-      ...(mergedSocialLinks ? { social_links: mergedSocialLinks } : {}),
+      social_links: mergedSocialLinks,
     };
 
-    const admin = getSupabaseAdminClient();
     if (admin) {
       const onConflict = email ? "email" : "member_code";
       let { error } = await admin.from("captenly_profiles").upsert(extendedRecord, { onConflict });
@@ -281,13 +373,13 @@ export async function POST(request: Request) {
     const pgRes = await withPgClient(async (client) => {
       const avatarVal = typeof body.avatarUrl === "string" && body.avatarUrl.trim() ? body.avatarUrl.trim() : null;
       const bioVal = typeof body.bioAr === "string" ? body.bioAr.trim() || null : null;
-      const socialVal = mergedSocialLinks ? JSON.stringify(mergedSocialLinks) : null;
+      const socialVal = JSON.stringify(mergedSocialLinks);
 
       if (email) {
         await client.query(
           `insert into public.captenly_profiles
             (member_code, email, full_name_ar, role, phone, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, bio_ar, social_links, updated_at)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13::jsonb, '{}'::jsonb), now())
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, now())
            on conflict (email) where email is not null do update set
             member_code = excluded.member_code,
             full_name_ar = excluded.full_name_ar,
@@ -300,13 +392,13 @@ export async function POST(request: Request) {
             has_parent_supervision = excluded.has_parent_supervision,
             needs_onboarding = excluded.needs_onboarding,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
-            social_links = case when $13 is not null then $13::jsonb else public.captenly_profiles.social_links end,
+            social_links = excluded.social_links,
             updated_at = now()`,
           [
             memberCode,
             email,
             fullNameAr,
-            role,
+            effectiveRole,
             baseRecord.phone,
             baseRecord.city,
             baseRecord.governorate,
@@ -322,7 +414,7 @@ export async function POST(request: Request) {
         await client.query(
           `insert into public.captenly_profiles
             (member_code, email, full_name_ar, role, phone, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, bio_ar, social_links, updated_at)
-           values ($1, null, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce($12::jsonb, '{}'::jsonb), now())
+           values ($1, null, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, now())
            on conflict (member_code) do update set
             full_name_ar = excluded.full_name_ar,
             role = excluded.role,
@@ -334,12 +426,12 @@ export async function POST(request: Request) {
             has_parent_supervision = excluded.has_parent_supervision,
             needs_onboarding = excluded.needs_onboarding,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
-            social_links = case when $12 is not null then $12::jsonb else public.captenly_profiles.social_links end,
+            social_links = excluded.social_links,
             updated_at = now()`,
           [
             memberCode,
             fullNameAr,
-            role,
+            effectiveRole,
             baseRecord.phone,
             baseRecord.city,
             baseRecord.governorate,

@@ -7,8 +7,9 @@ export const runtime = "nodejs";
 
 const ADMIN_COOKIE_NAME = "captenly_admin_session";
 
-function signToken(payload: string): string {
-  const secret = process.env.AUTH_SECRET || process.env.CAPTENLY_ADMIN_KEY || "captenly-admin-secret";
+function signToken(payload: string): string | null {
+  const secret = (process.env.AUTH_SECRET || process.env.CAPTENLY_ADMIN_KEY || "").trim();
+  if (!secret) return null;
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
@@ -52,7 +53,7 @@ async function isAuthorizedAdmin(): Promise<{
       const exp = Number(expStr);
       if (Number.isFinite(exp) && exp > Date.now()) {
         const expectedSig = signToken(`admin:${exp}`);
-        if (constantTimeEquals(sig, expectedSig)) {
+        if (expectedSig && constantTimeEquals(sig, expectedSig)) {
           return { configured: true, authorized: true };
         }
       }
@@ -92,7 +93,14 @@ export async function POST(request: Request) {
     }
 
     const exp = Date.now() + 8 * 60 * 60 * 1000;
-    const cookieValue = `${exp}.${signToken(`admin:${exp}`)}`;
+    const sig = signToken(`admin:${exp}`);
+    if (!sig) {
+      return NextResponse.json(
+        { ok: false, configured: false, authorized: false, messageAr: "مفتاح توقيع الجلسة غير مضبوط." },
+        { status: 503 }
+      );
+    }
+    const cookieValue = `${exp}.${sig}`;
     const response = NextResponse.json({ ok: true, configured: true, authorized: true });
     response.cookies.set(ADMIN_COOKIE_NAME, cookieValue, {
       httpOnly: true,

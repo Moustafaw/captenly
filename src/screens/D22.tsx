@@ -25,6 +25,7 @@ export default function Desktop22() {
     toggleCompareFacility,
     createStructuredWhatsappLead,
     currentPersona,
+    minorAthletes,
     isAuthenticated,
     openAuthGateModal,
     userLocation,
@@ -42,7 +43,7 @@ export default function Desktop22() {
   const [demandRequested, setDemandRequested] = useState(false);
 
   useEffect(() => {
-    if (facility || !slug || !slug.startsWith("gplace-")) return;
+    if (facility || !slug || (!slug.startsWith("gplace-") && !slug.startsWith("osm-"))) return;
     let cancelled = false;
     setGplaceLoading(true);
     fetch(`/api/places/search?placeId=${encodeURIComponent(slug)}`)
@@ -119,7 +120,7 @@ export default function Desktop22() {
       whatsappNumber: facility.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: schoolPrograms[0]?.titleAr || facility.specialtiesAr[0] || "اشتراك شهري",
       preferredScheduleAr: "بالتنسيق مع الإدارة",
     });
@@ -146,6 +147,8 @@ export default function Desktop22() {
       city: facility.city || userLocation.city || "مصر",
       governorate: facility.governorate || "مصر",
       targetSport: "swimming",
+      targetFacilityId: facility.id,
+      targetFacilityNameAr: facility.nameAr,
       notes: `طلب توفير أسعار ومواعيد منشأة: ${facility.nameAr} (${facility.slug})`,
     });
     if (res.ok) setDemandRequested(true);
@@ -197,12 +200,16 @@ export default function Desktop22() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs font-bold text-deep-olive">
-                  {facility.governorate} • {facility.city} • {facility.district}
+                  {facility.governorate} • {facility.city}
+                  {facility.district ? ` • ${facility.district}` : ""}
                 </span>
-                <span className="flex items-center gap-1 text-status-warning font-bold text-sm">
-                  <Icon name="star" className="text-[16px]" />
-                  {facility.rating} ({facility.reviewsCount} تقييم)
-                </span>
+                {facility.rating > 0 ? (
+                  <span className="flex items-center gap-1 text-status-warning font-bold text-sm">
+                    <Icon name="star" className="text-[16px]" />
+                    {facility.rating}
+                    {facility.reviewsCount > 0 ? ` (${facility.reviewsCount} تقييم)` : ""}
+                  </span>
+                ) : null}
               </div>
 
               <h1 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-tight">

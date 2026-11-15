@@ -11,7 +11,7 @@ interface VerifiedCoachCardProps {
 }
 
 export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
-  const { createStructuredWhatsappLead, currentPersona, isFavorite, toggleFavorite } = useCaptenly();
+  const { createStructuredWhatsappLead, currentPersona, minorAthletes, isFavorite, toggleFavorite } = useCaptenly();
   const fav = isFavorite(coach.id);
 
   const handleWhatsappLead = () => {
@@ -22,7 +22,7 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
       whatsappNumber: coach.whatsappNumber,
       inquirerNameAr: currentPersona.fullNameAr,
       inquirerPhone: currentPersona.phone,
-      athleteAge: 10,
+      athleteAge: minorAthletes[0]?.age || 25,
       requestedSpecialtyAr: coach.specialties[0]?.nameAr || "حصة تقييم",
       preferredScheduleAr: "بالتنسيق مع الكابتن",
     });
@@ -36,11 +36,17 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
       <div className="flex flex-col items-center text-center gap-space-sm">
         <div className="relative w-full flex justify-center">
           <Link href={`/c/${coach.slug}`} className="relative">
-            <img
-              className="w-20 h-20 rounded-full object-cover shadow-inner bg-surface-container"
-              alt={coach.fullNameAr}
-              src={coach.avatarUrl || "/screens/3dff88737bec.jpg"}
-            />
+            {coach.avatarUrl ? (
+              <img
+                className="w-20 h-20 rounded-full object-cover shadow-inner bg-surface-container"
+                alt={coach.fullNameAr}
+                src={coach.avatarUrl}
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-dark-slate text-electric-volt flex items-center justify-center font-extrabold text-xl shadow-inner">
+                {coach.fullNameAr.slice(0, 2)}
+              </div>
+            )}
             <span
               title="كابتن موثق بالشارات الخضراء"
               className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-status-success text-on-primary flex items-center justify-center text-[12px] shadow-sm font-bold"
@@ -65,7 +71,9 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
           <Link href={`/c/${coach.slug}`} className="hover:text-deep-olive transition-colors">
             <h4 className="font-card-title-sm text-card-title-sm text-dark-slate">{coach.fullNameAr}</h4>
           </Link>
-          <span className="font-micro-caption text-micro-caption text-text-muted">{coach.titleAr}</span>
+          {coach.titleAr && (
+            <span className="font-micro-caption text-micro-caption text-text-muted">{coach.titleAr}</span>
+          )}
           <span className="font-mono text-[10px] text-deep-olive mt-0.5">{coach.SingleCoachId}</span>
         </div>
 
@@ -74,19 +82,25 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
             <Icon name="verified" className="text-[14px]" />
             <span>موثق بالشارات الخضراء ({coach.badges.length})</span>
           </span>
-          <span className="font-badge-label text-badge-label text-status-warning flex items-center gap-0.5">
-            <Icon name="star" className="text-[14px]" />
-            {coach.rating}
-          </span>
+          {coach.rating > 0 && (
+            <span className="font-badge-label text-badge-label text-status-warning flex items-center gap-0.5">
+              <Icon name="star" className="text-[14px]" />
+              {coach.rating}
+            </span>
+          )}
         </div>
 
-        <p className="font-body-compact text-body-compact text-text-muted text-center line-clamp-2">
-          {coach.bioAr}
-        </p>
+        {coach.bioAr && (
+          <p className="font-body-compact text-body-compact text-text-muted text-center line-clamp-2">
+            {coach.bioAr}
+          </p>
+        )}
 
         <div className="w-full rounded-xl bg-surface-snow px-3 py-2 flex items-center justify-between text-[12px]">
           <span className="text-text-muted">باقة 8 حصص</span>
-          <span className="font-bold text-deep-olive">{coach.privatePackage8Egp} ج.م</span>
+          <span className="font-bold text-deep-olive">
+            {coach.privatePackage8Egp > 0 ? `${coach.privatePackage8Egp} ج.م` : "بالتواصل المباشر"}
+          </span>
         </div>
       </div>
 

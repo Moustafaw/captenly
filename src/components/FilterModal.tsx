@@ -31,6 +31,15 @@ export function FilterModal() {
     );
   }, [filterModalOpen, smartFilters]);
 
+  useEffect(() => {
+    if (!filterModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilterModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filterModalOpen, setFilterModalOpen]);
+
   if (!filterModalOpen) return null;
 
   const toggleSpecialty = (item: string) => {
@@ -70,6 +79,12 @@ export function FilterModal() {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="تصفية النتائج والخيارات"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setFilterModalOpen(false);
+      }}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in"
       dir="rtl"
     >

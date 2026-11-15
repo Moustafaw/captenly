@@ -7,16 +7,41 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 
 export default function Desktop4() {
-  const { facilities, compareFacilityIds } = useCaptenly();
-  const [city, setCity] = useState("الكل");
+  const { facilities, compareFacilityIds, userLocation } = useCaptenly();
+  const [city, setCity] = useState(
+    userLocation.isSpecified && userLocation.city && userLocation.city !== "كل مصر"
+      ? userLocation.city
+      : "الكل"
+  );
   const [heatedOnly, setHeatedOnly] = useState(false);
   const [ladiesOnly, setLadiesOnly] = useState(false);
   const [kidsOnly, setKidsOnly] = useState(false);
 
+  const cityTabs = useMemo(() => {
+    const dynamicCities = Array.from(
+      new Set(
+        facilities
+          .filter((f) => f.sportSector !== "fitness" && f.city)
+          .map((f) => f.city.trim())
+      )
+    );
+    const preferred = [
+      ...(userLocation.isSpecified && userLocation.city && userLocation.city !== "كل مصر"
+        ? [userLocation.city.replace(/\s*\(GPS\)/g, "").trim()]
+        : []),
+      "القاهرة",
+      "الجيزة",
+      "الإسكندرية",
+      "طنطا",
+      "المحلة الكبرى",
+    ].filter((c) => dynamicCities.includes(c));
+    return ["الكل", ...Array.from(new Set([...preferred, ...dynamicCities])).slice(0, 6)];
+  }, [facilities, userLocation.isSpecified, userLocation.city]);
+
   const poolFacilities = useMemo(() => {
     return facilities.filter((f) => {
       if (f.sportSector === "fitness") return false;
-      if (city !== "الكل" && f.city !== city) return false;
+      if (city !== "الكل" && !f.city.includes(city)) return false;
       if (heatedOnly && !f.poolSpecs?.isHeatedWinter) return false;
       if (ladiesOnly && !f.poolSpecs?.hasLadiesOnlySlots) return false;
       if (kidsOnly && !f.specialtiesAr.some((s) => s.includes("أطفال") || s.includes("تأسيس"))) {
@@ -34,7 +59,7 @@ export default function Desktop4() {
           <section className="rounded-[20px] bg-dark-slate text-surface-card p-8 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
             <div className="lg:col-span-8 flex flex-col gap-3">
               <span className="px-3 py-1 rounded-full bg-deep-carbon text-electric-volt font-badge-label text-xs w-fit">
-                دليل المسابح ومدارس السباحة • المحلة الكبرى والغربية
+                دليل المسابح ومدارس السباحة • {userLocation.isSpecified ? userLocation.city : "كل مصر"}
               </span>
               <h1 className="font-hero-headline text-[28px] md:text-[34px] text-surface-card leading-tight">
                 مسابح أوليمبية ونصف أوليمبية ومدفأة شتاءً لتأسيس الأطفال والأبطال
@@ -58,7 +83,7 @@ export default function Desktop4() {
           {/* Interactive Filters Bar */}
           <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              {["الكل", "المحلة الكبرى", "طنطا"].map((c) => (
+              {cityTabs.map((c) => (
                 <button
                   key={c}
                   type="button"

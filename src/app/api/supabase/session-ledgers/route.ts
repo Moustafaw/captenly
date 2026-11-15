@@ -4,6 +4,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import {
   callerHasAnyStaffRole,
+  getCallerFacilityAccessRole,
   getServerCaller,
   hasFacilityStaffAccess,
   sanitizeFilterToken,
@@ -196,8 +197,7 @@ export async function GET(request: Request) {
       );
     }
     if (coachId) {
-      const ownsCoach =
-        caller.linkedCoachId === coachId || (caller.role === "coach" && !caller.linkedCoachId);
+      const ownsCoach = Boolean(caller.linkedCoachId && caller.linkedCoachId === coachId);
       if (!ownsCoach) {
         return NextResponse.json(
           { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
@@ -379,41 +379,87 @@ export async function POST(request: Request) {
       return NextResponse.json({ persisted: false, error: "invalid_ledger" }, { status: 400 });
     }
 
-    const isStaff = await hasFacilityStaffAccess(ledger.facilityId, caller);
-    const isCoachOwner =
-      Boolean(caller.linkedCoachId && caller.linkedCoachId === ledger.coachId) ||
-      (caller.role === "coach" && !caller.linkedCoachId);
+    const accessRole = await getCallerFacilityAccessRole(ledger.facilityId, caller);
+    const isProviderFacilityWriter =
+      accessRole === "admin" ||
+      accessRole === "owner" ||
+      accessRole === "general_staff" ||
+      accessRole === "subscriptions_manager";
+    const isAccountsOnly = accessRole === "accounts_manager";
+    const isCoachOwner = Boolean(caller.linkedCoachId && caller.linkedCoachId === ledger.coachId);
     const isSwimmerOwner = Boolean(
       caller.memberCode &&
         ledger.memberCode &&
         caller.memberCode.trim().toUpperCase() === ledger.memberCode.trim().toUpperCase()
     );
 
-    if (!caller.isAdmin && !isStaff && !isCoachOwner && !isSwimmerOwner) {
+    if (!caller.isAdmin && !isProviderFacilityWriter && !isAccountsOnly && !isCoachOwner && !isSwimmerOwner) {
       return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
     }
 
-    let resolvedPinCode = (ledger.pinCode || "").trim();
-    if (!resolvedPinCode || resolvedPinCode === "****") {
-      try {
-        const { data: existingPinRow } = await admin
-          .from("captenly_session_ledgers")
-          .select("pin_code")
-          .eq("id", ledger.id)
-          .maybeSingle();
-        if (typeof existingPinRow?.pin_code === "string" && existingPinRow.pin_code !== "****") {
-          resolvedPinCode = existingPinRow.pin_code;
-        }
-      } catch {
-        // ignore lookup failure
+    let existingPin: string | undefined;
+    let existingPayload: Partial<SessionLedger> | undefined;
+    try {
+      const { data: existingRow } = await admin
+        .from("captenly_session_ledgers")
+        .select("pin_code, payload")
+        .eq("id", ledger.id)
+        .maybeSingle();
+      if (typeof existingRow?.pin_code === "string" && existingRow.pin_code !== "****") {
+        existingPin = existingRow.pin_code;
       }
-      if (!resolvedPinCode || resolvedPinCode === "****") {
-        resolvedPinCode = "0000";
+      if (existingRow?.payload && typeof existingRow.payload === "object") {
+        existingPayload = existingRow.payload as Partial<SessionLedger>;
+      }
+    } catch {
+      // ignore lookup failure
+    }
+
+    let sanitizedLedger: SessionLedger = { ...ledger };
+
+    if (!caller.isAdmin && !isProviderFacilityWriter && !isCoachOwner) {
+      if (isAccountsOnly) {
+        if (!existingPayload) {
+          return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+        }
+        sanitizedLedger = {
+          ...(existingPayload as SessionLedger),
+          receipts: Array.isArray(ledger.receipts) ? ledger.receipts : (existingPayload.receipts || []),
+        };
+      } else if (isSwimmerOwner) {
+        const prevConfirmedMap = new Map<string, boolean>();
+        for (const r of existingPayload?.receipts || []) {
+          prevConfirmedMap.set(r.id, Boolean(r.confirmedByProvider));
+        }
+        const safeReceipts = (Array.isArray(ledger.receipts) ? ledger.receipts : []).map((r) => ({
+          ...r,
+          confirmedByProvider: prevConfirmedMap.get(r.id) === true,
+        }));
+
+        if (existingPayload) {
+          sanitizedLedger = {
+            ...(existingPayload as SessionLedger),
+            receipts: safeReceipts,
+          };
+        } else {
+          sanitizedLedger = {
+            ...ledger,
+            completedSessions: 0,
+            status: "active",
+            checkins: [],
+            receipts: safeReceipts.map((r) => ({ ...r, confirmedByProvider: false })),
+          };
+        }
       }
     }
 
+    let resolvedPinCode = (sanitizedLedger.pinCode || "").trim();
+    if (!resolvedPinCode || resolvedPinCode === "****") {
+      resolvedPinCode = existingPin || "0000";
+    }
+
     const storedLedger: SessionLedger = {
-      ...ledger,
+      ...sanitizedLedger,
       pinCode: resolvedPinCode,
     };
 

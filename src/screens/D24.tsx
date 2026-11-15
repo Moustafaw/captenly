@@ -35,14 +35,6 @@ export default function Desktop24() {
   const [compareNotice, setCompareNotice] = useState<string | null>(null);
   const [rotationSeed, setRotationSeed] = useState<number>(() => Math.floor(Date.now() / 30000) % 24);
 
-  // Automatic gentle rotation across nearby swimming pools in user's city/area
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRotationSeed((prev) => prev + 1);
-    }, 45000);
-    return () => clearInterval(timer);
-  }, []);
-
   const swimmingFacilities = useMemo(
     () => facilities.filter((f) => f.sportSector !== "fitness"),
     [facilities]
@@ -247,11 +239,19 @@ export default function Desktop24() {
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
                     {userLocation.isSpecified
-                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي وتتبدل تلقائياً — اضغط للتصفح الكامل"
+                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي — اضغط للتحديث أو التصفح الكامل"
                       : "تظهر 3 منشآت متنوعة من مختلف محافظات مصر لعدم تحديد نطاق جغرافي — حدّد موقعك لترتيب الأقرب لك"}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setRotationSeed((prev) => prev + 1)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card border border-surface-container text-dark-slate hover:border-deep-olive text-xs font-bold transition-colors"
+                  >
+                    <Icon name="refresh" className="text-[15px]" />
+                    <span>تحديث الترشيحات</span>
+                  </button>
                   {compareFacilityIds.length > 0 && (
                     <Link
                       href="/compare"

@@ -23,6 +23,7 @@ export default function Phone12() {
     validateAndSaveCoachBio,
     recordCoachSkillAndPB,
     currentPersona,
+    updateCurrentPersonaProfile,
     isAuthenticated,
     syncLedgersFromServer,
   } = useCaptenly();
@@ -37,22 +38,21 @@ export default function Phone12() {
   const [athleteNameInput, setAthleteNameInput] = useState("");
   const [facId, setFacId] = useState(currentPersona.linkedFacilityId || facilities[0]?.id || "");
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
-  const [feeEgp, setFeeEgp] = useState("650");
-  const [pkgTitle, setPkgTitle] = useState("باقة التأسيس والمتابعة — 8 حصص");
+  const [feeEgp, setFeeEgp] = useState("");
+  const [pkgTitle, setPkgTitle] = useState("");
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
 
   const [bioDraft, setBioDraft] = useState(
-    activeCoach?.bioAr ||
-      currentPersona.bioAr ||
-      "مدرب سباحة تأسيس وإنقاذ مائي معتمد، التزام كامل بتدريب اللياقة والمهارات المائية."
+    activeCoach?.bioAr || currentPersona.bioAr || ""
   );
 
   const [pbSelectedAthleteId, setPbSelectedAthleteId] = useState("");
   const [pbSwimmerName, setPbSwimmerName] = useState("");
   const [pbEventTitle, setPbEventTitle] = useState("");
   const [pbTimeSeconds, setPbTimeSeconds] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
   const [pbRatingOverall, setPbRatingOverall] = useState("5");
   const [pbSkills, setPbSkills] = useState<[number, number, number, number, number]>([5, 5, 4, 5, 5]);
   const [pbFeedbackNote, setPbFeedbackNote] = useState("");
@@ -237,7 +237,7 @@ export default function Phone12() {
             athleteNameAr: athleteNameInput.trim() || matched?.fullNameAr || "سباح متدرب",
             facilityId: facId,
             coachId: activeCoach?.id || currentPersona.id,
-            packageTitleAr: pkgTitle,
+            packageTitleAr: pkgTitle.trim() || `باقة ${sessionsCount} حصص`,
             totalSessions: sessionsCount,
             amountEgp: Number(feeEgp) || 0,
           });
@@ -276,7 +276,7 @@ export default function Phone12() {
         <input
           value={memberCode}
           onChange={(e) => setMemberCode(e.target.value)}
-          placeholder="كود عضوية السباح (اختياري CAP-M-XXXX)"
+          placeholder="كود السباح أو الابن (اختياري CAP-M-XXXX أو CAP-JR-XXXX)"
           className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-xs outline-none border border-surface-container"
         />
         <select
@@ -293,6 +293,7 @@ export default function Phone12() {
         <input
           value={pkgTitle}
           onChange={(e) => setPkgTitle(e.target.value)}
+          placeholder="اسم الباقة (مثلاً: باقة تأسيس 8 حصص)"
           className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
         />
         <div className="grid grid-cols-2 gap-2">
@@ -309,6 +310,7 @@ export default function Phone12() {
             type="number"
             value={feeEgp}
             onChange={(e) => setFeeEgp(e.target.value)}
+            placeholder="الرسوم ج.م"
             className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
           />
         </div>
@@ -339,15 +341,21 @@ export default function Phone12() {
           rows={3}
           value={bioDraft}
           onChange={(e) => setBioDraft(e.target.value)}
+          placeholder="اكتب نبذتك المهنية وتخصصك وخبراتك في تدريب السباحة..."
           className="rounded-xl bg-surface-snow p-3 text-xs outline-none border border-surface-container"
         />
         <button
           type="button"
           onClick={() => {
+            if (!bioDraft.trim()) {
+              setFeedback({ ok: false, msg: "يرجى كتابة النبذة المهنية أولاً قبل الحفظ." });
+              return;
+            }
             if (activeCoach) {
               const res = validateAndSaveCoachBio(activeCoach.id, bioDraft);
               setFeedback({ ok: res.ok, msg: res.messageAr });
             } else {
+              updateCurrentPersonaProfile({ bioAr: bioDraft.trim() });
               setFeedback({
                 ok: true,
                 msg: "تم تحديث وحفظ النبذة المهنية في ملفك ✓",
@@ -372,10 +380,13 @@ export default function Phone12() {
             swimmerNameAr: swimmerName,
             eventTitleAr: pbEventTitle.trim() || "سباق حر",
             currentValue: Number(pbTimeSeconds) || 0,
-            unitAr: "ثانية",
+            unitAr: pbUnitAr,
             coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
             facilityNameAr:
-              facilities.find((f) => f.id === facId)?.nameAr || currentPersona.city,
+              facilities.find((f) => f.id === facId)?.nameAr ||
+              (currentPersona.city && currentPersona.city !== "كل مصر"
+                ? currentPersona.city
+                : "تدريب خاص"),
             skills: {
               athleteId: targetAthleteId,
               evaluatedDateAr: "اليوم — تقييم الكابتن",
@@ -389,7 +400,7 @@ export default function Phone12() {
               ],
               coachFeedbackAr:
                 pbFeedbackNote.trim() ||
-                `تقييم موثق لزمن ${pbTimeSeconds} ثانية في سباق ${pbEventTitle}.`,
+                `تقييم موثق لقيمة ${pbTimeSeconds} ${pbUnitAr} في ${pbEventTitle}.`,
             },
           });
           setFeedback({
@@ -437,15 +448,28 @@ export default function Phone12() {
             placeholder="السباق (50م حرة)"
             className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
           />
-          <input
-            required
-            type="number"
-            step="0.1"
-            value={pbTimeSeconds}
-            onChange={(e) => setPbTimeSeconds(e.target.value)}
-            placeholder="الزمن بالثواني (31.8)"
-            className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
-          />
+          <div className="grid grid-cols-2 gap-1.5">
+            <input
+              required
+              type="number"
+              step="0.1"
+              value={pbTimeSeconds}
+              onChange={(e) => setPbTimeSeconds(e.target.value)}
+              placeholder="القيمة (31.8)"
+              className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
+            />
+            <select
+              value={pbUnitAr}
+              onChange={(e) => setPbUnitAr(e.target.value)}
+              className="rounded-xl bg-surface-snow px-2 py-2 text-xs font-bold outline-none border border-surface-container"
+            >
+              <option value="ثانية">ثانية</option>
+              <option value="متر">متر</option>
+              <option value="لفة">لفة</option>
+              <option value="تكرار">تكرار</option>
+              <option value="نقطة">نقطة</option>
+            </select>
+          </div>
           <select
             value={pbRatingOverall}
             onChange={(e) => {

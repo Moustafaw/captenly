@@ -35,7 +35,7 @@ export function SiteDock() {
       icon: "compare_arrows",
       label: "قارن",
       active: pathname.startsWith("/compare"),
-      gated: true,
+      gated: false,
     },
     {
       href: "/dashboard/ledger",

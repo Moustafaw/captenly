@@ -15,12 +15,26 @@ export interface StaffCandidateResult {
   avatarUrl?: string;
 }
 
-function mapCandidate(row: Record<string, unknown>): StaffCandidateResult {
+function maskPhone(raw: unknown): string {
+  const digits = typeof raw === "string" ? raw.replace(/\D/g, "") : "";
+  if (digits.length < 7) return digits ? "••••" : "";
+  return `${digits.slice(0, 3)}••••${digits.slice(-4)}`;
+}
+
+function maskEmail(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !raw.includes("@")) return undefined;
+  const [local, domain] = raw.split("@");
+  if (!domain) return undefined;
+  const visible = local.length > 2 ? local.slice(0, 2) : local.slice(0, 1);
+  return `${visible}•••@${domain}`;
+}
+
+function mapCandidate(row: Record<string, unknown>, revealFullPii: boolean): StaffCandidateResult {
   return {
     memberCode: String(row.member_code || ""),
     fullNameAr: String(row.full_name_ar || "عضو كابتنلي"),
-    phone: typeof row.phone === "string" ? row.phone : "",
-    email: typeof row.email === "string" ? row.email : undefined,
+    phone: revealFullPii ? (typeof row.phone === "string" ? row.phone : "") : maskPhone(row.phone),
+    email: revealFullPii ? (typeof row.email === "string" ? row.email : undefined) : maskEmail(row.email),
     city: typeof row.city === "string" ? row.city : "مصر",
     role: String(row.role || "adult_athlete"),
     avatarUrl: typeof row.avatar_url === "string" ? row.avatar_url : undefined,
@@ -28,48 +42,55 @@ function mapCandidate(row: Record<string, unknown>): StaffCandidateResult {
 }
 
 /**
- * Searches registered Captenly accounts by memberCode, email, phone, or Arabic name for facility staff assignment.
+ * Exact lookup for a Captenly account by exact memberCode, exact email, or full phone number for verified facility owners.
  */
 export async function GET(request: Request) {
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ ok: false, error: "unauthorized", candidates: [] }, { status: 401 });
   }
-  if (!caller.isAdmin && caller.role !== "facility_manager" && !caller.linkedFacilityId) {
+  if (!caller.isAdmin && !caller.linkedFacilityId) {
     return NextResponse.json({ ok: false, error: "forbidden", candidates: [] }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const q = sanitizeFilterToken(searchParams.get("q") || "");
-  if (q.length < 2) {
+  if (q.length < 5) {
     return NextResponse.json({ ok: true, candidates: [] });
   }
 
+  const isMemberCodeQuery = /^CAP-(M|JR)-[A-Z0-9-]+$/i.test(q);
+  const isEmailQuery = q.includes("@") && q.includes(".");
   const normalizedDigits = q.replace(/\D/g, "");
-  const phoneTail = normalizedDigits.length >= 8 ? normalizedDigits.slice(-10) : normalizedDigits;
+  const isPhoneQuery = normalizedDigits.length >= 10;
+  if (!isMemberCodeQuery && !isEmailQuery && !isPhoneQuery) {
+    return NextResponse.json({ ok: true, candidates: [] });
+  }
+
+  const phoneTail = normalizedDigits.slice(-10);
   const admin = getSupabaseAdminClient();
 
   if (admin) {
     try {
-      const filters = [
-        `member_code.ilike.%${q}%`,
-        `email.ilike.%${q}%`,
-        `full_name_ar.ilike.%${q}%`,
-      ];
-      if (phoneTail.length >= 6) {
-        filters.push(`phone.ilike.%${phoneTail}%`);
-      }
-      const { data, error } = await admin
+      let query = admin
         .from("captenly_profiles")
         .select("member_code, full_name_ar, phone, email, city, role, avatar_url")
-        .or(filters.join(","))
-        .order("updated_at", { ascending: false })
-        .limit(8);
+        .limit(5);
+
+      if (isMemberCodeQuery) {
+        query = query.eq("member_code", q.toUpperCase());
+      } else if (isEmailQuery) {
+        query = query.eq("email", q.toLowerCase());
+      } else {
+        query = query.ilike("phone", `%${phoneTail}`);
+      }
+
+      const { data, error } = await query;
 
       if (!error && Array.isArray(data)) {
         return NextResponse.json({
           ok: true,
-          candidates: data.map((r) => mapCandidate(r as Record<string, unknown>)),
+          candidates: data.map((r) => mapCandidate(r as Record<string, unknown>, caller.isAdmin)),
         });
       }
     } catch {
@@ -78,18 +99,32 @@ export async function GET(request: Request) {
   }
 
   const pgRes = await withPgClient(async (client) => {
-    const likePattern = `%${q}%`;
-    const phonePattern = phoneTail.length >= 6 ? `%${phoneTail}%` : likePattern;
+    if (isMemberCodeQuery) {
+      const { rows } = await client.query(
+        `select member_code, full_name_ar, phone, email, city, role, avatar_url
+         from public.captenly_profiles
+         where upper(member_code) = upper($1)
+         limit 5`,
+        [q]
+      );
+      return rows;
+    }
+    if (isEmailQuery) {
+      const { rows } = await client.query(
+        `select member_code, full_name_ar, phone, email, city, role, avatar_url
+         from public.captenly_profiles
+         where lower(coalesce(email, '')) = lower($1)
+         limit 5`,
+        [q]
+      );
+      return rows;
+    }
     const { rows } = await client.query(
       `select member_code, full_name_ar, phone, email, city, role, avatar_url
        from public.captenly_profiles
-       where upper(member_code) like upper($1)
-          or lower(coalesce(email, '')) like lower($1)
-          or full_name_ar ilike $1
-          or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') like $2
-       order by updated_at desc
-       limit 8`,
-      [likePattern, phonePattern]
+       where right(regexp_replace(coalesce(phone, ''), '\\D', '', 'g'), 10) = $1
+       limit 5`,
+      [phoneTail]
     );
     return rows;
   });
@@ -97,7 +132,7 @@ export async function GET(request: Request) {
   if (pgRes.ok) {
     return NextResponse.json({
       ok: true,
-      candidates: pgRes.value.map((r) => mapCandidate(r as Record<string, unknown>)),
+      candidates: pgRes.value.map((r) => mapCandidate(r as Record<string, unknown>, caller.isAdmin)),
     });
   }
 

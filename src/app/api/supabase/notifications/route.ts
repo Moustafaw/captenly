@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
-import { getServerCaller } from "@/lib/memberSession";
+import { callerHasAnyStaffRole, getServerCaller } from "@/lib/memberSession";
 
 export const runtime = "nodejs";
 
@@ -19,6 +19,8 @@ async function ensureNotificationsTableViaPg() {
         is_read boolean default false,
         created_at timestamptz default now()
       );
+      alter table public.captenly_notifications enable row level security;
+      drop policy if exists "captenly_notifications_public_read" on public.captenly_notifications;
     `);
     return true;
   });
@@ -132,9 +134,9 @@ export async function POST(request: Request) {
       caller.memberCode!.toUpperCase() === row.member_code.trim().toUpperCase();
     const isProviderOrAdmin =
       caller.isAdmin ||
-      caller.role === "coach" ||
-      caller.role === "facility_manager" ||
-      Boolean(caller.linkedFacilityId);
+      Boolean(caller.linkedCoachId) ||
+      Boolean(caller.linkedFacilityId) ||
+      (await callerHasAnyStaffRole(caller, ["general_staff", "subscriptions_manager"]));
 
     if (!isSelfTarget && !isProviderOrAdmin) {
       return NextResponse.json({ persisted: false, reason: "forbidden" }, { status: 403 });

@@ -6,6 +6,37 @@ export type AccountRole =
   | "facility_manager"
   | "super_admin";
 
+export type AccountIntent =
+  | "self_athlete"
+  | "parent_only"
+  | "both_self_and_parent";
+
+export type WorkspaceContextMode = "member" | "coach" | "facility" | "staff";
+
+export type RoleClaimStatus = "pending_review" | "approved" | "rejected" | "withdrawn";
+
+export interface MemberRoleClaim {
+  id: string;
+  applicantMemberCode: string;
+  applicantNameAr: string;
+  applicantPhone: string;
+  applicantEmail?: string;
+  claimType: "coach" | "facility";
+  targetFacilityId?: string;
+  targetFacilityNameAr?: string;
+  cityAr?: string;
+  governorateAr?: string;
+  proofDocumentUrl?: string;
+  proofNotesAr?: string;
+  proposedPayload?: Record<string, unknown>;
+  status: RoleClaimStatus;
+  reviewerNoteAr?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export function isMemberAccountRole(role?: AccountRole | string | null): boolean {
   return role === "adult_athlete" || role === "parent";
 }
@@ -81,6 +112,9 @@ export interface FacilityStaffMember {
   linkedMemberCode?: string;
   linkedPersonaId?: string;
   phone?: string;
+  email?: string;
+  isActive?: boolean;
+  invitationStatus?: "pending" | "accepted" | "declined" | "revoked";
   assignedDateAr: string;
 }
 
@@ -302,6 +336,8 @@ export interface SkillEvaluation5Point {
 
 export interface MinorAthleteProfile {
   id: string;
+  childMemberCode?: string;
+  parentMemberCode?: string;
   fullNameAr: string;
   age: number;
   birthYear: number;
@@ -347,6 +383,8 @@ export interface DemandRadarEntry {
 export interface PersonaAccount {
   id: string;
   role: AccountRole;
+  accountIntent?: AccountIntent;
+  activeWorkspaceContext?: WorkspaceContextMode;
   memberCode?: string;
   hasParentSupervision?: boolean;
   avatarUrl?: string;
@@ -422,13 +460,17 @@ export interface DemandRadarSubmission {
   phone: string;
   city: string;
   governorate: string;
-  targetSport: "swimming" | "fitness" | "other";
+  targetSport: "swimming" | "fitness" | "both" | "other";
+  targetFacilityId?: string;
+  targetFacilityNameAr?: string;
   notes?: string;
   createdAt: string;
 }
 
 export interface MemberRegistryEntry {
   memberCode: string;
+  childMemberCode?: string;
+  parentMemberCode?: string;
   athleteId: string;
   fullNameAr: string;
   phone: string;

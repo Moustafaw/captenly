@@ -15,12 +15,14 @@ export default function SettingsHubPage() {
   const {
     currentPersona,
     userLocation,
+    userSettings,
     setLocationModalOpen,
     minorAthletes,
     isAuthenticated,
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
   } = useCaptenly();
 
   if (!isAuthenticated) {
@@ -63,16 +65,26 @@ export default function SettingsHubPage() {
       titleAr: "تفضيلات الإشعارات ورسائل واتساب",
       descAr: "تذكير الحصص قبل موعدها بساعتين، تنبيهات تجديد الاشتراك، وأكواد الحضور",
       icon: "notifications",
-      badgeAr: "مفعلة عبر واتساب",
-      badgeColor: "bg-surface-container text-dark-slate",
+      badgeAr:
+        userSettings.notifyWhatsappSessions && currentPersona.phone
+          ? "مفعلة عبر واتساب"
+          : currentPersona.phone
+          ? "متوقفة"
+          : "بانتظار رقم الهاتف",
+      badgeColor:
+        userSettings.notifyWhatsappSessions && currentPersona.phone
+          ? "bg-lime-tint text-deep-olive"
+          : "bg-surface-container text-dark-slate",
     },
     {
       href: "/dashboard/athlete/settings/security",
       titleAr: "الخصوصية والأمان وكلمة المرور",
       descAr: "تأكيد رقم الهاتف، إعدادات الخصوصية الافتراضية، وتنزيل نسخة من بياناتك",
       icon: "shield_lock",
-      badgeAr: "آمن 100%",
-      badgeColor: "bg-lime-tint text-deep-olive",
+      badgeAr: currentPersona.phone ? "رقم مؤكد" : "حماية الحساب",
+      badgeColor: currentPersona.phone
+        ? "bg-lime-tint text-deep-olive"
+        : "bg-surface-container text-dark-slate",
     },
     {
       href: "/dashboard/athlete/settings/history",
@@ -83,6 +95,10 @@ export default function SettingsHubPage() {
       badgeColor: "bg-surface-container text-dark-slate",
     },
   ];
+
+  const isIdentityVerified = Boolean(
+    currentPersona.phone || currentPersona.linkedFacilityId || currentPersona.linkedCoachId
+  );
 
   return (
     <div className="flex w-full max-w-4xl mx-auto px-margin lg:px-6 pt-6 pb-12 flex-col gap-6" dir="rtl">
@@ -110,12 +126,15 @@ export default function SettingsHubPage() {
               <h2 className="font-cairo font-bold text-card-title text-dark-slate">
                 {currentPersona.fullNameAr}
               </h2>
-              <span className="text-deep-olive text-micro-caption font-extrabold">
-                موثق ✓
-              </span>
+              {isIdentityVerified && (
+                <span className="text-deep-olive text-micro-caption font-extrabold">
+                  موثق ✓
+                </span>
+              )}
             </div>
             <p className="text-body-compact text-text-muted">
-              {currentPersona.personaTitleAr} • {currentPersona.phone}
+              {currentPersona.personaTitleAr}
+              {currentPersona.phone ? ` • ${currentPersona.phone}` : ""}
             </p>
             <div className="flex items-center gap-2 text-micro-caption text-text-muted pt-0.5">
               <Icon name="location_on" className="text-[15px] text-deep-olive" />
@@ -153,43 +172,77 @@ export default function SettingsHubPage() {
 
       {/* Staff Role Account Switcher inside Settings */}
       {(myStaffAssignments.length > 0 || activeStaffAssignment) && (
-        <div className="w-full bg-lime-tint rounded-2xl p-5 border border-deep-olive/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h3 className="font-cairo font-bold text-sm text-dark-slate flex items-center gap-2">
-              <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
-              <span>تبديل الحساب الوظيفي بالمنشأة</span>
-            </h3>
-            <p className="text-xs text-deep-olive mt-0.5">
-              {activeStaffAssignment
-                ? `أنت تعمل حالياً بصلاحية «${activeStaffAssignment.roleTitleAr}» في ${activeStaffAssignment.facilityNameAr}.`
-                : "يمكنك التبديل لواجهة المنشأة لأداء مهامك الوظيفية بصلاحياتك المحددة."}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            {activeStaffAssignment ? (
+        <div className="w-full bg-lime-tint rounded-2xl p-5 border border-deep-olive/35 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-cairo font-bold text-sm text-dark-slate flex items-center gap-2">
+                <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
+                <span>تبديل الحساب الوظيفي بالمنشأة</span>
+              </h3>
+              <p className="text-xs text-deep-olive mt-0.5">
+                {activeStaffAssignment
+                  ? `أنت تعمل حالياً بصلاحية «${activeStaffAssignment.roleTitleAr}» في ${activeStaffAssignment.facilityNameAr}.`
+                  : "يمكنك قبول دعوات الإدارة أو التبديل لواجهة المنشأة لأداء مهامك الوظيفية بصلاحياتك المحددة."}
+              </p>
+            </div>
+            {activeStaffAssignment && (
               <button
                 type="button"
                 onClick={() => switchToStaffMode(null)}
-                className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold shrink-0"
               >
                 العودة لحسابي الشخصي ↩
               </button>
-            ) : (
-              myStaffAssignments.map((st) => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => {
-                    switchToStaffMode(st.id);
-                    router.push("/dashboard/facility");
-                  }}
-                  className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
-                >
-                  التبديل لوظيفة: {st.roleTitleAr} ({st.facilityNameAr}) ←
-                </button>
-              ))
             )}
           </div>
+
+          {!activeStaffAssignment && (
+            <div className="flex flex-col gap-2">
+              {myStaffAssignments.map((st) =>
+                st.invitationStatus === "pending" ? (
+                  <div
+                    key={st.id}
+                    className="rounded-xl bg-surface-card p-3 border border-deep-olive/25 flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <div className="text-xs">
+                      <span className="font-bold text-dark-slate">
+                        دعوة وظيفية: {st.roleTitleAr}
+                      </span>{" "}
+                      <span className="text-text-muted">({st.facilityNameAr})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => respondToStaffInvitation(st.facilityId, st.id, "accepted")}
+                          className="px-3 py-1.5 rounded-full bg-deep-olive text-white text-xs font-bold"
+                        >
+                          قبول الدعوة ✓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => respondToStaffInvitation(st.facilityId, st.id, "declined")}
+                          className="px-3 py-1.5 rounded-full bg-red-50 text-status-danger text-xs font-bold"
+                        >
+                          رفض ✕
+                        </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => {
+                      switchToStaffMode(st.id);
+                      router.push("/dashboard/facility");
+                    }}
+                    className="w-fit px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                  >
+                    التبديل لوظيفة: {st.roleTitleAr} ({st.facilityNameAr}) ←
+                  </button>
+                )
+              )}
+            </div>
+          )}
         </div>
       )}
 

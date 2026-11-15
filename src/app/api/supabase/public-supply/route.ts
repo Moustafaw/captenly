@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
-import { getServerCaller, hasFacilityStaffAccess } from "@/lib/memberSession";
+import {
+  callerHasAnyStaffRole,
+  getCallerFacilityAccessRole,
+  getServerCaller,
+  hasFacilityStaffAccess,
+} from "@/lib/memberSession";
 import type { Coach, Facility } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
@@ -94,9 +99,9 @@ function mapFacilityRow(row: Record<string, unknown>): Facility | null {
     isSponsored: Boolean(payload.isSponsored),
     priceLastVerifiedDaysAgo: payload.priceLastVerifiedDaysAgo ?? 0,
     priceLastVerifiedDate: payload.priceLastVerifiedDate || "موثق عبر كابتنلي",
-    avgReplyMinutes: payload.avgReplyMinutes ?? 30,
+    avgReplyMinutes: payload.avgReplyMinutes ?? 0,
     completenessScore: payload.completenessScore ?? 85,
-    rating: Number(row.rating ?? payload.rating ?? 4.8),
+    rating: Number(row.rating ?? payload.rating ?? 0),
     reviewsCount: Number(row.reviews_count ?? payload.reviewsCount ?? 0),
     heroImage: payload.heroImage || "/screens/20b781f698f9.jpg",
     badges: Array.isArray(payload.badges) ? payload.badges : [],
@@ -121,9 +126,9 @@ function mapCoachRow(row: Record<string, unknown>): Coach | null {
     id: String(row.id || payload.id || ""),
     slug: String(row.slug || payload.slug || row.id || ""),
     fullNameAr: String(row.full_name_ar || payload.fullNameAr || ""),
-    city: String(row.city || payload.city || "مصر"),
+    city: String(row.city || payload.city || "كل مصر"),
     sportSector: (payload.sportSector || row.sport_sector || "swimming") as Coach["sportSector"],
-    rating: Number(row.rating ?? payload.rating ?? 4.8),
+    rating: Number(row.rating ?? payload.rating ?? 0),
   };
 }
 
@@ -139,6 +144,10 @@ async function ensureArticlesTableViaPg() {
         payload jsonb not null,
         updated_at timestamptz default now()
       );
+      alter table public.captenly_articles enable row level security;
+      drop policy if exists "captenly_articles_public_read" on public.captenly_articles;
+      create policy "captenly_articles_public_read"
+        on public.captenly_articles for select using (true);
     `);
     return true;
   });
@@ -223,75 +232,110 @@ export async function GET() {
   });
 }
 
+const PROHIBITED_MEDICAL_TERMS = [
+  "علاج طبيعي",
+  "علاج طبي",
+  "تأهيل طبي",
+  "تشخيص",
+  "وصفة طبية",
+  "علاج الديسك",
+  "علاج العمود الفقري",
+  "rehabilitation therapy",
+  "medical therapy",
+];
+
+function hasProhibitedMedicalClaims(coach: Coach): boolean {
+  const hasMedicalPtBadge = Array.isArray(coach.badges)
+    ? coach.badges.some((b) => b.code === "BADGE_06_MEDICAL_PT" && b.status === "active")
+    : false;
+  if (hasMedicalPtBadge) return false;
+  const hay = `${coach.bioAr || ""} ${coach.titleAr || ""} ${(coach.specialties || [])
+    .map((s) => s.nameAr)
+    .join(" ")}`.toLowerCase();
+  return PROHIBITED_MEDICAL_TERMS.some((term) => hay.includes(term.toLowerCase()));
+}
+
+async function fetchExistingFacilityPayload(facilityId: string): Promise<Partial<Facility> | null> {
+  const admin = getSupabaseAdminClient();
+  if (admin) {
+    try {
+      const { data } = await admin
+        .from("captenly_facilities")
+        .select("payload")
+        .eq("id", facilityId)
+        .limit(1);
+      if (Array.isArray(data) && data[0] && (data[0] as { payload?: unknown }).payload) {
+        return (data[0] as { payload: Partial<Facility> }).payload;
+      }
+    } catch {
+      // fall through
+    }
+  }
+  const pg = await withPgClient(async (client) => {
+    const { rows } = await client.query(`select payload from public.captenly_facilities where id = $1 limit 1`, [
+      facilityId,
+    ]);
+    return (rows[0] as { payload?: Partial<Facility> } | undefined)?.payload || null;
+  });
+  return pg.ok ? pg.value : null;
+}
+
 async function authorizePublicSupplyPost(params: {
   caller: Awaited<ReturnType<typeof getServerCaller>>;
   facility?: Facility;
   coach?: Coach;
   article?: Record<string, unknown>;
   deleteArticleId?: string;
-}): Promise<boolean> {
+}): Promise<{ allowed: boolean; facilityAccessRole?: string | null }> {
   const { caller, facility, coach, article, deleteArticleId } = params;
-  if (!caller.authenticated) return false;
-  if (caller.isAdmin) return true;
+  if (!caller.authenticated) return { allowed: false };
+  if (caller.isAdmin) return { allowed: true, facilityAccessRole: "admin" };
 
   const admin = getSupabaseAdminClient();
 
   if (facility?.id) {
-    if (caller.linkedFacilityId === facility.id) return true;
-    if (await hasFacilityStaffAccess(facility.id, caller)) return true;
-    let existingStatus: string | null = null;
-    let found = false;
-    if (admin) {
-      const { data } = await admin
-        .from("captenly_facilities")
-        .select("supply_status")
-        .eq("id", facility.id)
-        .limit(1);
-      if (Array.isArray(data) && data.length > 0) {
-        found = true;
-        existingStatus = String((data[0] as { supply_status?: string }).supply_status || "");
-      }
+    const accessRole = await getCallerFacilityAccessRole(facility.id, caller);
+    if (
+      accessRole === "owner" ||
+      accessRole === "general_staff" ||
+      accessRole === "accounts_manager"
+    ) {
+      return { allowed: true, facilityAccessRole: accessRole };
     }
-    if (!found) {
-      const pg = await withPgClient(async (client) => {
-        const { rows } = await client.query(
-          `select supply_status from public.captenly_facilities where id = $1 limit 1`,
-          [facility.id]
-        );
-        return rows[0] as { supply_status?: string } | undefined;
-      });
-      if (pg.ok && pg.value) {
-        found = true;
-        existingStatus = String(pg.value.supply_status || "");
-      }
-    }
-    return !found || existingStatus === "seeded_unclaimed";
+    // Never allow hijacking unverified/seeded_unclaimed or creating unreviewed facilities directly;
+    // ownership claims must be submitted to /api/supabase/role-claims and approved by admin.
+    return { allowed: false };
   }
 
   if (coach?.id) {
-    if (caller.linkedCoachId === coach.id) return true;
-    if (
-      coach.SingleCoachId &&
-      caller.memberCode &&
-      coach.SingleCoachId.toUpperCase() === caller.memberCode.toUpperCase()
-    ) {
-      return true;
+    if (caller.linkedCoachId && caller.linkedCoachId === coach.id) {
+      return { allowed: true };
     }
-    let found = false;
+    // Check existing coach row only when linked via DB SingleCoachId matching verified caller memberCode
+    let existingPayload: Partial<Coach> | null = null;
     if (admin) {
-      const { data } = await admin.from("captenly_coaches").select("id").eq("id", coach.id).limit(1);
-      if (Array.isArray(data) && data.length > 0) found = true;
+      const { data } = await admin.from("captenly_coaches").select("payload").eq("id", coach.id).limit(1);
+      if (Array.isArray(data) && data[0]) {
+        existingPayload = (data[0] as { payload?: Partial<Coach> }).payload || null;
+      }
     }
-    if (!found) {
+    if (!existingPayload) {
       const pg = await withPgClient(async (client) => {
-        const { rows } = await client.query(`select id from public.captenly_coaches where id = $1 limit 1`, [
+        const { rows } = await client.query(`select payload from public.captenly_coaches where id = $1 limit 1`, [
           coach.id,
         ]);
-        return rows[0];
+        return (rows[0] as { payload?: Partial<Coach> } | undefined)?.payload || null;
       });
-      if (pg.ok && pg.value) found = true;
+      if (pg.ok) existingPayload = pg.value;
     }
-    return !found;
+    if (
+      existingPayload?.SingleCoachId &&
+      caller.memberCode &&
+      existingPayload.SingleCoachId.toUpperCase() === caller.memberCode.toUpperCase()
+    ) {
+      return { allowed: true };
+    }
+    return { allowed: false };
   }
 
   if (deleteArticleId) {
@@ -317,21 +361,27 @@ async function authorizePublicSupplyPost(params: {
       if (pg.ok && pg.value) authorEntityId = pg.value.author_entity_id || null;
     }
     if (!authorEntityId) {
-      return caller.role === "coach" || caller.role === "facility_manager";
+      return { allowed: false };
     }
-    return authorEntityId === caller.linkedCoachId || authorEntityId === caller.linkedFacilityId;
+    if (
+      authorEntityId === caller.linkedCoachId ||
+      authorEntityId === caller.linkedFacilityId ||
+      (await hasFacilityStaffAccess(authorEntityId, caller, ["general_staff"]))
+    ) {
+      return { allowed: true };
+    }
+    return { allowed: false };
   }
 
   if (article?.id) {
-    return (
-      caller.role === "coach" ||
-      caller.role === "facility_manager" ||
+    const canPublish =
       Boolean(caller.linkedCoachId) ||
-      Boolean(caller.linkedFacilityId)
-    );
+      Boolean(caller.linkedFacilityId) ||
+      (await callerHasAnyStaffRole(caller, ["general_staff"]));
+    return { allowed: canPublish };
   }
 
-  return false;
+  return { allowed: false };
 }
 
 export async function POST(request: Request) {
@@ -351,43 +401,74 @@ export async function POST(request: Request) {
       return NextResponse.json({ persisted: false, error: "missing_entity" }, { status: 400 });
     }
 
-    const allowed = await authorizePublicSupplyPost({
+    const authz = await authorizePublicSupplyPost({
       caller,
       facility,
       coach,
       article,
       deleteArticleId,
     });
-    if (!allowed) {
+    if (!authz.allowed) {
       return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
     }
 
     const admin = getSupabaseAdminClient();
 
     if (facility?.id) {
+      let safeFacility: Facility = facility;
+      // Non-owners cannot self-elevate badges, staff roster, or core ownership metadata
+      if (!caller.isAdmin && authz.facilityAccessRole === "accounts_manager") {
+        const existing = await fetchExistingFacilityPayload(facility.id);
+        if (!existing) {
+          return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+        }
+        safeFacility = {
+          ...(existing as Facility),
+          pricePackages: Array.isArray(facility.pricePackages)
+            ? facility.pricePackages
+            : (existing.pricePackages || []),
+          schoolPrograms: facility.schoolPrograms ?? existing.schoolPrograms,
+          instapayHandle: facility.instapayHandle ?? existing.instapayHandle ?? "",
+          vodafoneCashNumber: facility.vodafoneCashNumber ?? existing.vodafoneCashNumber ?? "",
+          priceLastVerifiedDaysAgo: 0,
+        };
+      } else if (!caller.isAdmin && authz.facilityAccessRole === "general_staff") {
+        const existing = await fetchExistingFacilityPayload(facility.id);
+        if (existing) {
+          safeFacility = {
+            ...facility,
+            badges: existing.badges || facility.badges,
+            supplyStatus: existing.supplyStatus || facility.supplyStatus,
+            subscriptionTier: existing.subscriptionTier || facility.subscriptionTier,
+            isSponsored: Boolean(existing.isSponsored),
+            staffMembers: existing.staffMembers || facility.staffMembers,
+          };
+        }
+      }
+
       const sportSector =
-        facility.sportSector === "fitness" || facility.sportSector === "both"
-          ? facility.sportSector
+        safeFacility.sportSector === "fitness" || safeFacility.sportSector === "both"
+          ? safeFacility.sportSector
           : "swimming";
       const supplyStatus =
-        facility.supplyStatus === "seeded_unclaimed" ? "seeded_unclaimed" : "verified_claimed";
+        safeFacility.supplyStatus === "seeded_unclaimed" ? "seeded_unclaimed" : "verified_claimed";
       const row = {
-        id: facility.id,
-        slug: facility.slug || facility.id,
-        name_ar: facility.nameAr || "منشأة سباحة",
-        name_en: facility.nameEn || facility.nameAr || "Swimming Facility",
+        id: safeFacility.id,
+        slug: safeFacility.slug || safeFacility.id,
+        name_ar: safeFacility.nameAr || "منشأة سباحة",
+        name_en: safeFacility.nameEn || safeFacility.nameAr || "Swimming Facility",
         sport_sector: sportSector,
         supply_status: supplyStatus,
-        city: facility.city || "مصر",
-        district: facility.district || "عام",
-        governorate: facility.governorate || "مصر",
-        address_ar: facility.addressAr || "",
-        lat: Number(facility.coordinates?.lat ?? 30.0444),
-        lng: Number(facility.coordinates?.lng ?? 31.2357),
-        rating: Number(facility.rating ?? 4.8),
-        reviews_count: Number(facility.reviewsCount ?? 0),
-        whatsapp_phone: facility.whatsappNumber || null,
-        payload: facility,
+        city: safeFacility.city || "مصر",
+        district: safeFacility.district || "عام",
+        governorate: safeFacility.governorate || "مصر",
+        address_ar: safeFacility.addressAr || "",
+        lat: Number(safeFacility.coordinates?.lat ?? 30.0444),
+        lng: Number(safeFacility.coordinates?.lng ?? 31.2357),
+        rating: Number(safeFacility.rating ?? 4.8),
+        reviews_count: Number(safeFacility.reviewsCount ?? 0),
+        whatsapp_phone: safeFacility.whatsappNumber || null,
+        payload: safeFacility,
         updated_at: new Date().toISOString(),
       };
 
@@ -435,7 +516,7 @@ export async function POST(request: Request) {
             row.rating,
             row.reviews_count,
             row.whatsapp_phone,
-            JSON.stringify(facility),
+            JSON.stringify(safeFacility),
           ]
         );
         return true;
@@ -444,6 +525,17 @@ export async function POST(request: Request) {
     }
 
     if (coach?.id) {
+      if (hasProhibitedMedicalClaims(coach)) {
+        return NextResponse.json(
+          {
+            persisted: false,
+            error: "law_3_1985_prohibited_medical_claims",
+            messageAr:
+              "مخالف لقانون 3 لسنة 1985: لا يُسمح بعبارات العلاج أو التأهيل الطبي بدون شارة ترخيص علاج طبيعي موثقة.",
+          },
+          { status: 400 }
+        );
+      }
       const sportSector =
         coach.sportSector === "fitness" || coach.sportSector === "both"
           ? coach.sportSector

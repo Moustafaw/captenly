@@ -21,6 +21,7 @@ export default function Desktop8() {
     checkInBySubscriptionCode,
     renewSwimmerSubscription,
     uploadInstaPayReceipt,
+    confirmReceiptByProvider,
     effectiveOffline,
     isOfflineSimulated,
     toggleOfflineSimulation,
@@ -945,15 +946,52 @@ export default function Desktop8() {
                       أرشيف إيصالات الدفع المباشر (InstaPay / كاش)
                     </h3>
                     <div className="flex flex-col gap-2">
-                      {activeLedger.receipts.map((r) => (
-                        <div key={r.id} className="rounded-xl bg-surface-snow p-3 flex justify-between text-xs">
-                          <div>
-                            <div className="font-bold text-dark-slate">{r.channel}</div>
-                            <div className="text-text-muted font-mono">مرجع: {r.referenceNumber}</div>
+                      {activeLedger.receipts.map((r) => {
+                        const canConfirmReceipt =
+                          isCoach ||
+                          currentPersona.role === "facility_manager" ||
+                          (Boolean(activeStaffAssignment) &&
+                            (activeStaffAssignment?.role === "accounts_manager" ||
+                              activeStaffAssignment?.role === "general_staff"));
+                        return (
+                          <div
+                            key={r.id}
+                            className="rounded-xl bg-surface-snow p-3 flex flex-col gap-1.5 text-xs border border-surface-container/60"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-dark-slate">{r.channel}</div>
+                                <div className="text-text-muted font-mono">
+                                  مرجع: {r.referenceNumber}
+                                </div>
+                              </div>
+                              <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-surface-container/50">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  r.confirmedByProvider
+                                    ? "bg-lime-tint text-deep-olive"
+                                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                                }`}
+                              >
+                                {r.confirmedByProvider
+                                  ? "✓ مؤكد ومطابق من الحسابات"
+                                  : `⏳ ${r.uploadedDateAr || "بانتظار مراجعة الحسابات"}`}
+                              </span>
+                              {!r.confirmedByProvider && canConfirmReceipt && (
+                                <button
+                                  type="button"
+                                  onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
+                                  className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold hover:opacity-90"
+                                >
+                                  تأكيد الاستلام ✓
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <form

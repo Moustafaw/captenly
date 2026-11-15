@@ -9,29 +9,6 @@ import { Icon } from "@/components/Icon";
 import { signOut } from "next-auth/react";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 
-const STATIC_NAV_START = [
-  { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
-  {
-    href: "/explore",
-    label: "استكشف",
-    match: (p: string) =>
-      p.startsWith("/explore") ||
-      p.startsWith("/pools") ||
-      p.startsWith("/coaches") ||
-      p.startsWith("/compare") ||
-      p.startsWith("/c/") ||
-      p.startsWith("/academy"),
-  },
-];
-
-const STATIC_NAV_END = [
-  {
-    href: "/magazine",
-    label: "المجلة الرياضية",
-    match: (p: string) => p.startsWith("/magazine"),
-  },
-];
-
 const ACTIVE_TAB =
   "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-deep-olive font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 const IDLE_TAB =
@@ -54,6 +31,9 @@ export function SiteHeader() {
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
+    activeWorkspaceContext,
+    switchWorkspaceContext,
   } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,6 +58,34 @@ export function SiteHeader() {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
+  const staticNavStart = [
+    { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
+    {
+      href: "/explore",
+      label: "استكشف",
+      match: (p: string) =>
+        p.startsWith("/explore") ||
+        p.startsWith("/pools") ||
+        p.startsWith("/compare") ||
+        p.startsWith("/academy") ||
+        (isAuthenticated && (p.startsWith("/coaches") || p.startsWith("/c/"))),
+    },
+  ];
+
+  const staticNavEnd = [
+    {
+      href: "/magazine",
+      label: "المجلة الرياضية",
+      match: (p: string) => p.startsWith("/magazine"),
+    },
+  ];
+
+  const verifiedStaffAssignment =
+    activeStaffAssignment &&
+    (!activeStaffAssignment.invitationStatus || activeStaffAssignment.invitationStatus === "accepted")
+      ? activeStaffAssignment
+      : null;
+
   const roleNavItems = !isAuthenticated
     ? [
         {
@@ -86,11 +94,11 @@ export function SiteHeader() {
           match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
         },
       ]
-    : activeStaffAssignment
+    : verifiedStaffAssignment
     ? [
         {
           href: "/dashboard/facility",
-          label: `لوحة ${activeStaffAssignment.facilityNameAr} (${activeStaffAssignment.roleTitleAr})`,
+          label: `لوحة ${verifiedStaffAssignment.facilityNameAr} (${verifiedStaffAssignment.roleTitleAr})`,
           match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
         },
       ]
@@ -118,7 +126,7 @@ export function SiteHeader() {
         },
       ];
 
-  const NAV = [...STATIC_NAV_START, ...roleNavItems, ...STATIC_NAV_END];
+  const NAV = [...staticNavStart, ...roleNavItems, ...staticNavEnd];
 
   useEffect(() => {
     const updateIndicator = () => {
@@ -294,14 +302,115 @@ export function SiteHeader() {
                       </div>
                     </div>
 
+                    {/* Workspace Context Switcher */}
+                    {currentPersona.role !== "guest" &&
+                      (currentPersona.linkedCoachId ||
+                        currentPersona.linkedFacilityId ||
+                        currentPersona.role === "coach" ||
+                        currentPersona.role === "facility_manager" ||
+                        myStaffAssignments.some(
+                          (s) => !s.invitationStatus || s.invitationStatus === "accepted"
+                        )) && (
+                        <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-surface-snow border border-surface-container flex flex-col gap-1.5">
+                          <div className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                            <Icon name="workspaces" className="text-[13px] text-deep-olive" />
+                            <span>نطاق العمل الحالي:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                switchWorkspaceContext("member");
+                                setMenuOpen(false);
+                                router.push("/dashboard/athlete");
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                activeWorkspaceContext === "member"
+                                  ? "bg-dark-slate text-electric-volt"
+                                  : "bg-surface-card text-dark-slate border border-surface-container"
+                              }`}
+                            >
+                              حسابي الشخصي
+                            </button>
+                            {(currentPersona.role === "coach" || currentPersona.linkedCoachId) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  switchWorkspaceContext("coach");
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/coach");
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                  activeWorkspaceContext === "coach"
+                                    ? "bg-dark-slate text-electric-volt"
+                                    : "bg-surface-card text-dark-slate border border-surface-container"
+                                }`}
+                              >
+                                وضع الكابتن
+                              </button>
+                            )}
+                            {(currentPersona.role === "facility_manager" ||
+                              currentPersona.linkedFacilityId) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  switchWorkspaceContext("facility");
+                                  setMenuOpen(false);
+                                  router.push("/dashboard/facility");
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                  activeWorkspaceContext === "facility"
+                                    ? "bg-dark-slate text-electric-volt"
+                                    : "bg-surface-card text-dark-slate border border-surface-container"
+                                }`}
+                              >
+                                إدارة المنشأة
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                     {myStaffAssignments.length > 0 && (
                       <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-lime-tint/60 border border-deep-olive/20 flex flex-col gap-1.5">
                         <div className="text-[10px] font-bold text-deep-olive flex items-center gap-1">
                           <Icon name="swap_horiz" className="text-[14px]" />
-                          <span>تبديل الحساب الوظيفي بالمنشأة:</span>
+                          <span>صلاحيات ودعوات فريق العمل:</span>
                         </div>
                         {myStaffAssignments.map((assign) => {
-                          const isCurrent = activeStaffAssignment?.id === assign.id;
+                          if (assign.invitationStatus === "pending") {
+                            return (
+                              <div
+                                key={assign.id}
+                                className="w-full p-2 rounded-lg bg-surface-card border border-deep-olive/30 flex flex-col gap-1.5"
+                              >
+                                <span className="text-[10px] font-bold text-dark-slate truncate">
+                                  دعوة: {assign.roleTitleAr} ({assign.facilityNameAr})
+                                </span>
+                                <div className="flex gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      respondToStaffInvitation(assign.facilityId, assign.id, "accepted")
+                                    }
+                                    className="flex-1 py-1 rounded-md bg-deep-olive text-white text-[10px] font-bold"
+                                  >
+                                    قبول ✓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      respondToStaffInvitation(assign.facilityId, assign.id, "declined")
+                                    }
+                                    className="flex-1 py-1 rounded-md bg-red-50 text-status-danger text-[10px] font-bold"
+                                  >
+                                    رفض ✕
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          const isCurrent = verifiedStaffAssignment?.id === assign.id;
                           return (
                             <button
                               key={assign.id}
@@ -376,15 +485,17 @@ export function SiteHeader() {
 
                     <div className="h-px bg-border-hairline my-1.5" />
                     <div className="flex flex-col gap-1.5 px-1">
-                      {currentPersona.authProvider === "google" && (
-                        <Link
-                          href="/auth/onboarding?source=google"
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
-                        >
+                      <Link
+                        href="/dashboard/athlete/settings"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
+                      >
+                        {currentPersona.authProvider === "google" ? (
                           <GoogleMark className="w-4 h-4 shrink-0" />
-                          <span>إعداد نوع الحساب والملف</span>
-                        </Link>
-                      )}
+                        ) : (
+                          <Icon name="tune" className="text-[17px]" />
+                        )}
+                        <span>إدارة البيانات وصورة الملف</span>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {

@@ -21,6 +21,7 @@ export default function Phone5() {
     checkInBySubscriptionCode,
     renewSwimmerSubscription,
     uploadInstaPayReceipt,
+    confirmReceiptByProvider,
     effectiveOffline,
     isOfflineSimulated,
     toggleOfflineSimulation,
@@ -694,12 +695,47 @@ export default function Phone5() {
                 <h3 className="font-card-title-sm text-sm text-dark-slate">
                   أرشيف إيصالات الدفع ({activeLedger.receipts.length})
                 </h3>
-                {activeLedger.receipts.map((r) => (
-                  <div key={r.id} className="rounded-xl bg-surface-snow px-3 py-2 flex justify-between text-[11px]">
-                    <span className="font-mono text-dark-slate">{r.referenceNumber} • {r.channel}</span>
-                    <span className="font-bold text-deep-olive">{r.amountEgp} ج.م</span>
-                  </div>
-                ))}
+                {activeLedger.receipts.map((r) => {
+                  const canConfirmReceipt =
+                    isCoach ||
+                    currentPersona.role === "facility_manager" ||
+                    (Boolean(activeStaffAssignment) &&
+                      (activeStaffAssignment?.role === "accounts_manager" ||
+                        activeStaffAssignment?.role === "general_staff"));
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-xl bg-surface-snow px-3 py-2 flex flex-col gap-1 text-[11px] border border-surface-container/50"
+                    >
+                      <div className="flex justify-between gap-2">
+                        <span className="font-mono text-dark-slate">
+                          {r.referenceNumber} • {r.channel}
+                        </span>
+                        <span className="font-bold text-deep-olive">{r.amountEgp} ج.م</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[10px] font-bold ${
+                            r.confirmedByProvider ? "text-deep-olive" : "text-amber-700"
+                          }`}
+                        >
+                          {r.confirmedByProvider
+                            ? "✓ مؤكد من الحسابات"
+                            : "⏳ بانتظار تأكيد الحسابات"}
+                        </span>
+                        {!r.confirmedByProvider && canConfirmReceipt && (
+                          <button
+                            type="button"
+                            onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
+                            className="px-2 py-0.5 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold"
+                          >
+                            تأكيد ✓
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
                 <div className="flex gap-2 pt-1">
                   <input
                     required

@@ -94,7 +94,7 @@ function Desktop2Inner() {
               value={otpCode}
               onChange={(e) => setOtpCode(e.target.value)}
               placeholder="رمز التحقق OTP (اتركه فارغاً عند التحقق بـ Google)"
-              className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container text-right"
+              className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container text-left placeholder:text-right"
             />
             <input
               required

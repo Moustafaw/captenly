@@ -30,6 +30,7 @@ export default function Phone2() {
   const router = useRouter();
   const {
     currentPersona,
+    userLocation,
     isAuthenticated,
     minorAthletes,
     addMinorAthlete,
@@ -40,39 +41,62 @@ export default function Phone2() {
     myStaffAssignments,
     activeStaffAssignment,
     switchToStaffMode,
+    respondToStaffInvitation,
   } = useCaptenly();
 
   const canManageFamily = isMemberAccountRole(currentPersona.role);
+  const isParentOnlyIntent = currentPersona.accountIntent === "parent_only";
   const [tab, setTab] = useState<"analytics" | "ledgers" | "family">("analytics");
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string>("");
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>(() =>
+    isParentOnlyIntent && minorAthletes.length > 0 ? minorAthletes[0].id : ""
+  );
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("8");
   const [eventTitle, setEventTitle] = useState("");
   const [newVal, setNewVal] = useState("");
   const [prevVal, setPrevVal] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
+  const [pbTargetAthleteId, setPbTargetAthleteId] = useState<string>("");
 
   const effectiveAthleteId = useMemo(() => {
     if (canManageFamily && selectedAthleteId && minorAthletes.some((m) => m.id === selectedAthleteId)) {
       return selectedAthleteId;
     }
+    if (canManageFamily && isParentOnlyIntent && minorAthletes.length > 0 && selectedAthleteId !== "self") {
+      return minorAthletes[0].id;
+    }
     return currentPersona.id;
-  }, [canManageFamily, selectedAthleteId, minorAthletes, currentPersona.id]);
+  }, [canManageFamily, selectedAthleteId, minorAthletes, currentPersona.id, isParentOnlyIntent]);
 
   const selectedAthleteName = useMemo(() => {
     if (effectiveAthleteId === currentPersona.id) return currentPersona.fullNameAr;
     return minorAthletes.find((m) => m.id === effectiveAthleteId)?.fullNameAr || currentPersona.fullNameAr;
   }, [effectiveAthleteId, currentPersona.id, currentPersona.fullNameAr, minorAthletes]);
 
-  const myLedgers = sessionLedgers.filter(
-    (l) =>
+  const myLedgers = sessionLedgers.filter((l) => {
+    if (canManageFamily && selectedAthleteId && selectedAthleteId !== "self") {
+      return l.athleteId === selectedAthleteId;
+    }
+    if (canManageFamily && selectedAthleteId === "self") {
+      return (
+        l.athleteId === currentPersona.id ||
+        (Boolean(currentPersona.memberCode) &&
+          l.memberCode?.toUpperCase() === currentPersona.memberCode?.toUpperCase())
+      );
+    }
+    return (
       l.athleteId === currentPersona.id ||
       (currentPersona.memberCode &&
         l.memberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()) ||
       (canManageFamily && minorAthletes.some((m) => m.id === l.athleteId))
-  );
+    );
+  });
   const myPBs = useMemo(() => {
-    if (canManageFamily && selectedAthleteId) {
+    if (canManageFamily && selectedAthleteId && selectedAthleteId !== "self") {
       return pbRecords.filter((p) => p.athleteId === effectiveAthleteId);
+    }
+    if (canManageFamily && selectedAthleteId === "self") {
+      return pbRecords.filter((p) => p.athleteId === currentPersona.id);
     }
     return pbRecords.filter(
       (p) =>
@@ -84,6 +108,11 @@ export default function Phone2() {
   const activeSkillEvaluation = useMemo(
     () => getSkillEvaluationForAthlete(effectiveAthleteId),
     [getSkillEvaluationForAthlete, effectiveAthleteId]
+  );
+
+  const hasSkillEvaluation = useMemo(
+    () => activeSkillEvaluation.metrics.some((m) => m.score > 0),
+    [activeSkillEvaluation]
   );
 
   const avgScore = useMemo(() => {
@@ -141,14 +170,22 @@ export default function Phone2() {
                   {currentPersona.memberCode}
                 </span>
               )}
-              <span className="text-[10px] text-surface-container-high">{currentPersona.city}</span>
+              {currentPersona.city && (
+                <span className="text-[10px] text-surface-container-high">{currentPersona.city}</span>
+              )}
             </div>
             <h1 className="font-card-title text-base text-surface-card mt-1 leading-snug">
               {currentPersona.fullNameAr}
             </h1>
-            <p className="text-[11px] text-surface-container-high mt-0.5 line-clamp-2">
-              {currentPersona.bioAr || "سبّاح نشط على كابتنلي • متابعة الأرقام القياسية وحصص QR"}
-            </p>
+            {currentPersona.bioAr ? (
+              <p className="text-[11px] text-surface-container-high mt-0.5 line-clamp-2">
+                {currentPersona.bioAr}
+              </p>
+            ) : (
+              <Link href="/dashboard/athlete/settings" className="text-[11px] text-electric-volt mt-0.5 inline-block hover:underline">
+                أضف نبذة تعريفية +
+              </Link>
+            )}
             <ProfileSocialPillsRow />
           </div>
         </div>
@@ -159,7 +196,9 @@ export default function Phone2() {
             <div className="text-[10px] text-surface-container-high">أرقام PB</div>
           </div>
           <div className="rounded-2xl bg-deep-carbon py-2 text-center">
-            <div className="text-sm font-black text-electric-volt">{avgScore}/5</div>
+            <div className="text-sm font-black text-electric-volt">
+              {hasSkillEvaluation ? `${avgScore}/5` : "—"}
+            </div>
             <div className="text-[10px] text-surface-container-high">المهارة</div>
           </div>
           <div className="rounded-2xl bg-deep-carbon py-2 text-center">
@@ -185,29 +224,58 @@ export default function Phone2() {
       </section>
 
       {/* Staff Role Account Switcher on Mobile */}
-      {myStaffAssignments.length > 0 && (
+      {myStaffAssignments.some((st) => st.invitationStatus !== "declined") && (
         <section className="rounded-2xl bg-lime-tint border border-deep-olive/35 p-4 flex flex-col gap-2.5">
           <div className="text-xs font-extrabold text-dark-slate flex items-center gap-1.5">
             <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
-            <span>تبديل الحساب الوظيفي بالمنشأة</span>
+            <span>دعوات وصلاحيات العمل بالمنشأة</span>
           </div>
-          {myStaffAssignments.map((st) => (
-            <button
-              key={st.id}
-              type="button"
-              onClick={() => {
-                switchToStaffMode(st.id);
-                router.push("/dashboard/facility");
-              }}
-              className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold ${
-                activeStaffAssignment?.id === st.id
-                  ? "bg-deep-olive text-electric-volt"
-                  : "bg-dark-slate text-electric-volt"
-              }`}
-            >
-              تبديل إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
-            </button>
-          ))}
+          {myStaffAssignments
+            .filter((st) => st.invitationStatus !== "declined")
+            .map((st) =>
+              st.invitationStatus === "pending" ? (
+                <div
+                  key={st.id}
+                  className="rounded-xl bg-surface-card p-3 border border-deep-olive/25 flex flex-col gap-2"
+                >
+                  <div className="text-xs font-bold text-dark-slate">
+                    دعوة: {st.roleTitleAr} ({st.facilityNameAr})
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => respondToStaffInvitation(st.facilityId, st.id, "accepted")}
+                      className="flex-1 py-2 rounded-full bg-deep-olive text-white text-xs font-bold"
+                    >
+                      قبول ✓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => respondToStaffInvitation(st.facilityId, st.id, "declined")}
+                      className="flex-1 py-2 rounded-full bg-red-50 text-status-danger text-xs font-bold"
+                    >
+                      رفض ✕
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => {
+                    switchToStaffMode(st.id);
+                    router.push("/dashboard/facility");
+                  }}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold ${
+                    activeStaffAssignment?.id === st.id
+                      ? "bg-deep-olive text-electric-volt"
+                      : "bg-dark-slate text-electric-volt"
+                  }`}
+                >
+                  تبديل إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
+                </button>
+              )
+            )}
         </section>
       )}
 
@@ -237,18 +305,40 @@ export default function Phone2() {
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               <button
                 type="button"
-                onClick={() => setSelectedAthleteId("")}
+                onClick={() => {
+                  setSelectedAthleteId("");
+                  setPbTargetAthleteId("");
+                }}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
                   !selectedAthleteId ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-dark-slate"
                 }`}
               >
-                حسابي / الكل
+                كل الأسرة
               </button>
+              {!isParentOnlyIntent && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAthleteId("self");
+                    setPbTargetAthleteId("self");
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                    selectedAthleteId === "self"
+                      ? "bg-deep-olive text-white"
+                      : "bg-surface-card text-dark-slate"
+                  }`}
+                >
+                  حسابي ({currentPersona.fullNameAr.split(" ")[0]})
+                </button>
+              )}
               {minorAthletes.map((child) => (
                 <button
                   key={child.id}
                   type="button"
-                  onClick={() => setSelectedAthleteId(child.id)}
+                  onClick={() => {
+                    setSelectedAthleteId(child.id);
+                    setPbTargetAthleteId(child.id);
+                  }}
                   className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
                     selectedAthleteId === child.id
                       ? "bg-deep-olive text-white"
@@ -286,18 +376,26 @@ export default function Phone2() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!eventTitle.trim() || !Number(newVal)) return;
+                const targetId =
+                  canManageFamily && pbTargetAthleteId && pbTargetAthleteId !== "self"
+                    ? pbTargetAthleteId
+                    : effectiveAthleteId;
+                const targetName =
+                  targetId === currentPersona.id
+                    ? currentPersona.fullNameAr
+                    : minorAthletes.find((m) => m.id === targetId)?.fullNameAr || selectedAthleteName;
                 addNewPBRecord({
-                  athleteId: effectiveAthleteId,
-                  athleteNameAr: selectedAthleteName,
+                  athleteId: targetId,
+                  athleteNameAr: targetName,
                   sportType: "swimming",
                   eventTitleAr: eventTitle.trim(),
                   currentValue: Number(newVal) || 0,
                   previousValue: Number(prevVal) || 0,
-                  unitAr: "ثانية",
+                  unitAr: pbUnitAr,
                   verificationSource: "self_entered",
                   verificationLabelAr: "سجل شخصي من الموبايل",
                   coachNameAr: "متابعة ذاتية",
-                  facilityNameAr: currentPersona.city,
+                  facilityNameAr: userLocation.isSpecified ? userLocation.city : "تسجيل شخصي",
                 });
                 setEventTitle("");
                 setNewVal("");
@@ -305,20 +403,47 @@ export default function Phone2() {
               }}
               className="grid grid-cols-3 gap-2 pt-2 border-t border-surface-container"
             >
+              {canManageFamily && minorAthletes.length > 0 && (
+                <select
+                  value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
+                  onChange={(e) => setPbTargetAthleteId(e.target.value)}
+                  className="col-span-3 rounded-xl bg-surface-snow px-3 py-2 text-xs font-bold outline-none border border-surface-container"
+                >
+                  {!isParentOnlyIntent && (
+                    <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
+                  )}
+                  {minorAthletes.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      الابن: {child.fullNameAr}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 required
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="السباق (50م حرة)"
-                className="col-span-3 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                className="col-span-2 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
               />
+              <select
+                value={pbUnitAr}
+                onChange={(e) => setPbUnitAr(e.target.value)}
+                className="rounded-xl bg-surface-snow px-2 py-2 text-xs font-bold outline-none border border-surface-container"
+              >
+                <option value="ثانية">ثانية</option>
+                <option value="متر">متر</option>
+                <option value="لفة">لفة</option>
+                <option value="تكرار">تكرار</option>
+                <option value="نقطة">نقطة</option>
+              </select>
               <input
                 required
                 type="number"
                 step="0.1"
                 value={newVal}
                 onChange={(e) => setNewVal(e.target.value)}
-                placeholder="الزمن الجديد"
+                placeholder="الرقم الجديد"
                 className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
               />
               <input
@@ -326,7 +451,7 @@ export default function Phone2() {
                 step="0.1"
                 value={prevVal}
                 onChange={(e) => setPrevVal(e.target.value)}
-                placeholder="الزمن السابق"
+                placeholder="الرقم السابق"
                 className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
               />
               <button type="submit" className="px-3.5 py-2 rounded-xl bg-dark-slate text-electric-volt text-xs font-bold">
@@ -336,7 +461,12 @@ export default function Phone2() {
           </section>
 
           <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            <h2 className="font-card-title-sm text-dark-slate">التقييم المهاري (5 محاور)</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-card-title-sm text-dark-slate">التقييم المهاري (5 محاور)</h2>
+              <span className="text-xs font-extrabold text-deep-olive">
+                {hasSkillEvaluation ? `${avgScore} / 5` : "لم يُقيّم بعد"}
+              </span>
+            </div>
             {activeSkillEvaluation.metrics.map((m) => (
               <div key={m.labelAr} className="flex flex-col gap-1">
                 <div className="flex justify-between text-xs font-bold">
@@ -348,6 +478,20 @@ export default function Phone2() {
                 </div>
               </div>
             ))}
+            {hasSkillEvaluation && activeSkillEvaluation.coachFeedbackAr ? (
+              <p className="text-[11px] text-text-muted bg-surface-snow p-3 rounded-xl leading-relaxed">
+                {activeSkillEvaluation.coachNameAr && (
+                  <strong className="text-dark-slate">
+                    ملاحظة الكابتن ({activeSkillEvaluation.coachNameAr}):{" "}
+                  </strong>
+                )}
+                {activeSkillEvaluation.coachFeedbackAr}
+              </p>
+            ) : (
+              <p className="text-[11px] text-text-muted bg-surface-snow p-3 rounded-xl leading-relaxed">
+                لم يُسجّل تقييم مهاري من الكابتن بعد.
+              </p>
+            )}
           </section>
         </>
       )}
@@ -410,17 +554,39 @@ export default function Phone2() {
               إدارة وتعديل ←
             </Link>
           </div>
-          {minorAthletes.map((child) => (
-            <div key={child.id} className="rounded-xl bg-surface-snow p-3 flex justify-between items-center text-xs">
-              <div>
-                <div className="font-bold text-dark-slate">
-                  {child.fullNameAr} ({child.age} سنوات)
+          {minorAthletes.map((child) => {
+            const childLedger = sessionLedgers.find((l) => l.athleteId === child.id);
+            const facLabel = childLedger?.facilityNameAr || child.activeFacilityNameAr;
+            const coachLabel = childLedger?.coachNameAr || child.activeCoachNameAr;
+            return (
+              <div key={child.id} className="rounded-xl bg-surface-snow p-3 flex justify-between items-center gap-2 text-xs">
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-dark-slate">
+                      {child.fullNameAr} ({child.age} سنوات)
+                    </span>
+                    {child.childMemberCode && (
+                      <code
+                        dir="ltr"
+                        className="px-1.5 py-0.5 rounded bg-lime-tint text-deep-olive font-mono text-[10px] font-bold"
+                      >
+                        {child.childMemberCode}
+                      </code>
+                    )}
+                  </div>
+                  {child.currentStarLevel > 0 && child.starTitleAr && (
+                    <div className="text-[11px] text-deep-olive font-bold mt-0.5">{child.starTitleAr}</div>
+                  )}
+                  <div className="text-[10px] text-text-muted mt-0.5">
+                    {coachLabel || facLabel
+                      ? [coachLabel, facLabel].filter(Boolean).join(" • ")
+                      : "غير مربوط بأكاديمية بعد"}
+                  </div>
                 </div>
-                <div className="text-[11px] text-deep-olive">{child.starTitleAr}</div>
+                <Icon name="verified" className="text-deep-olive text-[16px] shrink-0" />
               </div>
-              <Icon name="verified" className="text-deep-olive text-[16px]" />
-            </div>
-          ))}
+            );
+          })}
           <form
             onSubmit={(e) => {
               e.preventDefault();

@@ -24,6 +24,7 @@ export default function Desktop13() {
     recordCoachSkillAndPB,
     verifiedLeads,
     currentPersona,
+    updateCurrentPersonaProfile,
     isAuthenticated,
     syncLedgersFromServer,
   } = useCaptenly();
@@ -43,18 +44,16 @@ export default function Desktop13() {
   const [selectedFacId, setSelectedFacId] = useState(
     currentPersona.linkedFacilityId || facilities[0]?.id || ""
   );
-  const [packageTitle, setPackageTitle] = useState("باقة التأسيس والمتابعة — 8 حصص");
+  const [packageTitle, setPackageTitle] = useState("");
   const [sessionsCount, setSessionsCount] = useState<8 | 12 | 24>(8);
-  const [feeEgp, setFeeEgp] = useState("650");
+  const [feeEgp, setFeeEgp] = useState("");
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
 
   // Bio Law 3/1985 check
   const [bioDraft, setBioDraft] = useState(
-    activeCoach?.bioAr ||
-      currentPersona.bioAr ||
-      "مدرب سباحة تأسيس وإنقاذ مائي معتمد، التزام كامل بتدريب اللياقة والمهارات المائية."
+    activeCoach?.bioAr || currentPersona.bioAr || ""
   );
 
   // Coach PB & Skill Assessment logger
@@ -62,6 +61,7 @@ export default function Desktop13() {
   const [pbSwimmerName, setPbSwimmerName] = useState("");
   const [pbEventTitle, setPbEventTitle] = useState("");
   const [pbTimeSeconds, setPbTimeSeconds] = useState("");
+  const [pbUnitAr, setPbUnitAr] = useState("ثانية");
   const [pbRatingOverall, setPbRatingOverall] = useState("5");
   const [pbSkills, setPbSkills] = useState<[number, number, number, number, number]>([5, 5, 4, 5, 5]);
   const [pbFeedbackNote, setPbFeedbackNote] = useState("");
@@ -102,7 +102,7 @@ export default function Desktop13() {
       athleteNameAr: athleteNameInput.trim() || matchedMember?.fullNameAr || "سباح متدرب",
       facilityId: selectedFacId,
       coachId: activeCoach?.id || currentPersona.id,
-      packageTitleAr: packageTitle,
+      packageTitleAr: packageTitle.trim() || `باقة ${sessionsCount} حصص`,
       totalSessions: sessionsCount,
       amountEgp: Number(feeEgp) || 0,
     });
@@ -340,11 +340,11 @@ export default function Desktop13() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-dark-slate">كود عضوية السباح (اختياري)</label>
+                <label className="text-xs font-bold text-dark-slate">كود عضوية السباح أو الابن (اختياري)</label>
                 <input
                   value={memberCode}
                   onChange={(e) => setMemberCode(e.target.value)}
-                  placeholder="CAP-M-XXXX"
+                  placeholder="CAP-M-XXXX أو CAP-JR-XXXX"
                   className="rounded-xl bg-surface-snow px-3.5 py-2.5 font-mono text-xs outline-none border border-surface-container"
                 />
               </div>
@@ -383,6 +383,7 @@ export default function Desktop13() {
                     type="number"
                     value={feeEgp}
                     onChange={(e) => setFeeEgp(e.target.value)}
+                    placeholder="الرسوم ج.م (مثلاً: 650)"
                     className="rounded-xl bg-surface-snow px-3 py-2.5 text-xs outline-none border border-surface-container"
                   />
                 </div>
@@ -407,15 +408,21 @@ export default function Desktop13() {
                   rows={3}
                   value={bioDraft}
                   onChange={(e) => setBioDraft(e.target.value)}
+                  placeholder="اكتب نبذتك المهنية وتخصصك وخبراتك في السباحة..."
                   className="rounded-xl bg-surface-snow p-3 text-xs outline-none border border-surface-container leading-relaxed"
                 />
                 <button
                   type="button"
                   onClick={() => {
+                    if (!bioDraft.trim()) {
+                      setStatusMsg({ ok: false, msg: "يرجى كتابة النبذة المهنية أولاً قبل الحفظ." });
+                      return;
+                    }
                     if (activeCoach) {
                       const res = validateAndSaveCoachBio(activeCoach.id, bioDraft);
                       setStatusMsg({ ok: res.ok, msg: res.messageAr });
                     } else {
+                      updateCurrentPersonaProfile({ bioAr: bioDraft.trim() });
                       setStatusMsg({
                         ok: true,
                         msg: "تم تحديث وحفظ النبذة المهنية في ملفك ✓",
@@ -440,7 +447,7 @@ export default function Desktop13() {
                   swimmerNameAr: swimmerName,
                   eventTitleAr: pbEventTitle.trim() || "سباق حر",
                   currentValue: Number(pbTimeSeconds) || 0,
-                  unitAr: "ثانية",
+                  unitAr: pbUnitAr,
                   coachNameAr: activeCoach?.fullNameAr || currentPersona.fullNameAr,
                   facilityNameAr:
                     facilities.find((f) => f.id === selectedFacId)?.nameAr || currentPersona.city,
@@ -457,12 +464,12 @@ export default function Desktop13() {
                     ],
                     coachFeedbackAr:
                       pbFeedbackNote.trim() ||
-                      `تقييم موثق لزمن ${pbTimeSeconds} ثانية في سباق ${pbEventTitle}.`,
+                      `تقييم موثق لقيمة ${pbTimeSeconds} ${pbUnitAr} في سباق ${pbEventTitle}.`,
                   },
                 });
                 setStatusMsg({
                   ok: true,
-                  msg: `تم تسجيل الرقم القياسي والتقييم المهاري للسباح «${swimmerName}» ومزامنته لحسابه بنجاح!`,
+                  msg: `تم تسجيل الرقم القياسي (${pbTimeSeconds} ${pbUnitAr}) والتقييم المهاري للسباح «${swimmerName}» ومزامنته لحسابه بنجاح!`,
                 });
                 setPbSwimmerName("");
                 setPbEventTitle("");
@@ -474,7 +481,7 @@ export default function Desktop13() {
               <h3 className="font-card-title-sm text-dark-slate">
                 تسجيل رقم قياسي وتقييم مهاري موثق للسباح
               </h3>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {coachSwimmers.length > 0 ? (
                   <select
                     value={pbSelectedAthleteId}
@@ -502,7 +509,7 @@ export default function Desktop13() {
                   required
                   value={pbEventTitle}
                   onChange={(e) => setPbEventTitle(e.target.value)}
-                  placeholder="السباق (50م حرة)"
+                  placeholder="السباق / التمرين (50م حرة)"
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
                 <input
@@ -511,9 +518,20 @@ export default function Desktop13() {
                   step="0.1"
                   value={pbTimeSeconds}
                   onChange={(e) => setPbTimeSeconds(e.target.value)}
-                  placeholder="الزمن بالثواني (31.8)"
+                  placeholder="القيمة (مثلاً: 31.8)"
                   className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
                 />
+                <select
+                  value={pbUnitAr}
+                  onChange={(e) => setPbUnitAr(e.target.value)}
+                  className="rounded-xl bg-surface-snow px-3 py-2 text-xs font-bold outline-none border border-surface-container"
+                >
+                  <option value="ثانية">الوحدة: ثانية (الأقل أسرع)</option>
+                  <option value="متر">الوحدة: متر</option>
+                  <option value="لفة">الوحدة: لفة</option>
+                  <option value="تكرار">الوحدة: تكرار</option>
+                  <option value="نقطة">الوحدة: نقطة</option>
+                </select>
                 <select
                   value={pbRatingOverall}
                   onChange={(e) => {

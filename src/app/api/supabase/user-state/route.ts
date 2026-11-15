@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
-import { getServerCaller } from "@/lib/memberSession";
+import { getServerCaller, hasFacilityStaffAccess, type ServerCallerContext } from "@/lib/memberSession";
 import type {
   MinorAthleteProfile,
   PersonalBestRecord,
@@ -29,6 +29,8 @@ async function ensureUserStateTablesViaPg() {
       create table if not exists public.captenly_minor_athletes (
         id text primary key,
         parent_member_code text not null,
+        child_member_code text,
+        full_name_ar text,
         payload jsonb not null,
         updated_at timestamptz default now()
       );
@@ -40,9 +42,73 @@ async function ensureUserStateTablesViaPg() {
         user_location jsonb default '{}'::jsonb,
         updated_at timestamptz default now()
       );
+      alter table public.captenly_pb_records enable row level security;
+      alter table public.captenly_skill_evaluations enable row level security;
+      alter table public.captenly_minor_athletes enable row level security;
+      alter table public.captenly_user_prefs enable row level security;
+      alter table public.captenly_minor_athletes add column if not exists child_member_code text;
+      alter table public.captenly_minor_athletes add column if not exists full_name_ar text;
     `);
     return true;
   });
+}
+
+async function isProviderLinkedToAthlete(
+  caller: ServerCallerContext,
+  memberCode: string,
+  athleteId?: string
+): Promise<boolean> {
+  if (!caller.authenticated) return false;
+  if (caller.isAdmin) return true;
+
+  let rows: Array<{ coach_id?: string | null; facility_id?: string | null }> = [];
+  const admin = getSupabaseAdminClient();
+  if (admin) {
+    try {
+      let query = admin
+        .from("captenly_session_ledgers")
+        .select("coach_id, facility_id")
+        .limit(40);
+      if (athleteId) {
+        query = query.or(`member_code.eq.${memberCode},athlete_id.eq.${athleteId}`);
+      } else {
+        query = query.eq("member_code", memberCode);
+      }
+      const { data, error } = await query;
+      if (!error && Array.isArray(data)) {
+        rows = data as typeof rows;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (rows.length === 0) {
+    const pg = await withPgClient(async (client) => {
+      const res = athleteId
+        ? await client.query(
+            `select coach_id, facility_id from public.captenly_session_ledgers
+             where upper(coalesce(member_code, '')) = upper($1) or athlete_id = $2 limit 40`,
+            [memberCode, athleteId]
+          )
+        : await client.query(
+            `select coach_id, facility_id from public.captenly_session_ledgers
+             where upper(coalesce(member_code, '')) = upper($1) limit 40`,
+            [memberCode]
+          );
+      return res.rows as typeof rows;
+    });
+    if (pg.ok) rows = pg.value;
+  }
+
+  for (const r of rows) {
+    if (caller.linkedCoachId && r.coach_id === caller.linkedCoachId) return true;
+    if (caller.linkedFacilityId && r.facility_id === caller.linkedFacilityId) return true;
+    if (r.facility_id && (await hasFacilityStaffAccess(r.facility_id, caller, ["general_staff", "subscriptions_manager"]))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function GET(request: Request) {
@@ -181,14 +247,14 @@ export async function POST(request: Request) {
     }
 
     const isSelfOwner = Boolean(caller.memberCode && caller.memberCode.toUpperCase() === memberCode);
-    const isProviderWriter =
-      caller.role === "coach" ||
-      caller.role === "facility_manager" ||
-      Boolean(caller.linkedFacilityId);
+    const targetAthleteId = body.pbRecord?.athleteId || body.skillEvaluation?.athleteId;
 
     if (body.type === "pb" || body.type === "skill_eval") {
-      if (!caller.isAdmin && !isSelfOwner && !isProviderWriter) {
-        return NextResponse.json({ persisted: false, reason: "forbidden" }, { status: 403 });
+      if (!caller.isAdmin && !isSelfOwner) {
+        const linked = await isProviderLinkedToAthlete(caller, memberCode, targetAthleteId);
+        if (!linked) {
+          return NextResponse.json({ persisted: false, reason: "forbidden" }, { status: 403 });
+        }
       }
     } else if (!caller.isAdmin && !isSelfOwner) {
       return NextResponse.json({ persisted: false, reason: "forbidden" }, { status: 403 });
@@ -257,6 +323,8 @@ export async function POST(request: Request) {
           {
             id: child.id,
             parent_member_code: memberCode,
+            child_member_code: child.childMemberCode || null,
+            full_name_ar: child.fullNameAr || null,
             payload: child,
             updated_at: new Date().toISOString(),
           },
@@ -266,10 +334,15 @@ export async function POST(request: Request) {
       }
       const pg = await withPgClient(async (client) => {
         await client.query(
-          `insert into public.captenly_minor_athletes (id, parent_member_code, payload, updated_at)
-           values ($1,$2,$3::jsonb,now())
-           on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
-          [child.id, memberCode, JSON.stringify(child)]
+          `insert into public.captenly_minor_athletes (id, parent_member_code, child_member_code, full_name_ar, payload, updated_at)
+           values ($1,$2,$3,$4,$5::jsonb,now())
+           on conflict (id) do update set
+             child_member_code = coalesce(excluded.child_member_code, public.captenly_minor_athletes.child_member_code),
+             full_name_ar = coalesce(excluded.full_name_ar, public.captenly_minor_athletes.full_name_ar),
+             payload = excluded.payload,
+             updated_at = now()
+           where upper(public.captenly_minor_athletes.parent_member_code) = upper($2)`,
+          [child.id, memberCode, child.childMemberCode || null, child.fullNameAr || null, JSON.stringify(child)]
         );
         return true;
       });

@@ -178,8 +178,8 @@ export default function SecuritySettingsPage() {
           </div>
           {currentPersona.authProvider === "google" && (
             <div className="flex items-center justify-between pt-1 border-t border-surface-container/60 text-micro-caption">
-              <Link href="/auth/onboarding?source=google" className="text-deep-olive font-bold hover:underline">
-                تعديل نوع الحساب أو رقم الهاتف
+              <Link href="/dashboard/athlete/settings" className="text-deep-olive font-bold hover:underline">
+                تعديل بيانات الحساب والملف العائلي
               </Link>
               <button
                 type="button"

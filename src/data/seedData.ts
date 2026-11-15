@@ -47,7 +47,7 @@ export const GUEST_PERSONA: PersonaAccount = {
   shortLabelAr: "زائر (بدون تسجيل)",
   fullNameAr: "زائر كابتنلي",
   personaTitleAr: "تصفح واستكشاف مجاني",
-  city: "المحلة الكبرى",
+  city: "كل مصر",
   phone: "",
   descriptionAr:
     "استكشف المسابح القريبة والكباتن المعتمدين ومجلة السباحة مجاناً — أنشئ حسابك لحفظ المفضلة والمقارنة والتواصل.",
@@ -66,8 +66,8 @@ export const INITIAL_VERIFIED_LEADS: VerifiedLeadItem[] = [];
 
 export const INITIAL_SKILL_EVALUATION: SkillEvaluation5Point = {
   athleteId: "",
-  evaluatedDateAr: "بانتظار أول تقييم رسمي من الكابتن",
-  coachNameAr: "لم يُسجل تقييم معتمد بعد",
+  evaluatedDateAr: "",
+  coachNameAr: "",
   metrics: [
     { labelAr: "التنفس الجانبي", score: 0 },
     { labelAr: "ضربات الرجلين", score: 0 },
@@ -75,8 +75,7 @@ export const INITIAL_SKILL_EVALUATION: SkillEvaluation5Point = {
     { labelAr: "وضعية الجسم والطفو", score: 0 },
     { labelAr: "البدء والدوران", score: 0 },
   ],
-  coachFeedbackAr:
-    "عند ربط كود عضويتك بكابتن موثق أو أكاديمية سيظهر تقييم المهارات المائي المعتمد هنا تلقائياً.",
+  coachFeedbackAr: "",
 };
 
 export const INITIAL_DEMAND_RADAR: DemandRadarEntry[] = [];
