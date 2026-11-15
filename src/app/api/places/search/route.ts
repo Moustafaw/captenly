@@ -12,6 +12,8 @@ interface GooglePlaceItem {
   rating?: number;
   userRatingCount?: number;
   editorialSummary?: { text?: string };
+  websiteUri?: string;
+  photos?: Array<{ name?: string }>;
 }
 
 interface PhotonFeature {
@@ -38,6 +40,7 @@ interface NominatimItem {
   display_name?: string;
   lat?: string;
   lon?: string;
+  extratags?: Record<string, string>;
   address?: {
     road?: string;
     suburb?: string;
@@ -177,22 +180,22 @@ function inferGovernorateFromCity(city: string, address: string): string {
   return city || "مصر";
 }
 
-const SWIM_PLACE_IMAGES = [
-  "/screens/20b781f698f9.jpg",
-  "/screens/c4a35b02a5ab.jpg",
-  "/screens/bf4051042977.jpg",
-  "/screens/ffcc3e56ffaa.jpg",
-  "/screens/a62d511dce31.jpg",
-  "/screens/f26e73948f8b.jpg",
-  "/screens/7d7f304252a9.jpg",
-];
-
-function pickDeterministicPoolImage(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return SWIM_PLACE_IMAGES[hash % SWIM_PLACE_IMAGES.length];
+function buildPlacePhotoProxyUrl(input: {
+  nameAr: string;
+  nameEn?: string;
+  websiteUri?: string;
+  wikipedia?: string;
+  directImage?: string;
+  photoName?: string;
+}): string {
+  const params = new URLSearchParams();
+  if (input.nameAr) params.set("name", input.nameAr);
+  if (input.nameEn && input.nameEn !== input.nameAr) params.set("en", input.nameEn);
+  if (input.websiteUri) params.set("website", input.websiteUri);
+  if (input.wikipedia) params.set("wiki", input.wikipedia);
+  if (input.directImage) params.set("img", input.directImage);
+  if (input.photoName) params.set("photoName", input.photoName);
+  return `/api/places/photo?${params.toString()}`;
 }
 
 function buildPublicDirectoryFacility(input: {
@@ -210,6 +213,10 @@ function buildPublicDirectoryFacility(input: {
   priceLastVerifiedDate: string;
   publicDescriptionAr: string;
   specialtiesAr?: string[];
+  websiteUri?: string;
+  wikipedia?: string;
+  directImage?: string;
+  photoName?: string;
 }): Facility {
   return {
     id: input.id,
@@ -239,7 +246,14 @@ function buildPublicDirectoryFacility(input: {
     completenessScore: 60,
     rating: typeof input.rating === "number" ? input.rating : 0,
     reviewsCount: typeof input.reviewsCount === "number" ? input.reviewsCount : 0,
-    heroImage: pickDeterministicPoolImage(input.id),
+    heroImage: buildPlacePhotoProxyUrl({
+      nameAr: input.nameAr,
+      nameEn: input.nameEn,
+      websiteUri: input.websiteUri,
+      wikipedia: input.wikipedia,
+      directImage: input.directImage,
+      photoName: input.photoName,
+    }),
     publicDescriptionAr: input.publicDescriptionAr,
     sourcePublicNoteAr: input.addressAr,
     badges: [],
@@ -606,6 +620,8 @@ function normalizeGooglePlaceToFacility(p: GooglePlaceItem, rawCity: string): Fa
     publicDescriptionAr:
       p.editorialSummary?.text ||
       `مسبح أو نادي سباحة مدرج في دليل خرائط Google (${formattedAddress}).`,
+    websiteUri: p.websiteUri,
+    photoName: Array.isArray(p.photos) ? p.photos[0]?.name : undefined,
   });
 }
 
@@ -695,6 +711,9 @@ function normalizeNominatimItemToFacility(item: NominatimItem, fallbackId: strin
     reviewsCount: 0,
     priceLastVerifiedDate: "دليل الخرائط العامة",
     publicDescriptionAr: `مسبح أو نادي رياضي مدرج في دليل OpenStreetMap العام (${displayName}).`,
+    websiteUri: item.extratags?.website || item.extratags?.["contact:website"] || item.extratags?.url,
+    wikipedia: item.extratags?.wikipedia,
+    directImage: item.extratags?.image,
   });
 }
 
@@ -741,7 +760,7 @@ async function fetchNominatimLookup(osmPlaceId: string, rawCity: string): Promis
   try {
     const url = `https://nominatim.openstreetmap.org/lookup?osm_ids=${encodeURIComponent(
       osmParam
-    )}&format=jsonv2&addressdetails=1&accept-language=ar`;
+    )}&format=jsonv2&addressdetails=1&extratags=1&accept-language=ar`;
     const res = await fetch(url, {
       headers: { "User-Agent": OSM_USER_AGENT, "Accept-Language": "ar" },
       signal: AbortSignal.timeout(4500),
@@ -886,7 +905,7 @@ export async function GET(request: Request) {
           headers: {
             "X-Goog-Api-Key": apiKey,
             "X-Goog-FieldMask":
-              "id,displayName,formattedAddress,location,rating,userRatingCount,editorialSummary",
+              "id,displayName,formattedAddress,location,rating,userRatingCount,editorialSummary,websiteUri,photos",
           },
           cache: "no-store",
         }
@@ -961,7 +980,7 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask":
-            "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.editorialSummary",
+            "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.editorialSummary,places.websiteUri,places.photos",
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(5000),

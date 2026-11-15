@@ -25,8 +25,6 @@ export default function FounderAdminPage() {
     verifiedLeads,
     seedNewFacilityConcierge,
     reviewEntityBadge,
-    isOfflineSimulated,
-    toggleOfflineSimulation,
     checkInSession,
     validateAndSaveCoachBio,
     switchPersona,
@@ -389,22 +387,21 @@ export default function FounderAdminPage() {
                   اختبار ختم الحصة #7 أوفلاين وتفعيل تنبيه التجديد
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  يقوم بقطع الشبكة افتراضياً، ثم يبصم الحصة رقم 7 في دفتر السباح «يوسف طارق» بكود PIN (4829)، ويطلق تنبيه التجديد الذكي عند تبقي حصتين أو أقل.
+                  يبصم الحصة رقم 7 في دفتر السباح «يوسف طارق» بكود PIN (4829) عبر نظام الحفظ المحلي (Offline Queue)، ويطلق تنبيه التجديد الذكي عند تبقي حصتين أو أقل.
                 </p>
                 <button
                   onClick={() => {
-                    if (!isOfflineSimulated) toggleOfflineSimulation();
                     const res = checkInSession(
                       sessionLedgers[0].id,
                       sessionLedgers[0].pinCode,
                       "offline_sync",
-                      "محاكاة ختم أوفلاين من معمل المؤسس"
+                      "تسجيل حصة في طابور المزامنة التلقائي"
                     );
                     setSimResultText(res.messageAr);
                   }}
                   className="w-full bg-dark-slate hover:bg-deep-carbon text-electric-volt font-black text-xs py-3 rounded-xl transition"
                 >
-                  تشغيل محاكاة ختم الحصة الأوفلاين الآن ←
+                  اختبار ختم حصة في طابور المزامنة ←
                 </button>
               </div>
 
@@ -438,9 +435,11 @@ export default function FounderAdminPage() {
                   </button>
                   <button
                     onClick={() => {
-                      toggleOfflineSimulation();
+                      const targetFac = facilities[0];
                       setSimResultText(
-                        `تم تبديل وضع المحاكاة الأوفلاين للتحقق من طابور الحصص المحلي.`
+                        targetFac
+                          ? `تم تنشيط فهرس المنشأة «${targetFac.nameAr}» (${targetFac.city}) بنجاح.`
+                          : "لا توجد منشآت في القائمة حالياً."
                       );
                     }}
                     className="bg-emerald-700 text-white font-black text-xs px-3 py-3 rounded-xl"

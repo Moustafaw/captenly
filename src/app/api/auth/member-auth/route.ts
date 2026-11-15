@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import type { AccountRole } from "@/types/captenly";
+import type { AccountRole, UserSocialLinks } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getAuthInstance } from "@/auth";
 import { attachMemberSessionCookie, clearMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
+import { getDeterministicCoachId } from "@/lib/coachProvisioning";
+import { deleteCoachByMemberOrIdInDb, ensureSelfRegisteredCoachInDb } from "@/lib/server/coachDb";
+import {
+  OWNER_EMAIL,
+  ensureSingleOwnerAccountBaseline,
+  purgeNonOwnerAccountsInDb,
+} from "@/lib/server/accountPurge";
 
 export const runtime = "nodejs";
 
@@ -61,19 +68,35 @@ function hashOtp(otp: string, targetKey: string): string | null {
   return crypto.createHmac("sha256", secret).update(`${targetKey}:${otp}`).digest("hex");
 }
 
+function stripInternalSocialKeys(raw?: Record<string, unknown> | null): UserSocialLinks {
+  const clean: UserSocialLinks = {};
+  if (!raw || typeof raw !== "object") return clean;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!k.startsWith("_") && typeof v === "string" && v.trim()) {
+      (clean as Record<string, string>)[k] = v;
+    }
+  }
+  return clean;
+}
+
 function sanitizeProfileRow(row: Record<string, unknown>) {
   const socialLinks = (row.social_links || {}) as Record<string, unknown>;
+  const roleStr = String(row.role || "adult_athlete");
   const linkedFacilityId =
     typeof socialLinks._linkedFacilityId === "string" ? socialLinks._linkedFacilityId : undefined;
   const linkedCoachId =
-    typeof socialLinks._linkedCoachId === "string" ? socialLinks._linkedCoachId : undefined;
+    typeof socialLinks._linkedCoachId === "string"
+      ? socialLinks._linkedCoachId
+      : roleStr === "coach" && row.member_code
+        ? getDeterministicCoachId(String(row.member_code))
+        : undefined;
 
   return {
     id: String(row.id || `user-${row.member_code || "member"}`),
     memberCode: String(row.member_code || ""),
     email: typeof row.email === "string" ? row.email : undefined,
     fullNameAr: String(row.full_name_ar || "عضو كابتنلي"),
-    role: String(row.role || "adult_athlete"),
+    role: roleStr,
     phone: typeof row.phone === "string" ? row.phone : "",
     city: typeof row.city === "string" && row.city.trim() ? row.city : "كل مصر",
     governorate: typeof row.governorate === "string" ? row.governorate : "مصر",
@@ -274,6 +297,27 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action || "");
 
+    await ensureSingleOwnerAccountBaseline();
+
+    if (action === "purge_non_owner_accounts") {
+      const caller = await getServerCaller();
+      const isAuthorizedOwner =
+        caller.isAdmin ||
+        (caller.authenticated && caller.email?.toLowerCase() === OWNER_EMAIL);
+      if (!isAuthorizedOwner) {
+        return NextResponse.json(
+          { ok: false, error: "forbidden", messageAr: "غير مصرح بتصفية الحسابات إلا لصاحب المنصة." },
+          { status: 403 }
+        );
+      }
+      const res = await purgeNonOwnerAccountsInDb({ forceAll: true });
+      return NextResponse.json({
+        ok: true,
+        keptEmail: OWNER_EMAIL,
+        purgedProfiles: res.purgedProfiles,
+      });
+    }
+
     if (action === "register") {
       const fullNameAr = String(body.fullNameAr || "").trim();
       const phone = String(body.phone || "").trim();
@@ -283,8 +327,15 @@ export async function POST(request: Request) {
       const city = String(body.city || "").trim() || "كل مصر";
       const governorate = String(body.governorate || "").trim() || "مصر";
       const rawRole = String(body.role || "adult_athlete");
-      const role: "adult_athlete" | "parent" = rawRole === "parent" ? "parent" : "adult_athlete";
+      const allowedSignupRoles = new Set(["adult_athlete", "parent", "coach", "facility_manager"]);
+      const role: AccountRole = allowedSignupRoles.has(rawRole)
+        ? (rawRole as AccountRole)
+        : "adult_athlete";
       const hasParentSupervision = Boolean(body.hasParentSupervision) || role === "parent";
+      const linkedCoachId = role === "coach" ? getDeterministicCoachId(memberCode) : undefined;
+      const initialSocialLinks: Record<string, unknown> = linkedCoachId
+        ? { _linkedCoachId: linkedCoachId }
+        : {};
 
       if (!fullNameAr || !memberCode || password.length < 6) {
         return NextResponse.json(
@@ -356,6 +407,7 @@ export async function POST(request: Request) {
             auth_provider: "phone_otp",
             has_parent_supervision: hasParentSupervision,
             needs_onboarding: false,
+            social_links: initialSocialLinks,
             password_hash: passwordHash,
             updated_at: new Date().toISOString(),
           })
@@ -371,6 +423,17 @@ export async function POST(request: Request) {
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const profile = sanitizeProfileRow(data[0] as Record<string, unknown>);
+          if (profile.role === "coach") {
+            await ensureSelfRegisteredCoachInDb({
+              memberCode: profile.memberCode,
+              fullNameAr: profile.fullNameAr,
+              city: profile.city,
+              governorate: profile.governorate,
+              phone: profile.phone,
+              email: profile.email,
+              linkedCoachId: profile.linkedCoachId,
+            }).catch(() => {});
+          }
           const res = NextResponse.json({
             ok: true,
             persisted: true,
@@ -390,11 +453,22 @@ export async function POST(request: Request) {
       const pgRes = await withPgClient(async (client) => {
         const { rows } = await client.query(
           `insert into public.captenly_profiles
-            (member_code, email, full_name_ar, role, phone, city, governorate, auth_provider, has_parent_supervision, needs_onboarding, password_hash, updated_at)
-           values ($1,$2,$3,$4,$5,$6,$7,'phone_otp',$8,false,$9,now())
+            (member_code, email, full_name_ar, role, phone, city, governorate, auth_provider, has_parent_supervision, needs_onboarding, social_links, password_hash, updated_at)
+           values ($1,$2,$3,$4,$5,$6,$7,'phone_otp',$8,false,$9::jsonb,$10,now())
            on conflict (member_code) do nothing
            returning *`,
-          [memberCode, email, fullNameAr, role, phone || null, city, governorate, hasParentSupervision, passwordHash]
+          [
+            memberCode,
+            email,
+            fullNameAr,
+            role,
+            phone || null,
+            city,
+            governorate,
+            hasParentSupervision,
+            JSON.stringify(initialSocialLinks),
+            passwordHash,
+          ]
         );
         return (rows[0] as Record<string, unknown>) || null;
       });
@@ -408,6 +482,17 @@ export async function POST(request: Request) {
 
       if (pgRes.ok && pgRes.value) {
         const profile = sanitizeProfileRow(pgRes.value);
+        if (profile.role === "coach") {
+          await ensureSelfRegisteredCoachInDb({
+            memberCode: profile.memberCode,
+            fullNameAr: profile.fullNameAr,
+            city: profile.city,
+            governorate: profile.governorate,
+            phone: profile.phone,
+            email: profile.email,
+            linkedCoachId: profile.linkedCoachId,
+          }).catch(() => {});
+        }
         const res = NextResponse.json({
           ok: true,
           persisted: true,
@@ -490,6 +575,20 @@ export async function POST(request: Request) {
       }
 
       const profile = sanitizeProfileRow(found.row);
+      if (profile.role === "coach") {
+        await ensureSelfRegisteredCoachInDb({
+          memberCode: profile.memberCode,
+          fullNameAr: profile.fullNameAr,
+          city: profile.city,
+          governorate: profile.governorate,
+          phone: profile.phone,
+          email: profile.email,
+          avatarUrl: profile.avatarUrl,
+          bioAr: profile.bioAr,
+          socialLinks: stripInternalSocialKeys(profile.socialLinks),
+          linkedCoachId: profile.linkedCoachId,
+        }).catch(() => {});
+      }
       const res = NextResponse.json({
         ok: true,
         profile,
@@ -509,7 +608,9 @@ export async function POST(request: Request) {
       const session = authInstance ? await authInstance.auth() : null;
       const sessionEmail = session?.user?.email?.trim().toLowerCase();
       const bodyEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-      const cleanEmail = sessionEmail || bodyEmail;
+      const cleanEmail = body.isSimulatedPreview
+        ? bodyEmail || sessionEmail
+        : sessionEmail || bodyEmail;
 
       if (!cleanEmail || !cleanEmail.includes("@")) {
         return NextResponse.json(
@@ -527,8 +628,6 @@ export async function POST(request: Request) {
         (typeof body.avatarUrl === "string" ? body.avatarUrl.trim() : "") ||
         session?.user?.image?.trim() ||
         null;
-      const incomingCity =
-        (typeof body.city === "string" && body.city.trim()) ? body.city.trim() : "كل مصر";
 
       await ensureAuthSchemaViaPg();
       const existing = await findProfileByQuery(cleanEmail);
@@ -539,19 +638,27 @@ export async function POST(request: Request) {
         );
       }
 
-      if (existing.row) {
+      if (existing.row && !Boolean(existing.row.needs_onboarding)) {
         const existingCode = String(existing.row.member_code || "").trim().toUpperCase();
-        const needsBackfill =
-          Boolean(existing.row.needs_onboarding) ||
-          (!existing.row.avatar_url && Boolean(incomingAvatar));
+        const existingRole = String(existing.row.role || "adult_athlete");
+        const existingSocial = (existing.row.social_links || {}) as Record<string, unknown>;
+        const needsAvatarBackfill = !existing.row.avatar_url && Boolean(incomingAvatar);
+        const needsCoachLinkBackfill =
+          existingRole === "coach" && typeof existingSocial._linkedCoachId !== "string" && Boolean(existingCode);
+        const derivedCoachId = needsCoachLinkBackfill ? getDeterministicCoachId(existingCode) : undefined;
+        const nextSocialLinks = derivedCoachId
+          ? { ...existingSocial, _linkedCoachId: derivedCoachId }
+          : existingSocial;
 
-        if (needsBackfill && existingCode) {
+        if ((needsAvatarBackfill || needsCoachLinkBackfill) && existingCode) {
           const patchPayload: Record<string, unknown> = {
-            needs_onboarding: false,
             updated_at: new Date().toISOString(),
           };
-          if (!existing.row.avatar_url && incomingAvatar) {
+          if (needsAvatarBackfill) {
             patchPayload.avatar_url = incomingAvatar;
+          }
+          if (needsCoachLinkBackfill) {
+            patchPayload.social_links = nextSocialLinks;
           }
           const admin = getSupabaseAdminClient();
           let updated = false;
@@ -566,11 +673,11 @@ export async function POST(request: Request) {
             await withPgClient(async (client) => {
               await client.query(
                 `update public.captenly_profiles
-                 set needs_onboarding = false,
-                     avatar_url = coalesce(avatar_url, $2),
+                 set avatar_url = coalesce(avatar_url, $2),
+                     social_links = $3::jsonb,
                      updated_at = now()
                  where upper(member_code) = upper($1)`,
-                [existingCode, incomingAvatar]
+                [existingCode, incomingAvatar, JSON.stringify(nextSocialLinks)]
               );
               return true;
             });
@@ -579,9 +686,23 @@ export async function POST(request: Request) {
 
         const profile = sanitizeProfileRow({
           ...existing.row,
-          needs_onboarding: false,
+          social_links: nextSocialLinks,
           avatar_url: existing.row.avatar_url || incomingAvatar || undefined,
         });
+        if (profile.role === "coach") {
+          await ensureSelfRegisteredCoachInDb({
+            memberCode: profile.memberCode,
+            fullNameAr: profile.fullNameAr,
+            city: profile.city,
+            governorate: profile.governorate,
+            phone: profile.phone,
+            email: profile.email || cleanEmail,
+            avatarUrl: profile.avatarUrl,
+            bioAr: profile.bioAr,
+            socialLinks: stripInternalSocialKeys(profile.socialLinks),
+            linkedCoachId: profile.linkedCoachId,
+          }).catch(() => {});
+        }
         const res = NextResponse.json({
           ok: true,
           persisted: true,
@@ -598,113 +719,51 @@ export async function POST(request: Request) {
         });
       }
 
-      // New Google user: derive deterministic member code without collisions
-      let chosenCode = generateDeterministicMemberCode(cleanEmail, 0);
-      for (let attempt = 1; attempt <= 12; attempt++) {
-        const codeCheck = await findProfileByQuery(chosenCode);
-        if (!codeCheck.row) break;
-        chosenCode = generateDeterministicMemberCode(cleanEmail, attempt);
-      }
-
-      const admin = getSupabaseAdminClient();
-      if (admin) {
-        const { data, error } = await admin
-          .from("captenly_profiles")
-          .insert({
-            member_code: chosenCode,
-            email: cleanEmail,
-            full_name_ar: incomingName,
-            role: "adult_athlete",
-            city: incomingCity,
-            governorate: "مصر",
-            avatar_url: incomingAvatar,
-            auth_provider: "google",
-            has_parent_supervision: false,
-            needs_onboarding: false,
-            updated_at: new Date().toISOString(),
-          })
-          .select("*")
-          .limit(1);
-
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const profile = sanitizeProfileRow(data[0] as Record<string, unknown>);
-          const res = NextResponse.json({
-            ok: true,
-            persisted: true,
-            isNewUser: true,
-            profile,
-          });
-          return attachMemberSessionCookie(res, {
-            memberCode: profile.memberCode,
-            role: (profile.role as AccountRole) || "adult_athlete",
-            email: profile.email || cleanEmail,
-            phone: profile.phone,
-            linkedFacilityId: profile.linkedFacilityId,
-            linkedCoachId: profile.linkedCoachId,
-          });
-        }
-
-        // Race-condition safety: if email already existed concurrently, re-fetch
-        if (error && (error.code === "23505" || String(error.message || "").toLowerCase().includes("duplicate"))) {
-          const raceExisting = await findProfileByQuery(cleanEmail);
-          if (raceExisting.row) {
-            const profile = sanitizeProfileRow({ ...raceExisting.row, needs_onboarding: false });
-            const res = NextResponse.json({
-              ok: true,
-              persisted: true,
-              isNewUser: false,
-              profile,
-            });
-            return attachMemberSessionCookie(res, {
-              memberCode: profile.memberCode,
-              role: (profile.role as AccountRole) || "adult_athlete",
-              email: profile.email || cleanEmail,
-              phone: profile.phone,
-              linkedFacilityId: profile.linkedFacilityId,
-              linkedCoachId: profile.linkedCoachId,
-            });
-          }
+      // First-time Google user (or user who has not completed onboarding yet):
+      // Do NOT insert into captenly_profiles until /auth/onboarding submits role selection.
+      const staleRowCode =
+        existing.row && typeof existing.row.member_code === "string"
+          ? existing.row.member_code.trim().toUpperCase()
+          : "";
+      let chosenCode = staleRowCode || generateDeterministicMemberCode(cleanEmail, 0);
+      if (!staleRowCode) {
+        for (let attempt = 1; attempt <= 12; attempt++) {
+          const codeCheck = await findProfileByQuery(chosenCode);
+          if (!codeCheck.row) break;
+          chosenCode = generateDeterministicMemberCode(cleanEmail, attempt);
         }
       }
 
-      const pgInsert = await withPgClient(async (client) => {
-        const { rows } = await client.query(
-          `insert into public.captenly_profiles
-            (member_code, email, full_name_ar, role, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, updated_at)
-           values ($1,$2,$3,'adult_athlete',$4,'مصر',$5,'google',false,false,now())
-           on conflict (email) do update set
-             needs_onboarding = false,
-             avatar_url = coalesce(public.captenly_profiles.avatar_url, excluded.avatar_url),
-             updated_at = now()
-           returning *`,
-          [chosenCode, cleanEmail, incomingName, incomingCity, incomingAvatar]
-        );
-        return (rows[0] as Record<string, unknown>) || null;
+      const pendingProfile = {
+        id: existing.row?.id
+          ? String(existing.row.id)
+          : `google-${cleanEmail.replace(/[^a-z0-9]/g, "-")}`,
+        memberCode: chosenCode,
+        email: cleanEmail,
+        fullNameAr: incomingName,
+        role: "adult_athlete",
+        phone: typeof existing.row?.phone === "string" ? existing.row.phone : "",
+        city: "كل مصر",
+        governorate: "مصر",
+        avatarUrl: incomingAvatar || undefined,
+        authProvider: "google" as const,
+        hasParentSupervision: false,
+        needsOnboarding: true,
+        socialLinks: {},
+        hasPassword: Boolean(existing.row?.password_hash),
+      };
+
+      const res = NextResponse.json({
+        ok: true,
+        persisted: false,
+        isNewUser: true,
+        profile: pendingProfile,
       });
-
-      if (pgInsert.ok && pgInsert.value) {
-        const insertedNew = String(pgInsert.value.member_code || "").toUpperCase() === chosenCode.toUpperCase();
-        const profile = sanitizeProfileRow({ ...pgInsert.value, needs_onboarding: false });
-        const res = NextResponse.json({
-          ok: true,
-          persisted: true,
-          isNewUser: insertedNew,
-          profile,
-        });
-        return attachMemberSessionCookie(res, {
-          memberCode: profile.memberCode,
-          role: (profile.role as AccountRole) || "adult_athlete",
-          email: profile.email || cleanEmail,
-          phone: profile.phone,
-          linkedFacilityId: profile.linkedFacilityId,
-          linkedCoachId: profile.linkedCoachId,
-        });
-      }
-
-      return NextResponse.json(
-        { ok: false, reason: "database_write_failed" },
-        { status: 503 }
-      );
+      return attachMemberSessionCookie(res, {
+        memberCode: chosenCode,
+        role: "adult_athlete",
+        email: cleanEmail,
+      });
     }
 
     if (action === "delete_account") {
@@ -848,6 +907,14 @@ export async function POST(request: Request) {
         }
         return true;
       });
+
+      const foundSocial = (found.row?.social_links || {}) as Record<string, unknown>;
+      const linkedCoachId =
+        typeof foundSocial._linkedCoachId === "string" ? foundSocial._linkedCoachId : undefined;
+      await deleteCoachByMemberOrIdInDb({
+        memberCode: effectiveCode,
+        coachId: linkedCoachId,
+      }).catch(() => {});
 
       const res = NextResponse.json({ ok: true, deleted: true, memberCode: effectiveCode || undefined });
       return clearMemberSessionCookie(res);

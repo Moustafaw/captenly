@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getServerCaller } from "@/lib/memberSession";
+import { findExistingCoachById } from "@/lib/server/coachDb";
 import type { Coach, Facility, MemberRoleClaim, RoleClaimStatus } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
@@ -398,52 +399,65 @@ async function applyApprovedClaimSideEffects(claim: MemberRoleClaim): Promise<{
       typeof p.coachId === "string" && p.coachId.trim()
         ? p.coachId.trim()
         : `coach-${claim.applicantMemberCode.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+    const existingCoach = await findExistingCoachById(coachId);
     const singleCoachId =
-      typeof p.singleCoachId === "string" && p.singleCoachId.trim()
+      existingCoach?.SingleCoachId ||
+      (typeof p.singleCoachId === "string" && p.singleCoachId.trim()
         ? p.singleCoachId.trim()
-        : `CAP-ID-${Math.floor(1000 + Math.random() * 8999)}`;
-    const slug = typeof p.slug === "string" && p.slug.trim() ? p.slug.trim() : slugifyAscii("coach", "coach");
+        : claim.applicantMemberCode || `CAP-ID-${Math.floor(1000 + Math.random() * 8999)}`);
+    const slug =
+      existingCoach?.slug ||
+      (typeof p.slug === "string" && p.slug.trim() ? p.slug.trim() : slugifyAscii("coach", "coach"));
+
+    const verifiedBadge: Coach["badges"][number] = {
+      code: "BADGE_01_IDENTITY",
+      titleAr: "هوية مدرب موثقة",
+      authorityAr: "مراجعة فريق كابتنلي",
+      verifiedDate: new Date().toISOString().slice(0, 10),
+      status: "active",
+      descriptionAr: "تم التحقق من بطاقة الهوية ومستندات التدريب.",
+    };
+    const mergedBadges = existingCoach?.badges?.some((b) => b.code === "BADGE_01_IDENTITY")
+      ? existingCoach.badges
+      : [verifiedBadge, ...(existingCoach?.badges || [])];
 
     const coachPayload: Coach = {
       id: coachId,
       slug,
       SingleCoachId: singleCoachId,
-      fullNameAr,
-      titleAr: String(p.titleAr || ""),
+      fullNameAr: fullNameAr || existingCoach?.fullNameAr || "كابتن سباحة",
+      titleAr: String(p.titleAr || existingCoach?.titleAr || "كابتن سباحة موثق"),
       sportSector: "swimming",
-      governorate: claim.governorateAr || String(p.governorate || "كل مصر"),
-      city: claim.cityAr || String(p.city || "كل مصر"),
-      district: String(p.district || ""),
-      yearsExperience: Number(p.yearsExperience || 0),
-      bioAr: String(p.bioAr || ""),
-      avatarUrl: String(p.avatarUrl || ""),
-      whatsappNumber: claim.applicantPhone || String(p.whatsappNumber || ""),
-      instapayHandle: String(p.instapayHandle || ""),
-      privatePackage8Egp: Number(p.privatePackage8Egp || 0),
-      privatePackage12Egp: Number(p.privatePackage12Egp || 0),
-      subscriptionTier: "free_founding",
+      governorate: claim.governorateAr || String(p.governorate || existingCoach?.governorate || "مصر"),
+      city: claim.cityAr || String(p.city || existingCoach?.city || "كل مصر"),
+      district: String(p.district || existingCoach?.district || ""),
+      yearsExperience: Number(p.yearsExperience ?? existingCoach?.yearsExperience ?? 0),
+      bioAr: String(p.bioAr || existingCoach?.bioAr || ""),
+      avatarUrl: String(p.avatarUrl || existingCoach?.avatarUrl || ""),
+      whatsappNumber: claim.applicantPhone || String(p.whatsappNumber || existingCoach?.whatsappNumber || ""),
+      facebookUrl: existingCoach?.facebookUrl,
+      instagramUrl: existingCoach?.instagramUrl,
+      socialLinks: existingCoach?.socialLinks,
+      sessionOffers: existingCoach?.sessionOffers,
+      instapayHandle: String(p.instapayHandle || existingCoach?.instapayHandle || ""),
+      privatePackage8Egp: Number(p.privatePackage8Egp ?? existingCoach?.privatePackage8Egp ?? 0),
+      privatePackage12Egp: Number(p.privatePackage12Egp ?? existingCoach?.privatePackage12Egp ?? 0),
+      subscriptionTier: existingCoach?.subscriptionTier || "free_founding",
       commissionRate: 0,
-      qrCodeToken: `CAP-COACH-${singleCoachId}`,
+      qrCodeToken: existingCoach?.qrCodeToken || `CAP-COACH-${singleCoachId}`,
       priceLastVerifiedDaysAgo: 0,
       priceLastVerifiedDate: "موثق عبر كابتنلي",
-      rating: 0,
-      verifiedReviewsCount: 0,
-      activeAthletesCount: 0,
+      rating: existingCoach?.rating ?? 0,
+      verifiedReviewsCount: existingCoach?.verifiedReviewsCount ?? 0,
+      activeAthletesCount: existingCoach?.activeAthletesCount ?? 0,
       isVerifiedCoach: true,
-      badges: [
-        {
-          code: "BADGE_01_IDENTITY",
-          titleAr: "هوية مدرب موثقة",
-          authorityAr: "مراجعة فريق كابتنلي",
-          verifiedDate: new Date().toISOString().slice(0, 10),
-          status: "active",
-          descriptionAr: "تم التحقق من بطاقة الهوية ومستندات التدريب.",
-        },
-      ],
+      badges: mergedBadges,
       specialties: Array.isArray(p.specialties)
         ? (p.specialties as Coach["specialties"])
-        : [{ nameAr: "تعليم السباحة", credibilityTier: "reviewed_qualification" }],
-      affiliations: [],
+        : existingCoach?.specialties?.length
+          ? existingCoach.specialties
+          : [{ nameAr: "تعليم السباحة", credibilityTier: "reviewed_qualification" }],
+      affiliations: existingCoach?.affiliations || [],
     };
 
     if (admin) {
@@ -455,8 +469,8 @@ async function applyApprovedClaimSideEffects(claim: MemberRoleClaim): Promise<{
           city: coachPayload.city,
           sport_sector: "swimming",
           trust_tier: "verified_coach",
-          rating: 0,
-          reviews_count: 0,
+          rating: Number(coachPayload.rating ?? 0),
+          reviews_count: Number(coachPayload.verifiedReviewsCount ?? 0),
           payload: coachPayload,
           updated_at: new Date().toISOString(),
         },
@@ -485,13 +499,24 @@ async function applyApprovedClaimSideEffects(claim: MemberRoleClaim): Promise<{
         await client.query(
           `insert into public.captenly_coaches
             (id, slug, full_name_ar, city, sport_sector, trust_tier, rating, reviews_count, payload, updated_at)
-           values ($1,$2,$3,$4,'swimming','verified_coach',0,0,$5::jsonb,now())
+           values ($1,$2,$3,$4,'swimming','verified_coach',$5,$6,$7::jsonb,now())
            on conflict (id) do update set
             full_name_ar = excluded.full_name_ar,
             city = excluded.city,
+            trust_tier = excluded.trust_tier,
+            rating = excluded.rating,
+            reviews_count = excluded.reviews_count,
             payload = excluded.payload,
             updated_at = now()`,
-          [coachId, coachPayload.slug, coachPayload.fullNameAr, coachPayload.city, JSON.stringify(coachPayload)]
+          [
+            coachId,
+            coachPayload.slug,
+            coachPayload.fullNameAr,
+            coachPayload.city,
+            Number(coachPayload.rating ?? 0),
+            Number(coachPayload.verifiedReviewsCount ?? 0),
+            JSON.stringify(coachPayload),
+          ]
         );
         await client.query(
           `update public.captenly_profiles set

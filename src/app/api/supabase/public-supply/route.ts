@@ -7,6 +7,8 @@ import {
   getServerCaller,
   hasFacilityStaffAccess,
 } from "@/lib/memberSession";
+import { findExistingCoachById } from "@/lib/server/coachDb";
+import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 import type { Coach, Facility } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
@@ -154,6 +156,7 @@ async function ensureArticlesTableViaPg() {
 }
 
 export async function GET() {
+  await ensureSingleOwnerAccountBaseline();
   const admin = getSupabaseAdminClient();
   if (admin) {
     try {
@@ -309,6 +312,13 @@ async function authorizePublicSupplyPost(params: {
 
   if (coach?.id) {
     if (caller.linkedCoachId && caller.linkedCoachId === coach.id) {
+      return { allowed: true };
+    }
+    if (
+      caller.role === "coach" &&
+      caller.memberCode &&
+      coach.SingleCoachId?.toUpperCase() === caller.memberCode.toUpperCase()
+    ) {
       return { allowed: true };
     }
     // Check existing coach row only when linked via DB SingleCoachId matching verified caller memberCode
@@ -536,21 +546,33 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      let safeCoach: Coach = coach;
+      if (!caller.isAdmin) {
+        const existingCoach = await findExistingCoachById(coach.id);
+        safeCoach = {
+          ...coach,
+          isVerifiedCoach: Boolean(existingCoach?.isVerifiedCoach),
+          badges: existingCoach?.badges || [],
+          rating: existingCoach ? existingCoach.rating : 0,
+          verifiedReviewsCount: existingCoach ? existingCoach.verifiedReviewsCount : 0,
+          activeAthletesCount: existingCoach ? existingCoach.activeAthletesCount : 0,
+        };
+      }
       const sportSector =
-        coach.sportSector === "fitness" || coach.sportSector === "both"
-          ? coach.sportSector
+        safeCoach.sportSector === "fitness" || safeCoach.sportSector === "both"
+          ? safeCoach.sportSector
           : "swimming";
-      const trustTier = coach.isVerifiedCoach ? "verified_6_badges" : "self_registered";
+      const trustTier = safeCoach.isVerifiedCoach ? "verified_6_badges" : "self_registered";
       const row = {
-        id: coach.id,
-        slug: coach.slug || coach.id,
-        full_name_ar: coach.fullNameAr || "كابتن سباحة",
-        city: coach.city || "مصر",
+        id: safeCoach.id,
+        slug: safeCoach.slug || safeCoach.id,
+        full_name_ar: safeCoach.fullNameAr || "كابتن سباحة",
+        city: safeCoach.city || "مصر",
         sport_sector: sportSector,
         trust_tier: trustTier,
-        rating: Number(coach.rating ?? 4.8),
-        reviews_count: Number(coach.verifiedReviewsCount ?? 0),
-        payload: coach,
+        rating: Number(safeCoach.rating ?? 0),
+        reviews_count: Number(safeCoach.verifiedReviewsCount ?? 0),
+        payload: safeCoach,
         updated_at: new Date().toISOString(),
       };
 
@@ -584,7 +606,7 @@ export async function POST(request: Request) {
             row.trust_tier,
             row.rating,
             row.reviews_count,
-            JSON.stringify(coach),
+            JSON.stringify(safeCoach),
           ]
         );
         return true;

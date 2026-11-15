@@ -179,8 +179,16 @@ export default function Desktop13() {
               />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold">
-                    ✓ كابتن موثق ({activeCoach.SingleCoachId})
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      activeCoach.isVerifiedCoach
+                        ? "bg-lime-tint text-deep-olive"
+                        : "bg-white/15 text-electric-volt"
+                    }`}
+                  >
+                    {activeCoach.isVerifiedCoach
+                      ? `✓ كابتن موثق (${activeCoach.SingleCoachId})`
+                      : `● حساب كابتن نشط (${activeCoach.SingleCoachId}) — ظاهر في البحث`}
                   </span>
                   <span className="text-xs text-surface-variant">
                     {activeCoach.city} • الشارات النشطة: {activeCoach.badges.length}
@@ -204,7 +212,7 @@ export default function Desktop13() {
                 href={`/c/${activeCoach.slug}`}
                 className="px-5 py-2.5 rounded-full bg-electric-volt text-dark-slate font-card-title-sm text-xs"
               >
-                عرض ملفي العام بالشارات
+                {activeCoach.isVerifiedCoach ? "عرض ملفي العام بالشارات" : "عرض ملفي العام"}
               </Link>
               <Link
                 href="/dashboard/athlete/settings"
@@ -214,6 +222,28 @@ export default function Desktop13() {
               </Link>
             </div>
           </section>
+        )}
+
+        {activeCoach && !activeCoach.isVerifiedCoach && (
+          <div className="rounded-2xl bg-lime-tint/55 border border-deep-olive/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <Icon name="verified" className="text-[20px] text-deep-olive shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-extrabold text-dark-slate">
+                  ملفك منشور وظاهر الآن للسباحين في الرئيسية والبحث ودفتر الكباتن
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  التوثيق اختياري بالكامل، وإكماله يمنحك الشارة الخضراء وأولوية أعلى في نتائج الظهور.
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/claim?mode=coach"
+              className="shrink-0 px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center hover:opacity-95"
+            >
+              توثيق الحساب (اختياري) ←
+            </Link>
+          </div>
         )}
 
         {statusMsg && (

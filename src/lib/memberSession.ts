@@ -303,7 +303,13 @@ export async function getServerCaller(): Promise<ServerCallerContext> {
     // ignore NextAuth errors
   }
 
-  if (cookiePayload) {
+  const cookieMatchesGoogle =
+    !cookiePayload ||
+    !googleEmail ||
+    !cookiePayload.email ||
+    cookiePayload.email.toLowerCase() === googleEmail.toLowerCase();
+
+  if (cookiePayload && cookieMatchesGoogle) {
     const dbClaims = await lookupProfileClaims({ memberCode: cookiePayload.memberCode });
     return {
       authenticated: true,

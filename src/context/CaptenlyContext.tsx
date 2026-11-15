@@ -31,6 +31,7 @@ import {
   WorkspaceContextMode,
 } from "@/types/captenly";
 import { EGYPT_CITY_PRESETS, calculateDistanceKm } from "@/lib/maps";
+import { buildSelfRegisteredCoach, getDeterministicCoachId } from "@/lib/coachProvisioning";
 import {
   getFacilityStartingPriceEgp,
   resolveGovernorateFromCity,
@@ -68,6 +69,14 @@ const DEFAULT_SMART_FILTERS: SmartFiltersState = {
   aedOnly: false,
   laneDensity: "all",
   sortBy: "nearest",
+};
+
+const DEFAULT_USER_SETTINGS = {
+  familyLaw151Consent: false,
+  notifyWhatsappSessions: true,
+  notifyWhatsappRenewals: true,
+  notifyEmailMarketing: false,
+  privacyProfilePublic: false,
 };
 
 interface CaptenlyContextType {
@@ -199,7 +208,7 @@ interface CaptenlyContextType {
     phone?: string;
     city?: string;
     hasParentSupervision?: boolean;
-  }) => { ok: boolean; persona: PersonaAccount; nextPath?: string };
+  }) => Promise<{ ok: boolean; persona: PersonaAccount; nextPath?: string }>;
   signOutToGuest: () => void;
   deleteCurrentAccount: () => Promise<{ ok: boolean }>;
 
@@ -548,6 +557,8 @@ const CaptenlyContext = createContext<CaptenlyContextType | undefined>(undefined
 
 const STORAGE_KEY = "captenly_platform_state_v6";
 const LEGACY_STORAGE_KEY_V5 = "captenly_platform_state_v5";
+const OWNER_EMAIL_LOWER = "moustafadesign.12@gmail.com";
+const OWNER_CLEANUP_KEY = "captenly_single_owner_cleanup_v1";
 const LEGACY_FAKE_PERSONA_IDS = new Set([
   "persona-athlete-independent",
   "persona-parent",
@@ -610,7 +621,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [authGateModalOpen, setAuthGateModalOpen] = useState<boolean>(false);
   const [authGateFeatureNameAr, setAuthGateFeatureNameAr] = useState<string>("");
   const [memberRegistry, setMemberRegistry] = useState<MemberRegistryEntry[]>(INITIAL_MEMBER_REGISTRY);
-  const [isOfflineSimulated, setIsOfflineSimulated] = useState<boolean>(false);
+  const isOfflineSimulated = false;
   const [isBrowserOffline, setIsBrowserOffline] = useState<boolean>(false);
 
   const [facilities, setFacilities] = useState<Facility[]>(INITIAL_FACILITIES);
@@ -656,13 +667,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   const [accountSnapshots, setAccountSnapshots] = useState<
     Record<string, AccountActivitySnapshot>
   >({});
-  const [userSettings, setUserSettings] = useState({
-    familyLaw151Consent: false,
-    notifyWhatsappSessions: true,
-    notifyWhatsappRenewals: true,
-    notifyEmailMarketing: false,
-    privacyProfilePublic: false,
-  });
+  const [userSettings, setUserSettings] = useState(DEFAULT_USER_SETTINGS);
 
   const isAuthenticated =
     currentPersona.role !== "guest" && currentPersona.id !== "persona-guest";
@@ -671,25 +676,58 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setAuthGateModalOpen(true);
   };
   const closeAuthGateModal = () => setAuthGateModalOpen(false);
-  const effectiveOffline = isOfflineSimulated || isBrowserOffline;
+  const effectiveOffline = isBrowserOffline;
 
   // Hydrate persisted Offline-First state from localStorage (zero fake seeded personas/favorites/notifications)
   useEffect(() => {
     try {
+      const needsOwnerCleanup = localStorage.getItem(OWNER_CLEANUP_KEY) !== "done";
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        let cleanedPersonas: PersonaAccount[] = PERSONA_ACCOUNTS;
         if (Array.isArray(parsed.allPersonas)) {
-          const cleanPersonas = (parsed.allPersonas as PersonaAccount[]).filter(
-            (p) => p && !LEGACY_FAKE_PERSONA_IDS.has(p.id)
-          );
-          setAllPersonas(cleanPersonas.length ? cleanPersonas : PERSONA_ACCOUNTS);
+          cleanedPersonas = (parsed.allPersonas as PersonaAccount[]).filter((p) => {
+            if (!p || LEGACY_FAKE_PERSONA_IDS.has(p.id)) return false;
+            if (!needsOwnerCleanup) return true;
+            return (
+              p.role === "guest" ||
+              p.id === "persona-guest" ||
+              p.email?.toLowerCase() === OWNER_EMAIL_LOWER
+            );
+          });
+          if (!cleanedPersonas.some((p) => p.role === "guest" || p.id === "persona-guest")) {
+            cleanedPersonas = [GUEST_PERSONA, ...cleanedPersonas];
+          }
+          setAllPersonas(cleanedPersonas.length ? cleanedPersonas : PERSONA_ACCOUNTS);
         }
+
+        const keptNonGuestPersonas = cleanedPersonas.filter(
+          (p) => p.role !== "guest" && p.id !== "persona-guest"
+        );
+        const keptIds = new Set(keptNonGuestPersonas.map((p) => p.id));
+        const keptCodes = new Set(
+          keptNonGuestPersonas
+            .map((p) => (p.memberCode || "").trim().toUpperCase())
+            .filter(Boolean)
+        );
+        const keptCoachIds = new Set(
+          keptNonGuestPersonas
+            .map((p) => p.linkedCoachId || (p.memberCode ? getDeterministicCoachId(p.memberCode) : ""))
+            .filter(Boolean)
+        );
+
         if (Array.isArray(parsed.memberRegistry)) {
           setMemberRegistry(
-            (parsed.memberRegistry as MemberRegistryEntry[]).filter(
-              (m) => m && !LEGACY_FAKE_PERSONA_IDS.has(m.athleteId) && m.memberCode !== "CAP-M-5190" && m.memberCode !== "CAP-M-4821"
-            )
+            (parsed.memberRegistry as MemberRegistryEntry[]).filter((m) => {
+              if (!m || LEGACY_FAKE_PERSONA_IDS.has(m.athleteId)) return false;
+              if (m.memberCode === "CAP-M-5190" || m.memberCode === "CAP-M-4821") return false;
+              if (!needsOwnerCleanup) return true;
+              return (
+                keptIds.has(m.athleteId) ||
+                keptCodes.has((m.memberCode || "").trim().toUpperCase())
+              );
+            })
           );
         }
         if (Array.isArray(parsed.facilities)) {
@@ -703,96 +741,155 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             )
           );
         }
-        if (parsed.coaches) setCoaches(parsed.coaches);
-        if (parsed.minorAthletes) {
-          setMinorAthletes(
-            (parsed.minorAthletes as MinorAthleteProfile[]).map((m, idx) => ({
-              ...m,
-              childMemberCode:
-                m.childMemberCode ||
-                `CAP-JR-${String(
-                  (parsed.personaId && Array.isArray(parsed.allPersonas)
-                    ? (parsed.allPersonas as PersonaAccount[]).find((p) => p.id === parsed.personaId)?.memberCode || ""
-                    : ""
-                  ).replace(/\D/g, "").slice(-4) || "0000"
-                )}-${String(idx + 1).padStart(2, "0")}`,
-            }))
+        if (Array.isArray(parsed.coaches)) {
+          setCoaches(
+            needsOwnerCleanup
+              ? (parsed.coaches as Coach[]).filter(
+                  (c) =>
+                    c &&
+                    (keptCoachIds.has(c.id) ||
+                      keptCodes.has((c.SingleCoachId || "").trim().toUpperCase()))
+                )
+              : parsed.coaches
           );
         }
-        if (parsed.pbRecords) setPbRecords(parsed.pbRecords);
-        if (parsed.skillEvaluationsByAthlete && typeof parsed.skillEvaluationsByAthlete === "object") {
-          setSkillEvaluationsByAthlete(parsed.skillEvaluationsByAthlete);
+
+        if (parsed.accountSnapshots && typeof parsed.accountSnapshots === "object") {
+          if (needsOwnerCleanup) {
+            const filteredSnaps: Record<string, AccountActivitySnapshot> = {};
+            for (const [k, v] of Object.entries(
+              parsed.accountSnapshots as Record<string, AccountActivitySnapshot>
+            )) {
+              const lowerK = k.toLowerCase();
+              const codePart = k.replace(/^code:/i, "").trim().toUpperCase();
+              if (
+                lowerK === `email:${OWNER_EMAIL_LOWER}` ||
+                (k.toLowerCase().startsWith("code:") && keptCodes.has(codePart))
+              ) {
+                filteredSnaps[k] = v;
+              }
+            }
+            setAccountSnapshots(filteredSnaps);
+          } else {
+            setAccountSnapshots(parsed.accountSnapshots);
+          }
         }
-        if (parsed.sessionLedgers) setSessionLedgers(parsed.sessionLedgers);
-        if (parsed.verifiedLeads) setVerifiedLeads(parsed.verifiedLeads);
+
+        const activePersonaFound =
+          parsed.personaId && !LEGACY_FAKE_PERSONA_IDS.has(parsed.personaId)
+            ? cleanedPersonas.find((p: PersonaAccount) => p.id === parsed.personaId)
+            : undefined;
+        const activePersonaWasPreserved = Boolean(
+          activePersonaFound &&
+            (!needsOwnerCleanup ||
+              activePersonaFound.role === "guest" ||
+              activePersonaFound.id === "persona-guest" ||
+              activePersonaFound.email?.toLowerCase() === OWNER_EMAIL_LOWER)
+        );
+
+        if (activePersonaWasPreserved && activePersonaFound) {
+          if (parsed.minorAthletes) {
+            setMinorAthletes(
+              (parsed.minorAthletes as MinorAthleteProfile[]).map((m, idx) => ({
+                ...m,
+                childMemberCode:
+                  m.childMemberCode ||
+                  `CAP-JR-${String(
+                    (activePersonaFound.memberCode || "").replace(/\D/g, "").slice(-4) || "0000"
+                  )}-${String(idx + 1).padStart(2, "0")}`,
+              }))
+            );
+          }
+          if (parsed.pbRecords) setPbRecords(parsed.pbRecords);
+          if (parsed.skillEvaluationsByAthlete && typeof parsed.skillEvaluationsByAthlete === "object") {
+            setSkillEvaluationsByAthlete(parsed.skillEvaluationsByAthlete);
+          }
+          if (parsed.sessionLedgers) setSessionLedgers(parsed.sessionLedgers);
+          if (parsed.verifiedLeads) setVerifiedLeads(parsed.verifiedLeads);
+          if (Array.isArray(parsed.savedFavoriteIds)) setSavedFavoriteIds(parsed.savedFavoriteIds);
+          if (Array.isArray(parsed.compareFacilityIds)) setCompareFacilityIds(parsed.compareFacilityIds);
+          if (Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
+          if (parsed.userSettings) setUserSettings(parsed.userSettings);
+          if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
+          if (typeof parsed.activeStaffAssignmentId === "string" || parsed.activeStaffAssignmentId === null) {
+            setActiveStaffAssignmentId(parsed.activeStaffAssignmentId);
+          }
+          if (
+            parsed.activeWorkspaceContext === "member" ||
+            parsed.activeWorkspaceContext === "coach" ||
+            parsed.activeWorkspaceContext === "facility" ||
+            parsed.activeWorkspaceContext === "staff"
+          ) {
+            setActiveWorkspaceContextState(parsed.activeWorkspaceContext);
+          } else {
+            setActiveWorkspaceContextState(
+              activePersonaFound.linkedFacilityId || activePersonaFound.role === "facility_manager"
+                ? "facility"
+                : activePersonaFound.linkedCoachId || activePersonaFound.role === "coach"
+                  ? "coach"
+                  : "member"
+            );
+          }
+          setCurrentPersona(activePersonaFound);
+        } else {
+          setCurrentPersona(GUEST_PERSONA);
+          setActiveStaffAssignmentId(null);
+          setActiveWorkspaceContextState("member");
+          setSavedFavoriteIds([]);
+          setCompareFacilityIds([]);
+          setMinorAthletes([]);
+          setPbRecords([]);
+          setSkillEvaluationsByAthlete({});
+          setSessionLedgers([]);
+          setVerifiedLeads([]);
+          setNotifications([]);
+          setUserSettings(DEFAULT_USER_SETTINGS);
+          setUserLocation(DEFAULT_EGYPT_LOCATION);
+        }
+
         if (parsed.demandRadar) setDemandRadar(parsed.demandRadar);
         if (parsed.demandSubmissions) setDemandSubmissions(parsed.demandSubmissions);
         if (parsed.offlineQueue) setOfflineQueue(parsed.offlineQueue);
-        if (Array.isArray(parsed.savedFavoriteIds)) setSavedFavoriteIds(parsed.savedFavoriteIds);
-        if (Array.isArray(parsed.compareFacilityIds)) setCompareFacilityIds(parsed.compareFacilityIds);
-        if (Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
         if (Array.isArray(parsed.articles) && parsed.articles.length > 0) {
           setArticles(parsed.articles);
         }
-        if (typeof parsed.activeStaffAssignmentId === "string" || parsed.activeStaffAssignmentId === null) {
-          setActiveStaffAssignmentId(parsed.activeStaffAssignmentId);
-        }
-        if (
-          parsed.activeWorkspaceContext === "member" ||
-          parsed.activeWorkspaceContext === "coach" ||
-          parsed.activeWorkspaceContext === "facility" ||
-          parsed.activeWorkspaceContext === "staff"
-        ) {
-          setActiveWorkspaceContextState(parsed.activeWorkspaceContext);
-        }
-        if (parsed.accountSnapshots && typeof parsed.accountSnapshots === "object") {
-          setAccountSnapshots(parsed.accountSnapshots);
-        }
-        if (parsed.userSettings) setUserSettings(parsed.userSettings);
         if (parsed.newsletterEmails) setNewsletterEmails(parsed.newsletterEmails);
-        if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
-        if (parsed.personaId && !LEGACY_FAKE_PERSONA_IDS.has(parsed.personaId)) {
-          const pool = Array.isArray(parsed.allPersonas) ? parsed.allPersonas : PERSONA_ACCOUNTS;
-          const found = pool.find((p: PersonaAccount) => p.id === parsed.personaId);
-          setCurrentPersona(found || GUEST_PERSONA);
-          if (!parsed.activeWorkspaceContext && found) {
-            setActiveWorkspaceContextState(
-              found.linkedFacilityId || found.role === "facility_manager"
-                ? "facility"
-                : found.linkedCoachId || found.role === "coach"
-                ? "coach"
-                : "member"
-            );
-          }
-        } else {
-          setCurrentPersona(GUEST_PERSONA);
-        }
       } else {
         // One-time clean migration from v5: preserve userLocation & genuinely signed-in accounts only
         const legacyV5 = localStorage.getItem(LEGACY_STORAGE_KEY_V5);
         if (legacyV5) {
           const parsed = JSON.parse(legacyV5);
-          if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
           if (Array.isArray(parsed.allPersonas)) {
-            const realAccounts = (parsed.allPersonas as PersonaAccount[]).filter(
-              (p) =>
-                p &&
-                !LEGACY_FAKE_PERSONA_IDS.has(p.id) &&
-                p.role !== "guest" &&
-                (p.authProvider === "google" || p.id.startsWith("user-") || p.id.startsWith("google-"))
-            );
+            const realAccounts = (parsed.allPersonas as PersonaAccount[]).filter((p) => {
+              if (
+                !p ||
+                LEGACY_FAKE_PERSONA_IDS.has(p.id) ||
+                p.role === "guest" ||
+                !(p.authProvider === "google" || p.id.startsWith("user-") || p.id.startsWith("google-"))
+              ) {
+                return false;
+              }
+              if (needsOwnerCleanup) {
+                return p.email?.toLowerCase() === OWNER_EMAIL_LOWER;
+              }
+              return true;
+            });
             if (realAccounts.length > 0) {
               setAllPersonas([GUEST_PERSONA, ...realAccounts]);
               const activeReal = realAccounts.find((p) => p.id === parsed.personaId);
               if (activeReal) {
                 setCurrentPersona(activeReal);
+                if (parsed.userLocation && parsed.userLocation.isSpecified) setUserLocation(parsed.userLocation);
               }
             }
           }
-          if (Array.isArray(parsed.coaches) && parsed.coaches.length > 0) {
+          if (!needsOwnerCleanup && Array.isArray(parsed.coaches) && parsed.coaches.length > 0) {
             setCoaches(parsed.coaches);
           }
         }
+      }
+      if (needsOwnerCleanup) {
+        localStorage.setItem(OWNER_CLEANUP_KEY, "done");
       }
     } catch {
       // Ignore storage errors
@@ -1032,7 +1129,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   // Hydrate persisted remote notifications for active memberCode when available
   useEffect(() => {
     const memberCode = currentPersona.memberCode;
-    if (!memberCode) return;
+    if (!memberCode || currentPersona.needsOnboarding) return;
     let cancelled = false;
     fetch(`/api/supabase/notifications?memberCode=${encodeURIComponent(memberCode)}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -1110,8 +1207,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   // Hydrate authoritative role/entity links & role claims when signed in
   useEffect(() => {
-    if (!isAuthenticated) {
-      setRoleClaims([]);
+    if (!isAuthenticated || currentPersona.needsOnboarding) {
+      if (!isAuthenticated) setRoleClaims([]);
       return;
     }
     let cancelled = false;
@@ -1142,12 +1239,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             const nextCoachId = remote.linkedCoachId ?? prev.linkedCoachId;
             const nextIntent = remote.accountIntent ?? prev.accountIntent;
             const nextCode = remote.memberCode || prev.memberCode;
+            const nextOnboarding = remote.needsOnboarding ?? prev.needsOnboarding;
             if (
               nextRole === prev.role &&
               nextFacId === prev.linkedFacilityId &&
               nextCoachId === prev.linkedCoachId &&
               nextIntent === prev.accountIntent &&
-              nextCode === prev.memberCode
+              nextCode === prev.memberCode &&
+              nextOnboarding === prev.needsOnboarding
             ) {
               return prev;
             }
@@ -1160,7 +1259,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
               memberCode: nextCode,
               hasParentSupervision:
                 remote.hasParentSupervision ?? prev.hasParentSupervision,
-              needsOnboarding: false,
+              needsOnboarding: Boolean(nextOnboarding),
             };
             setAllPersonas((list) => list.map((p) => (p.id === nextPersona.id ? nextPersona : p)));
             return nextPersona;
@@ -1196,7 +1295,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   // Hydrate PB records, 5-point evaluations, family minor children, saved prefs, and leads from Supabase
   useEffect(() => {
     const profileKey = getProfileSyncKey(currentPersona);
-    if (!profileKey) return;
+    if (!profileKey || currentPersona.needsOnboarding) return;
     let cancelled = false;
     const athleteIds = [currentPersona.id, ...minorAthletes.map((m) => m.id)]
       .filter(Boolean)
@@ -1248,7 +1347,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             setCompareFacilityIds(data.prefs.compareIds as string[]);
           }
           if (data.prefs.userSettings && typeof data.prefs.userSettings === "object") {
-            setUserSettings((prev) => ({ ...prev, ...data.prefs.userSettings }));
+            setUserSettings({ ...DEFAULT_USER_SETTINGS, ...data.prefs.userSettings });
+          } else {
+            setUserSettings(DEFAULT_USER_SETTINGS);
           }
           if (data.prefs.userLocation && data.prefs.userLocation.isSpecified) {
             setUserLocation(data.prefs.userLocation as UserLocation);
@@ -1488,7 +1589,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     if (!normalizedCity || normalizedCity === "موقعك الحالي") return;
 
     setCurrentPersona((prev) => {
-      if (prev.role === "guest" || prev.id === "persona-guest") return prev;
+      if (prev.role === "guest" || prev.id === "persona-guest" || prev.needsOnboarding) return prev;
       if (prev.city === normalizedCity) return prev;
       const next: PersonaAccount = { ...prev, city: normalizedCity };
       setAllPersonas((list) => list.map((p) => (p.id === next.id ? next : p)));
@@ -1517,7 +1618,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   const applyAccountCityToUserLocation = (accountCity?: string, accountGov = "مصر") => {
     const clean = (accountCity || "").trim();
-    if (!clean || clean === "مصر" || clean === "كل مصر" || clean === "الكل") return;
+    if (!clean || clean === "مصر" || clean === "كل مصر" || clean === "الكل") {
+      setUserLocation(DEFAULT_EGYPT_LOCATION);
+      return;
+    }
     const preset = EGYPT_CITY_PRESETS.find((p) => p.city === clean || clean.includes(p.city));
     const lat = preset?.lat ?? (clean === "طنطا" ? 30.7865 : clean === "زفتى" ? 30.7124 : 30.0444);
     const lng = preset?.lng ?? (clean === "طنطا" ? 31.0004 : clean === "زفتى" ? 31.2423 : 31.2357);
@@ -1790,51 +1894,75 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
   }) => {
     const random4 = Math.floor(1000 + Math.random() * 8999);
     const memberCode = `CAP-M-${random4}`;
-    const safeRole: "adult_athlete" | "parent" =
-      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const chosenRole: PersonaAccount["role"] =
+      payload.role === "coach"
+        ? "coach"
+        : payload.role === "facility_manager"
+        ? "facility_manager"
+        : payload.role === "parent" || payload.hasParentSupervision
+        ? "parent"
+        : "adult_athlete";
     const resolvedIntent: AccountIntent =
       payload.accountIntent ||
-      (safeRole === "parent" && payload.hasParentSupervision ? "both_self_and_parent" : safeRole === "parent" ? "parent_only" : "self_athlete");
+      (chosenRole === "parent" && payload.hasParentSupervision
+        ? "both_self_and_parent"
+        : chosenRole === "parent"
+        ? "parent_only"
+        : "self_athlete");
     const nextPath =
-      payload.role === "coach"
-        ? "/claim?mode=coach"
-        : payload.role === "facility_manager"
+      chosenRole === "coach"
+        ? "/dashboard/coach"
+        : chosenRole === "facility_manager"
         ? "/claim"
-        : "/dashboard/ledger";
+        : "/dashboard/athlete";
     const newId = `user-${Date.now()}`;
     const firstName = payload.fullNameAr.split(" ")[0];
+    const linkedCoachId = chosenRole === "coach" ? getDeterministicCoachId(memberCode) : undefined;
+    const roleTitleMap: Record<PersonaAccount["role"], string> = {
+      guest: "زائر كابتنلي",
+      adult_athlete: `سبّاح / متدرب وولي أمر — كود ${memberCode}`,
+      parent: `سبّاح وولي أمر — ${memberCode}`,
+      coach: `كابتن سباحة مسجل — ${memberCode}`,
+      facility_manager: `إدارة منشأة / أكاديمية — ${memberCode}`,
+      super_admin: "مشرف منصة كابتنلي",
+    };
 
     const newPersona: PersonaAccount = {
       id: newId,
-      role: safeRole,
+      role: chosenRole,
       accountIntent: resolvedIntent,
       memberCode,
-      hasParentSupervision: safeRole === "parent" || payload.hasParentSupervision,
+      linkedCoachId,
+      hasParentSupervision: chosenRole === "parent" || payload.hasParentSupervision,
       shortLabelAr: `${firstName} (${memberCode})`,
       fullNameAr: payload.fullNameAr,
-      personaTitleAr:
-        safeRole === "parent"
-          ? `سبّاح وولي أمر — كود ${memberCode}`
-          : `سبّاح / متدرب وولي أمر — كود ${memberCode}`,
-      city: payload.city,
+      personaTitleAr: roleTitleMap[chosenRole],
+      city: payload.city || "كل مصر",
       phone: payload.phone,
       descriptionAr:
-        "حساب موحد مفعّل بكود عضوية فريد جاهز لمتابعة اشتراكاتك وأبنائك، أو تقديم طلب توثيق ككابتن / منشأة.",
+        "حساب موحد مفعّل بكود عضوية فريد جاهز لمتابعة كافة أنشطتك على كابتنلي.",
     };
 
     setAllPersonas((prev) => [newPersona, ...prev]);
+    applyAccountSnapshotForPersona(newPersona, payload.governorate || "مصر");
     setCurrentPersona(newPersona);
     setActiveStaffAssignmentId(null);
-    setActiveWorkspaceContextState("member");
-    applyAccountCityToUserLocation(payload.city, payload.governorate);
+    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(newPersona));
+
+    if (chosenRole === "coach") {
+      setCoaches((prev) => {
+        const nextCoach = buildSelfRegisteredCoach(newPersona, undefined, payload.governorate || "مصر");
+        return [nextCoach, ...prev.filter((c) => c.id !== nextCoach.id)];
+      });
+    }
 
     const regEntry: MemberRegistryEntry = {
       memberCode,
       athleteId: newId,
       fullNameAr: payload.fullNameAr,
       phone: payload.phone,
-      city: payload.city,
-      role: safeRole,
+      city: payload.city || "كل مصر",
+      role: chosenRole === "parent" ? "parent" : "adult_athlete",
       isMinor: false,
     };
     setMemberRegistry((prev) => [regEntry, ...prev]);
@@ -1842,14 +1970,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     postSupabaseSync("/api/supabase/sync-profile", {
       memberCode,
       fullNameAr: payload.fullNameAr,
-      role: safeRole,
+      role: chosenRole,
       accountIntent: resolvedIntent,
       phone: payload.phone,
-      city: payload.city,
-      governorate: payload.governorate,
+      city: payload.city || "كل مصر",
+      governorate: payload.governorate || "مصر",
       authProvider: "captenly",
       hasParentSupervision: newPersona.hasParentSupervision,
       needsOnboarding: false,
+      linkedCoachId,
     });
 
     return { ok: true, persona: newPersona, memberCode, nextPath };
@@ -1870,17 +1999,27 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
     const random4 = Math.floor(1000 + Math.random() * 8999);
     const dbMemberCode = `CAP-M-${random4}`;
-    const safeRole: "adult_athlete" | "parent" =
-      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const chosenRole: PersonaAccount["role"] =
+      payload.role === "coach"
+        ? "coach"
+        : payload.role === "facility_manager"
+        ? "facility_manager"
+        : payload.role === "parent" || payload.hasParentSupervision
+        ? "parent"
+        : "adult_athlete";
     const resolvedIntent: AccountIntent =
       payload.accountIntent ||
-      (safeRole === "parent" && payload.hasParentSupervision ? "both_self_and_parent" : safeRole === "parent" ? "parent_only" : "self_athlete");
+      (chosenRole === "parent" && payload.hasParentSupervision
+        ? "both_self_and_parent"
+        : chosenRole === "parent"
+        ? "parent_only"
+        : "self_athlete");
     const nextPath =
-      payload.role === "coach"
-        ? "/claim?mode=coach"
-        : payload.role === "facility_manager"
+      chosenRole === "coach"
+        ? "/dashboard/coach"
+        : chosenRole === "facility_manager"
         ? "/claim"
-        : "/dashboard/ledger";
+        : "/dashboard/athlete";
     const cleanCity = (payload.city || "").trim() || "كل مصر";
     const cleanGov = resolveGovernorateFromCity(cleanCity, payload.governorate || "مصر");
 
@@ -1898,8 +2037,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           city: cleanCity,
           governorate: cleanGov,
           sportPreference: payload.sportPreference,
-          hasParentSupervision: safeRole === "parent" || payload.hasParentSupervision,
-          role: safeRole,
+          hasParentSupervision: chosenRole === "parent" || payload.hasParentSupervision,
+          role: chosenRole,
           accountIntent: resolvedIntent,
         }),
       });
@@ -1919,8 +2058,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         accountIntent: resolvedIntent,
         needsOnboarding: false,
       });
-      setActiveWorkspaceContextState("member");
-      applyAccountCityToUserLocation(cleanCity, cleanGov);
 
       return {
         ok: true,
@@ -1966,7 +2103,10 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return accountSnapshots;
   };
 
-  const applyAccountSnapshotForPersona = (persona: Pick<PersonaAccount, "memberCode" | "email">) => {
+  const applyAccountSnapshotForPersona = (
+    persona: Pick<PersonaAccount, "memberCode" | "email" | "city">,
+    governorate = "مصر"
+  ) => {
     const snap = findAccountSnapshot(getSnapshotPool(), persona);
     if (snap) {
       setSavedFavoriteIds(snap.savedFavoriteIds || []);
@@ -1975,8 +2115,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       setPbRecords(snap.pbRecords || []);
       setSkillEvaluationsByAthlete(snap.skillEvaluationsByAthlete || {});
       setNotifications(snap.notifications || []);
-      if (snap.userSettings) setUserSettings(snap.userSettings);
-      if (snap.userLocation?.isSpecified) setUserLocation(snap.userLocation);
+      setUserSettings(
+        snap.userSettings ? { ...DEFAULT_USER_SETTINGS, ...snap.userSettings } : DEFAULT_USER_SETTINGS
+      );
+      if (snap.userLocation?.isSpecified) {
+        setUserLocation(snap.userLocation);
+      } else {
+        applyAccountCityToUserLocation(persona.city, governorate);
+      }
       return true;
     }
     setSavedFavoriteIds([]);
@@ -1985,6 +2131,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setPbRecords([]);
     setSkillEvaluationsByAthlete({});
     setNotifications([]);
+    setUserSettings(DEFAULT_USER_SETTINGS);
+    applyAccountCityToUserLocation(persona.city, governorate);
     return false;
   };
 
@@ -1997,8 +2145,12 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = payload.email.trim().toLowerCase();
     const cleanName = payload.name.trim() || cleanEmail.split("@")[0] || "عضو كابتنلي";
     const existing = allPersonas.find((p) => p.email?.toLowerCase() === cleanEmail);
+    const isVerifiedLocalReturningOwner =
+      Boolean(existing) &&
+      existing?.needsOnboarding === false &&
+      cleanEmail === OWNER_EMAIL_LOWER;
 
-    if (existing) {
+    if (existing && isVerifiedLocalReturningOwner) {
       const stableCode =
         existing.role === "facility_manager"
           ? existing.memberCode || ""
@@ -2019,7 +2171,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       setCurrentPersona(updated);
       setActiveStaffAssignmentId(null);
       setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(updated));
-      applyAccountCityToUserLocation(updated.city);
       postSupabaseSync("/api/supabase/sync-profile", {
         memberCode: stableCode || `FAC-${updated.id.slice(-6)}`,
         email: cleanEmail,
@@ -2044,8 +2195,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     const safeSlug = cleanEmail.replace(/[^a-z0-9]/g, "-");
     const newId = `google-${safeSlug}`;
     const firstName = cleanName.split(" ")[0];
-
-    const defaultUserCity = userLocation.isSpecified ? userLocation.city : "مصر";
+    const defaultUserCity = "كل مصر";
 
     const newPersona: PersonaAccount = {
       id: newId,
@@ -2055,7 +2205,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: payload.image || undefined,
       email: cleanEmail,
       authProvider: "google",
-      needsOnboarding: false,
+      needsOnboarding: true,
       shortLabelAr: `${firstName} (${memberCode})`,
       fullNameAr: cleanName,
       personaTitleAr: `رياضي مسجّل عبر Google — كود ${memberCode}`,
@@ -2066,10 +2216,31 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         : `حساب موثّق عبر Google (${cleanEmail}).`,
     };
 
-    setAllPersonas((prev) => [newPersona, ...prev.filter((p) => p.id !== newId)]);
-    if (currentPersona.id !== newId) {
-      applyAccountSnapshotForPersona(newPersona);
+    const keysToClear = getAccountSnapshotKeys(newPersona);
+    if (keysToClear.length > 0) {
+      setAccountSnapshots((prev) => {
+        const next = { ...prev };
+        for (const k of keysToClear) {
+          delete next[k];
+        }
+        return next;
+      });
     }
+    setSavedFavoriteIds([]);
+    setCompareFacilityIds([]);
+    setMinorAthletes([]);
+    setPbRecords([]);
+    setSkillEvaluationsByAthlete({});
+    setSkillEvaluation(INITIAL_SKILL_EVALUATION);
+    setNotifications([]);
+    setVerifiedLeads([]);
+    setUserSettings(DEFAULT_USER_SETTINGS);
+    setUserLocation(DEFAULT_EGYPT_LOCATION);
+
+    setAllPersonas((prev) => [
+      newPersona,
+      ...prev.filter((p) => p.id !== newId && p.email?.toLowerCase() !== cleanEmail),
+    ]);
     setCurrentPersona(newPersona);
     setActiveStaffAssignmentId(null);
     setActiveWorkspaceContextState("member");
@@ -2085,31 +2256,16 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     };
     setMemberRegistry((prev) => [regEntry, ...prev.filter((m) => m.athleteId !== newId)]);
 
-    postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode,
-      email: cleanEmail,
-      fullNameAr: cleanName,
-      role: "adult_athlete",
-      city: defaultUserCity,
-      avatarUrl: payload.image || undefined,
-      authProvider: "google",
-      hasParentSupervision: false,
-      needsOnboarding: false,
-    });
-
     return { ok: true, isNewUser: true, persona: newPersona, memberCode };
   };
 
-  const completeGoogleOnboarding = (payload: {
-    role: "adult_athlete" | "parent" | "coach" | "facility_manager";
-    accountIntent?: AccountIntent;
-    phone?: string;
-    city?: string;
-    hasParentSupervision?: boolean;
-  }) => {
+  const completeGoogleOnboarding: CaptenlyContextType["completeGoogleOnboarding"] = async (
+    payload
+  ) => {
     const cleanPhone = (payload.phone ?? currentPersona.phone ?? "").trim();
-    const fallbackOnboardingCity = userLocation.isSpecified ? userLocation.city : "مصر";
-    const cleanCity = (payload.city ?? currentPersona.city ?? fallbackOnboardingCity).trim();
+    const rawCity = (payload.city ?? currentPersona.city ?? "كل مصر").trim();
+    const cleanCity = !rawCity || rawCity === "مصر" ? "كل مصر" : rawCity;
+    const cleanGov = resolveGovernorateFromCity(cleanCity, "مصر");
     const firstName = currentPersona.fullNameAr.split(" ")[0];
 
     const existingSuffix = (currentPersona.memberCode || "").split("-").pop();
@@ -2117,109 +2273,171 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       ? existingSuffix
       : String(Math.floor(1000 + Math.random() * 8999));
 
-    const safeRole: "adult_athlete" | "parent" =
-      payload.role === "parent" || payload.hasParentSupervision ? "parent" : "adult_athlete";
+    const chosenRole: PersonaAccount["role"] =
+      !currentPersona.needsOnboarding &&
+      (currentPersona.role === "coach" ||
+        currentPersona.role === "facility_manager" ||
+        currentPersona.role === "super_admin")
+        ? currentPersona.role
+        : payload.role === "coach"
+        ? "coach"
+        : payload.role === "facility_manager"
+        ? "facility_manager"
+        : payload.role === "parent" || payload.hasParentSupervision
+        ? "parent"
+        : "adult_athlete";
+
     const resolvedIntent: AccountIntent =
       payload.accountIntent ||
-      (safeRole === "parent" && payload.hasParentSupervision
+      (chosenRole === "parent" && payload.hasParentSupervision
         ? "both_self_and_parent"
-        : safeRole === "parent"
+        : chosenRole === "parent"
         ? "parent_only"
         : "self_athlete");
     const nextCode =
       currentPersona.memberCode && /^CAP-M-\d+/i.test(currentPersona.memberCode)
         ? currentPersona.memberCode
         : `CAP-M-${validDigits}`;
-    const nextPath =
-      payload.role === "coach"
-        ? "/claim?mode=coach"
-        : payload.role === "facility_manager"
-        ? "/claim"
-        : "/dashboard/athlete";
+    const nextLinkedCoachId =
+      chosenRole === "coach"
+        ? currentPersona.linkedCoachId || getDeterministicCoachId(nextCode)
+        : currentPersona.linkedCoachId;
 
     const roleTitleMap: Record<PersonaAccount["role"], string> = {
       guest: "زائر كابتنلي",
       adult_athlete: `سبّاح / متدرب وولي أمر — كود ${nextCode}`,
       parent: `سبّاح وولي أمر — ${nextCode}`,
-      coach: `كابتن معتمد — ${nextCode}`,
+      coach: `كابتن سباحة مسجل — ${nextCode}`,
       facility_manager: `إدارة منشأة / أكاديمية — ${nextCode}`,
       super_admin: "مشرف منصة كابتنلي",
     };
 
-    const preservedRole =
-      currentPersona.role === "coach" ||
-      currentPersona.role === "facility_manager" ||
-      currentPersona.role === "super_admin"
-        ? currentPersona.role
-        : safeRole;
-
     const updatedPersona: PersonaAccount = {
       ...currentPersona,
-      role: preservedRole,
+      role: chosenRole,
       accountIntent: resolvedIntent,
       memberCode: nextCode,
+      linkedCoachId: nextLinkedCoachId,
       phone: cleanPhone,
       city: cleanCity,
       hasParentSupervision:
-        safeRole === "parent" ? true : Boolean(payload.hasParentSupervision),
+        chosenRole === "parent" ? true : Boolean(payload.hasParentSupervision),
       needsOnboarding: false,
       shortLabelAr: `${firstName} (${nextCode})`,
-      personaTitleAr: roleTitleMap[preservedRole],
+      personaTitleAr: roleTitleMap[chosenRole],
     };
 
-    setCurrentPersona(updatedPersona);
+    let syncedData: {
+      memberCode?: string;
+      role?: PersonaAccount["role"];
+      linkedCoachId?: string;
+      linkedFacilityId?: string;
+    } | null = null;
+
+    if (typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/supabase/sync-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            memberCode: nextCode,
+            email: updatedPersona.email,
+            fullNameAr: updatedPersona.fullNameAr,
+            role: updatedPersona.role,
+            accountIntent: resolvedIntent,
+            phone: updatedPersona.phone,
+            city: updatedPersona.city,
+            governorate: cleanGov,
+            avatarUrl: updatedPersona.avatarUrl,
+            authProvider: updatedPersona.authProvider || "google",
+            hasParentSupervision: updatedPersona.hasParentSupervision,
+            needsOnboarding: false,
+            linkedFacilityId: updatedPersona.linkedFacilityId,
+            linkedCoachId: updatedPersona.linkedCoachId,
+          }),
+        });
+        if (res.ok) {
+          syncedData = await res.json().catch(() => null);
+        }
+      } catch {
+        // Offline / unreachable fallback: keep local state
+      }
+    }
+
+    const finalCode = syncedData?.memberCode || nextCode;
+    const finalRole = syncedData?.role || chosenRole;
+    const finalLinkedCoachId =
+      syncedData?.linkedCoachId ||
+      (finalRole === "coach"
+        ? nextLinkedCoachId || getDeterministicCoachId(finalCode)
+        : updatedPersona.linkedCoachId);
+    const finalLinkedFacilityId = syncedData?.linkedFacilityId ?? updatedPersona.linkedFacilityId;
+    const finalPersona: PersonaAccount = {
+      ...updatedPersona,
+      memberCode: finalCode,
+      role: finalRole,
+      linkedCoachId: finalLinkedCoachId,
+      linkedFacilityId: finalLinkedFacilityId,
+      shortLabelAr: `${firstName} (${finalCode})`,
+      personaTitleAr: roleTitleMap[finalRole] || roleTitleMap[chosenRole],
+    };
+    const nextPath =
+      finalRole === "coach"
+        ? "/dashboard/coach"
+        : finalRole === "facility_manager"
+        ? "/claim"
+        : "/dashboard/athlete";
+
+    setCurrentPersona(finalPersona);
     setAllPersonas((prev) =>
-      prev.map((p) => (p.id === currentPersona.id ? updatedPersona : p))
+      prev.map((p) => (p.id === currentPersona.id ? finalPersona : p))
     );
-    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(updatedPersona));
-    applyAccountCityToUserLocation(cleanCity);
+    setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(finalPersona));
+    applyAccountCityToUserLocation(cleanCity, cleanGov);
+
+    if (finalRole === "coach") {
+      setCoaches((prev) => {
+        const existingCoach = prev.find(
+          (c) =>
+            (finalLinkedCoachId && c.id === finalLinkedCoachId) ||
+            c.SingleCoachId?.toUpperCase() === finalCode.toUpperCase()
+        );
+        const nextCoach = buildSelfRegisteredCoach(finalPersona, existingCoach, cleanGov);
+        return [nextCoach, ...prev.filter((c) => c.id !== nextCoach.id)];
+      });
+    }
 
     setMemberRegistry((prev) => {
+      const regRole = finalRole === "parent" ? "parent" : "adult_athlete";
       const hasEntry = prev.some((m) => m.athleteId === currentPersona.id);
       if (hasEntry) {
         return prev.map((m) =>
           m.athleteId === currentPersona.id
             ? {
                 ...m,
-                memberCode: nextCode,
+                memberCode: finalCode,
                 phone: cleanPhone,
                 city: cleanCity,
-                role: safeRole,
+                role: regRole,
               }
             : m
         );
       }
       return [
         {
-          memberCode: nextCode,
+          memberCode: finalCode,
           athleteId: currentPersona.id,
           fullNameAr: currentPersona.fullNameAr,
           phone: cleanPhone,
           city: cleanCity,
-          role: safeRole,
+          role: regRole,
           isMinor: false,
         },
         ...prev,
       ];
     });
 
-    postSupabaseSync("/api/supabase/sync-profile", {
-      memberCode: nextCode,
-      email: updatedPersona.email,
-      fullNameAr: updatedPersona.fullNameAr,
-      role: updatedPersona.role,
-      accountIntent: resolvedIntent,
-      phone: updatedPersona.phone,
-      city: updatedPersona.city,
-      avatarUrl: updatedPersona.avatarUrl,
-      authProvider: updatedPersona.authProvider || "google",
-      hasParentSupervision: updatedPersona.hasParentSupervision,
-      needsOnboarding: false,
-      linkedFacilityId: updatedPersona.linkedFacilityId,
-      linkedCoachId: updatedPersona.linkedCoachId,
-    });
-
-    return { ok: true, persona: updatedPersona, nextPath };
+    return { ok: true, persona: finalPersona, nextPath };
   };
 
   const hydratePersonaFromRemoteProfile = (remote: {
@@ -2243,16 +2461,23 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     linkedCoachId?: string;
   }): PersonaAccount => {
     const firstName = remote.fullNameAr.split(" ")[0] || "عضو";
-    const isFacilityRole = remote.role === "facility_manager";
+    const isPendingOnboarding = Boolean(remote.needsOnboarding);
+    const effectiveRole: PersonaAccount["role"] = isPendingOnboarding
+      ? "adult_athlete"
+      : remote.role || "adult_athlete";
+    const isFacilityRole = effectiveRole === "facility_manager";
     const cleanCode = remote.memberCode || "";
-    const resolvedLinkedFac = remote.linkedFacilityId || undefined;
-    const resolvedLinkedCoach = remote.linkedCoachId || undefined;
+    const resolvedLinkedFac = isPendingOnboarding ? undefined : remote.linkedFacilityId || undefined;
+    const resolvedLinkedCoach = isPendingOnboarding
+      ? undefined
+      : remote.linkedCoachId ||
+        (effectiveRole === "coach" && cleanCode ? getDeterministicCoachId(cleanCode) : undefined);
 
     const roleTitles: Record<PersonaAccount["role"], string> = {
       guest: "زائر كابتنلي",
       adult_athlete: `سبّاح / متدرب وولي أمر — كود ${cleanCode || "CAP-M"}`,
       parent: `سبّاح وولي أمر — ${cleanCode || "CAP-M"}`,
-      coach: `كابتن معتمد — ${cleanCode || "CAP-M"}`,
+      coach: `كابتن سباحة مسجل — ${cleanCode || "CAP-M"}`,
       facility_manager: `إدارة منشأة / أكاديمية${cleanCode ? ` — ${cleanCode}` : ""}`,
       super_admin: "مشرف منصة كابتنلي",
     };
@@ -2269,41 +2494,82 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         (remote.authProvider === "google" && remote.email
           ? `google-${remote.email.toLowerCase().replace(/[^a-z0-9]/g, "-")}`
           : `user-${remote.dbProfileKey || remote.id || Date.now()}`),
-      role: remote.role || "adult_athlete",
-      accountIntent: remote.accountIntent ?? existing?.accountIntent,
+      role: effectiveRole,
+      accountIntent: isPendingOnboarding
+        ? remote.accountIntent
+        : remote.accountIntent ?? existing?.accountIntent,
       memberCode: cleanCode,
       hasParentSupervision: Boolean(remote.hasParentSupervision),
-      avatarUrl: remote.avatarUrl || existing?.avatarUrl || undefined,
+      avatarUrl: isPendingOnboarding
+        ? remote.avatarUrl || undefined
+        : remote.avatarUrl || existing?.avatarUrl || undefined,
       email: remote.email || existing?.email,
       authProvider: remote.authProvider || existing?.authProvider || "phone",
-      needsOnboarding: false,
+      needsOnboarding: isPendingOnboarding,
       shortLabelAr: isFacilityRole
         ? `إدارة (${firstName})`
         : cleanCode
         ? `${firstName} (${cleanCode})`
         : firstName,
       fullNameAr: remote.fullNameAr,
-      personaTitleAr: roleTitles[remote.role] || roleTitles.adult_athlete,
-      city: remote.city || "مصر",
-      phone: remote.phone || existing?.phone || "",
-      bioAr: remote.bioAr ?? existing?.bioAr,
-      socialLinks: remote.socialLinks ?? existing?.socialLinks,
+      personaTitleAr: roleTitles[effectiveRole] || roleTitles.adult_athlete,
+      city: remote.city || "كل مصر",
+      phone: isPendingOnboarding ? remote.phone || "" : remote.phone || existing?.phone || "",
+      bioAr: isPendingOnboarding ? remote.bioAr : remote.bioAr ?? existing?.bioAr,
+      socialLinks: isPendingOnboarding ? remote.socialLinks : remote.socialLinks ?? existing?.socialLinks,
       linkedFacilityId: resolvedLinkedFac,
       linkedCoachId: resolvedLinkedCoach,
-      descriptionAr:
-        existing?.descriptionAr ||
-        "حساب محفوظ ومزامن عبر كابتنلي لاستعادة كافة البيانات عبر الأجهزة.",
+      descriptionAr: isPendingOnboarding
+        ? "حساب جديد بانتظار استكمال اختيار نوع الحساب."
+        : existing?.descriptionAr ||
+          "حساب محفوظ ومزامن عبر كابتنلي لاستعادة كافة البيانات عبر الأجهزة.",
     };
 
     const isSwitchingPersona = currentPersona.id !== persona.id;
     setAllPersonas((prev) => [persona, ...prev.filter((p) => p.id !== persona.id && (!persona.email || p.email?.toLowerCase() !== persona.email.toLowerCase()))]);
-    if (isSwitchingPersona) {
-      applyAccountSnapshotForPersona(persona);
+    if (isPendingOnboarding) {
+      const keysToClear = getAccountSnapshotKeys(persona);
+      if (keysToClear.length > 0) {
+        setAccountSnapshots((prev) => {
+          const next = { ...prev };
+          for (const k of keysToClear) {
+            delete next[k];
+          }
+          return next;
+        });
+      }
+      setSavedFavoriteIds([]);
+      setCompareFacilityIds([]);
+      setMinorAthletes([]);
+      setPbRecords([]);
+      setSkillEvaluationsByAthlete({});
+      setSkillEvaluation(INITIAL_SKILL_EVALUATION);
+      setNotifications([]);
+      setVerifiedLeads([]);
+      setUserSettings(DEFAULT_USER_SETTINGS);
+      setUserLocation(DEFAULT_EGYPT_LOCATION);
+    } else if (isSwitchingPersona) {
+      applyAccountSnapshotForPersona(persona, remote.governorate || "مصر");
     }
     setCurrentPersona(persona);
     setActiveStaffAssignmentId(null);
     setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(persona));
-    applyAccountCityToUserLocation(persona.city, remote.governorate);
+
+    if (!isPendingOnboarding && persona.role === "coach") {
+      setCoaches((prev) => {
+        const existingCoach = prev.find(
+          (c) =>
+            (resolvedLinkedCoach && c.id === resolvedLinkedCoach) ||
+            (cleanCode && c.SingleCoachId?.toUpperCase() === cleanCode.toUpperCase())
+        );
+        const nextCoach = buildSelfRegisteredCoach(
+          persona,
+          existingCoach,
+          remote.governorate || resolveGovernorateFromCity(persona.city, "مصر")
+        );
+        return [nextCoach, ...prev.filter((c) => c.id !== nextCoach.id)];
+      });
+    }
 
     if (cleanCode) {
       setMemberRegistry((prev) => {
@@ -2323,7 +2589,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    if (cleanCode || persona.linkedFacilityId || persona.linkedCoachId) {
+    if (!isPendingOnboarding && (cleanCode || persona.linkedFacilityId || persona.linkedCoachId)) {
       lookupRemoteLedgersOrProfile({
         memberCode: cleanCode || undefined,
         coachId: persona.linkedCoachId || (persona.role === "coach" ? persona.id : undefined),
@@ -2349,7 +2615,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           email: cleanEmail,
           fullNameAr: cleanName,
           avatarUrl: payload.image || undefined,
-          city: userLocation.isSpecified ? userLocation.city : undefined,
+          isSimulatedPreview: Boolean(payload.isSimulatedPreview),
         }),
       });
       if (authRes.ok) {
@@ -2357,13 +2623,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (authData?.ok && authData?.profile) {
           const restored = hydratePersonaFromRemoteProfile({
             ...authData.profile,
-            needsOnboarding: false,
+            needsOnboarding: Boolean(authData.profile.needsOnboarding),
             avatarUrl: authData.profile.avatarUrl || payload.image || undefined,
             authProvider: "google",
           });
           return {
             ok: true,
-            isNewUser: Boolean(authData.isNewUser),
+            isNewUser: Boolean(authData.isNewUser) || Boolean(authData.profile.needsOnboarding),
             persona: restored,
             memberCode: restored.memberCode || "",
           };
@@ -2380,13 +2646,13 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         if (data?.found && data?.profile) {
           const restored = hydratePersonaFromRemoteProfile({
             ...data.profile,
-            needsOnboarding: false,
+            needsOnboarding: Boolean(data.profile.needsOnboarding),
             avatarUrl: data.profile.avatarUrl || payload.image || undefined,
             authProvider: "google",
           });
           return {
             ok: true,
-            isNewUser: false,
+            isNewUser: Boolean(data.profile.needsOnboarding),
             persona: restored,
             memberCode: restored.memberCode || "",
           };
@@ -2500,6 +2766,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setSkillEvaluation(INITIAL_SKILL_EVALUATION);
     setVerifiedLeads([]);
     setNotifications([]);
+    setUserLocation(DEFAULT_EGYPT_LOCATION);
+    setUserSettings(DEFAULT_USER_SETTINGS);
   };
 
   const deleteCurrentAccount: CaptenlyContextType["deleteCurrentAccount"] = async () => {
@@ -2563,6 +2831,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           (!targetCode || (l.memberCode || "").toUpperCase() !== targetCode)
       )
     );
+    const deletedCoachId =
+      targetPersona.linkedCoachId || (targetCode ? getDeterministicCoachId(targetCode) : "");
+    setCoaches((prev) =>
+      prev.filter(
+        (c) =>
+          (!deletedCoachId || c.id !== deletedCoachId) &&
+          (!targetCode || (c.SingleCoachId || "").toUpperCase() !== targetCode)
+      )
+    );
 
     const guest =
       PERSONA_ACCOUNTS.find((p) => p.role === "guest") || GUEST_PERSONA;
@@ -2578,6 +2855,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     setSkillEvaluation(INITIAL_SKILL_EVALUATION);
     setVerifiedLeads([]);
     setNotifications([]);
+    setUserLocation(DEFAULT_EGYPT_LOCATION);
+    setUserSettings(DEFAULT_USER_SETTINGS);
 
     return { ok: serverOk };
   };
@@ -2593,6 +2872,8 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
           setPbRecords([]);
           setSkillEvaluationsByAthlete({});
           setNotifications([]);
+          setUserLocation(DEFAULT_EGYPT_LOCATION);
+          setUserSettings(DEFAULT_USER_SETTINGS);
         } else {
           applyAccountSnapshotForPersona(target);
         }
@@ -2600,9 +2881,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       setCurrentPersona(target);
       setActiveStaffAssignmentId(null);
       setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(target));
-      if (target.role !== "guest") {
-        applyAccountCityToUserLocation(target.city);
-      }
     }
   };
 
@@ -2682,28 +2960,29 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       ...(patch.accountIntent !== undefined ? { accountIntent: patch.accountIntent } : {}),
     };
 
+    const effectiveCoachId =
+      next.linkedCoachId ||
+      (next.role === "coach" && next.memberCode ? getDeterministicCoachId(next.memberCode) : undefined);
+
+    if (effectiveCoachId) {
+      next.linkedCoachId = effectiveCoachId;
+    }
+
     setCurrentPersona(next);
     setAllPersonas((list) => list.map((p) => (p.id === next.id ? next : p)));
 
-    if (next.linkedCoachId) {
-      setCoaches((list) =>
-        list.map((c) => {
-          if (c.id !== next.linkedCoachId) return c;
-          const nextCoach: Coach = {
-            ...c,
-            ...(patch.bioAr !== undefined ? { bioAr: patch.bioAr } : {}),
-            ...(patch.socialLinks !== undefined
-              ? {
-                  socialLinks: { ...(c.socialLinks || {}), ...patch.socialLinks },
-                  facebookUrl: patch.socialLinks.facebook ?? c.facebookUrl,
-                  instagramUrl: patch.socialLinks.instagram ?? c.instagramUrl,
-                }
-              : {}),
-          };
-          syncCoachToSupabase(nextCoach);
-          return nextCoach;
-        })
-      );
+    if (effectiveCoachId) {
+      const govForCoach = resolveGovernorateFromCity(next.city, "مصر");
+      setCoaches((list) => {
+        const existingCoach = list.find(
+          (c) =>
+            c.id === effectiveCoachId ||
+            (next.memberCode && c.SingleCoachId?.toUpperCase() === next.memberCode.toUpperCase())
+        );
+        const nextCoach = buildSelfRegisteredCoach(next, existingCoach, govForCoach);
+        syncCoachToSupabase(nextCoach);
+        return [nextCoach, ...list.filter((c) => c.id !== nextCoach.id)];
+      });
     }
 
     if (next.linkedFacilityId) {
@@ -2749,9 +3028,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, messageAr: "تم حفظ تحديثات الملف بنجاح." };
   };
 
-  const toggleOfflineSimulation = () => {
-    setIsOfflineSimulated((prev) => !prev);
-  };
+  const toggleOfflineSimulation = () => {};
 
   const toggleCompareFacility = (facilityId: string) => {
     if (compareFacilityIds.includes(facilityId)) {

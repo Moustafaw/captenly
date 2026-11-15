@@ -8,11 +8,9 @@ import { useState } from "react";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
-export function resolveFacilityImage(heroImage?: string): string {
-  if (heroImage && heroImage.startsWith("/")) return heroImage;
-  if (heroImage && heroImage.startsWith("http")) return heroImage;
-  return "/screens/20b781f698f9.jpg";
-}
+import { FacilityImageOrFallback, resolveFacilityImage } from "./FacilityImageOrFallback";
+
+export { FacilityImageOrFallback, resolveFacilityImage };
 
 interface FacilityCardProps {
   facility: Facility;
@@ -90,10 +88,10 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
       <div>
         <div className="relative w-full h-48 overflow-hidden bg-surface-container">
           <Link href={`/academy/${facility.slug}`} className="block w-full h-full">
-            <img
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              alt={facility.nameAr}
-              src={resolveFacilityImage(facility.heroImage)}
+            <FacilityImageOrFallback
+              facility={facility}
+              className="w-full h-full"
+              imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           </Link>
 

@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { FacilityCard, resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { FacilityCard, FacilityImageOrFallback } from "@/components/editorial/FacilityCard";
+import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { filterAndSortExploreCoaches } from "@/lib/coachSearch";
 import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 import type { Facility } from "@/types/captenly";
 
@@ -17,6 +19,7 @@ function Desktop23Inner() {
   const searchParams = useSearchParams();
   const {
     facilities,
+    coaches,
     smartFilters,
     updateSmartFilters,
     resetSmartFilters,
@@ -172,20 +175,10 @@ function Desktop23Inner() {
     [filtered, userLocation]
   );
 
-  const quickCities = useMemo(() => {
-    const base = [
-      "الكل",
-      userLocation.isSpecified ? userLocation.city : "",
-      smartFilters.city !== "الكل" ? smartFilters.city : "",
-      "القاهرة",
-      "الإسكندرية",
-      "الجيزة",
-      "المنصورة",
-      "طنطا",
-      "المحلة الكبرى",
-    ];
-    return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
-  }, [userLocation.isSpecified, userLocation.city, smartFilters.city]);
+  const matchingCoaches = useMemo(
+    () => filterAndSortExploreCoaches(coaches, smartFilters, userLocation),
+    [coaches, smartFilters, userLocation]
+  );
 
   const activeMapFacility =
     filtered.find((f) => f.id === selectedMapFacId) || filtered[0] || facilities[0];
@@ -273,82 +266,8 @@ function Desktop23Inner() {
             </div>
           </div>
 
-          {/* Quick Pills */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {quickCities.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => updateSmartFilters({ city: c })}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                    smartFilters.city === c
-                      ? "bg-dark-slate text-electric-volt"
-                      : "bg-surface-snow text-text-muted hover:text-dark-slate"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                onClick={() =>
-                  updateSmartFilters({
-                    sportCategory: smartFilters.sportCategory === "swimming" ? "all" : "swimming",
-                  })
-                }
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                  smartFilters.sportCategory === "swimming"
-                    ? "bg-lime-tint text-deep-olive"
-                    : "bg-surface-snow text-text-muted"
-                }`}
-              >
-                <Icon name="pool" className="text-[14px]" />
-                <span>السباحة والمسابح</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => updateSmartFilters({ heatedOnly: !smartFilters.heatedOnly })}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                  smartFilters.heatedOnly
-                    ? "bg-lime-tint text-deep-olive"
-                    : "bg-surface-snow text-text-muted"
-                }`}
-              >
-                <Icon name="thermostat" className="text-[14px]" />
-                <span>مدفأ شتاءً</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => updateSmartFilters({ ladiesOnly: !smartFilters.ladiesOnly })}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                  smartFilters.ladiesOnly
-                    ? "bg-lime-tint text-deep-olive"
-                    : "bg-surface-snow text-text-muted"
-                }`}
-              >
-                <Icon name="female" className="text-[14px]" />
-                <span>ساعات سيدات</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => updateSmartFilters({ lifeguardOnly: !smartFilters.lifeguardOnly })}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                  smartFilters.lifeguardOnly
-                    ? "bg-lime-tint text-deep-olive"
-                    : "bg-surface-snow text-text-muted"
-                }`}
-              >
-                <Icon name="verified" className="text-[14px]" />
-                <span>إنقاذ مائي معتمد</span>
-              </button>
-            </div>
-
-            {compareFacilityIds.length > 0 && (
+          {compareFacilityIds.length > 0 && (
+            <div className="flex items-center justify-end pt-1">
               <Link
                 href="/compare"
                 className="px-4 py-1.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold flex items-center gap-1.5"
@@ -356,8 +275,8 @@ function Desktop23Inner() {
                 <Icon name="compare_arrows" className="text-[15px]" />
                 <span>جدول المقارنة ({compareFacilityIds.length} من 4)</span>
               </Link>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Removable Chips + Price Slider */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-container pt-3">
@@ -426,7 +345,7 @@ function Desktop23Inner() {
               />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && matchingCoaches.length === 0 ? (
           <DemandRadarFallback
             queryText={smartFilters.searchQuery}
             onResetFilters={resetSmartFilters}
@@ -479,6 +398,22 @@ function Desktop23Inner() {
                 </div>
               )}
 
+              {matchingCoaches.length > 0 && (
+                <div className="flex flex-col gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Icon name="sports" className="text-[17px] text-dark-slate" />
+                    <h2 className="font-card-title-sm text-dark-slate">
+                      الكباتن والمدربون المطابقون ({matchingCoaches.length})
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop">
+                    {matchingCoaches.map((coach) => (
+                      <VerifiedCoachCard key={coach.id} coach={coach} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {partitioned.unclaimedDirectory.length > 0 && (
                 <div className="flex flex-col gap-3 pt-1">
                   <div className="flex items-center gap-2">
@@ -525,10 +460,11 @@ function Desktop23Inner() {
                 {activeMapFacility && (
                   <div className="rounded-2xl bg-surface-snow p-4 flex flex-col gap-2.5">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={resolveFacilityImage(activeMapFacility.heroImage)}
-                        alt={activeMapFacility.nameAr}
-                        className="w-16 h-16 rounded-xl object-cover shrink-0"
+                      <FacilityImageOrFallback
+                        facility={activeMapFacility}
+                        compact
+                        className="w-16 h-16 rounded-xl shrink-0"
+                        imgClassName="w-16 h-16 rounded-xl object-cover"
                       />
                       <div className="min-w-0">
                         <div className="text-[11px] font-bold text-deep-olive">

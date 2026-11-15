@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { FacilityImageOrFallback } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
@@ -145,10 +145,10 @@ export default function Phone13() {
 
       {/* Hero Photo */}
       <div className="relative rounded-2xl overflow-hidden h-52 bg-surface-container shadow-sm">
-        <img
-          src={resolveFacilityImage(facility.heroImage)}
-          alt={facility.nameAr}
-          className="w-full h-full object-cover"
+        <FacilityImageOrFallback
+          facility={facility}
+          className="w-full h-full"
+          imgClassName="w-full h-full object-cover"
         />
         <div className="absolute top-3 left-3 flex gap-1.5">
           <button

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { FacilityImageOrFallback } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
@@ -155,10 +155,10 @@ export default function Desktop22() {
         {/* Main Hero */}
         <section className="rounded-[20px] bg-surface-card overflow-hidden shadow-sm border border-surface-container grid grid-cols-1 lg:grid-cols-12">
           <div className="lg:col-span-5 relative min-h-[280px] lg:min-h-[340px]">
-            <img
-              src={resolveFacilityImage(facility.heroImage)}
-              alt={facility.nameAr}
-              className="w-full h-full object-cover"
+            <FacilityImageOrFallback
+              facility={facility}
+              className="w-full h-full min-h-[280px] lg:min-h-[340px]"
+              imgClassName="w-full h-full object-cover"
             />
             <div className="absolute top-4 right-4 flex flex-wrap gap-1.5">
               {facility.poolSpecs?.isHeatedWinter && (

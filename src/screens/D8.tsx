@@ -23,8 +23,6 @@ export default function Desktop8() {
     uploadInstaPayReceipt,
     confirmReceiptByProvider,
     effectiveOffline,
-    isOfflineSimulated,
-    toggleOfflineSimulation,
     offlineQueue,
     syncOfflineQueue,
     syncLedgersFromServer,
@@ -214,17 +212,6 @@ export default function Desktop8() {
                 مزامنة {pendingOfflineCount} حصة محفوظة أوفلاين ↻
               </button>
             )}
-            <button
-              type="button"
-              onClick={toggleOfflineSimulation}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                isOfflineSimulated
-                  ? "bg-amber-400 text-dark-slate"
-                  : "bg-white/10 text-surface-card hover:bg-white/20"
-              }`}
-            >
-              {isOfflineSimulated ? "إيقاف محاكاة انقطاع النت" : "تجربة وضع بدون نت بالمسبح (Offline)"}
-            </button>
           </div>
         </section>
 

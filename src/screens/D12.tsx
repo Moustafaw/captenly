@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { FacilityImageOrFallback } from "@/components/editorial/FacilityCard";
 import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 
 export default function Desktop12() {
@@ -218,10 +218,11 @@ export default function Desktop12() {
                   >
                     <div>
                       <div className="relative h-24 w-full rounded-xl overflow-hidden bg-surface-container">
-                        <img
-                          src={resolveFacilityImage(f.heroImage)}
-                          alt={f.nameAr}
-                          className="w-full h-full object-cover"
+                        <FacilityImageOrFallback
+                          facility={f}
+                          compact
+                          className="w-full h-full"
+                          imgClassName="w-full h-full object-cover"
                         />
                         <button
                           type="button"
@@ -334,10 +335,11 @@ export default function Desktop12() {
                     {compared.map((f) => (
                       <th key={f.id} className="p-4 align-top">
                         <div className="flex flex-col gap-2">
-                          <img
-                            src={resolveFacilityImage(f.heroImage)}
-                            alt={f.nameAr}
-                            className="w-full h-28 object-cover rounded-xl"
+                          <FacilityImageOrFallback
+                            facility={f}
+                            compact
+                            className="w-full h-28 rounded-xl"
+                            imgClassName="w-full h-28 object-cover rounded-xl"
                           />
                           <Link
                             href={`/academy/${f.slug}`}

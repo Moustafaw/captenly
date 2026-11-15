@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
-import { FacilityCard, resolveFacilityImage } from "@/components/editorial/FacilityCard";
+import { FacilityCard, FacilityImageOrFallback } from "@/components/editorial/FacilityCard";
+import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { EGYPT_CITY_PRESETS, getFacilityDistanceKm } from "@/lib/maps";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { filterAndSortExploreCoaches } from "@/lib/coachSearch";
 import { getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
 import type { Facility } from "@/types/captenly";
 
@@ -18,6 +20,7 @@ function Phone6Inner() {
   const searchParams = useSearchParams();
   const {
     facilities,
+    coaches,
     smartFilters,
     updateSmartFilters,
     resetSmartFilters,
@@ -172,20 +175,10 @@ function Phone6Inner() {
     [filtered, userLocation]
   );
 
-  const quickCities = useMemo(() => {
-    const base = [
-      "الكل",
-      userLocation.isSpecified ? userLocation.city : "",
-      smartFilters.city !== "الكل" ? smartFilters.city : "",
-      "القاهرة",
-      "الإسكندرية",
-      "الجيزة",
-      "المنصورة",
-      "طنطا",
-      "المحلة الكبرى",
-    ];
-    return Array.from(new Set(base.filter(Boolean))).slice(0, 6);
-  }, [userLocation.isSpecified, userLocation.city, smartFilters.city]);
+  const matchingCoaches = useMemo(
+    () => filterAndSortExploreCoaches(coaches, smartFilters, userLocation),
+    [coaches, smartFilters, userLocation]
+  );
 
   const activeMapFac = filtered.find((f) => f.id === selectedMapId) || filtered[0];
 
@@ -242,52 +235,16 @@ function Phone6Inner() {
         </button>
       </div>
 
-      {/* Horizontal Filter Chips */}
-      <div className="flex flex-wrap items-center gap-1.5 pb-1">
-        {quickCities.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => updateSmartFilters({ city: c })}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold ${
-              smartFilters.city === c ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-text-muted"
-            }`}
-          >
-            {c}
-          </button>
-        ))}
-
-        <button
-          type="button"
-          onClick={() => updateSmartFilters({ heatedOnly: !smartFilters.heatedOnly })}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
-            smartFilters.heatedOnly ? "bg-lime-tint text-deep-olive" : "bg-surface-card text-text-muted"
-          }`}
-        >
-          <Icon name="thermostat" className="text-[13px]" />
-          <span>مدفأ شتاءً</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => updateSmartFilters({ ladiesOnly: !smartFilters.ladiesOnly })}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
-            smartFilters.ladiesOnly ? "bg-lime-tint text-deep-olive" : "bg-surface-card text-text-muted"
-          }`}
-        >
-          <Icon name="female" className="text-[13px]" />
-          <span>ساعات سيدات</span>
-        </button>
-
-        {compareFacilityIds.length > 0 && (
+      {compareFacilityIds.length > 0 && (
+        <div className="flex items-center justify-end pb-1">
           <Link
             href="/compare"
             className="shrink-0 px-3 py-1.5 rounded-full bg-electric-volt text-dark-slate text-[11px] font-bold"
           >
             قارن ({compareFacilityIds.length} من 4)
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {toast && (
         <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
@@ -306,7 +263,7 @@ function Phone6Inner() {
         </div>
       )}
 
-      {filtered.length === 0 && (placesLoading || placesHydrating) ? (
+      {filtered.length === 0 && matchingCoaches.length === 0 && (placesLoading || placesHydrating) ? (
         <div className="flex flex-col gap-3">
           {[0, 1].map((i) => (
             <div
@@ -315,9 +272,9 @@ function Phone6Inner() {
             />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && matchingCoaches.length === 0 ? (
         <DemandRadarFallback queryText={smartFilters.searchQuery} onResetFilters={resetSmartFilters} />
-      ) : viewMode === "map" ? (
+      ) : viewMode === "map" && filtered.length > 0 ? (
         <div className="flex flex-col gap-4">
           <div className="bg-surface-card rounded-2xl p-3.5 shadow-sm border border-surface-container">
             <CaptenlyGoogleMap
@@ -332,10 +289,11 @@ function Phone6Inner() {
           {activeMapFac && (
             <div className="bg-surface-card rounded-2xl p-4 shadow-sm border border-surface-container flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <img
-                  src={resolveFacilityImage(activeMapFac.heroImage)}
-                  alt={activeMapFac.nameAr}
-                  className="w-16 h-16 rounded-xl object-cover shrink-0"
+                <FacilityImageOrFallback
+                  facility={activeMapFac}
+                  compact
+                  className="w-16 h-16 rounded-xl shrink-0"
+                  imgClassName="w-16 h-16 rounded-xl object-cover"
                 />
                 <div className="min-w-0">
                   <div className="text-[11px] font-bold text-deep-olive">
@@ -394,6 +352,22 @@ function Phone6Inner() {
                       setTimeout(() => setToast(null), 2800);
                     }}
                   />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {matchingCoaches.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <Icon name="sports" className="text-[15px] text-dark-slate" />
+                <span className="text-xs font-bold text-dark-slate">
+                  الكباتن والمدربون المطابقون ({matchingCoaches.length})
+                </span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {matchingCoaches.map((coach) => (
+                  <VerifiedCoachCard key={coach.id} coach={coach} />
                 ))}
               </div>
             </div>

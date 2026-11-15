@@ -33,15 +33,9 @@ function makeGoogleAvatarDataUrl(letter: string, bgHex: string): string {
 const PREVIEW_ACCOUNTS = [
   {
     name: "مصطفى عزت",
-    email: "mostafa.ezzat@gmail.com",
+    email: "moustafadesign.12@gmail.com",
     avatar: makeGoogleAvatarDataUrl("م", "#166534"),
-    note: "حساب جديد — يجلب الاسم والصورة ويفتح اختيار الدور",
-  },
-  {
-    name: "سلمى عبد الرحمن",
-    email: "salma.swimmer@gmail.com",
-    avatar: makeGoogleAvatarDataUrl("س", "#1D4ED8"),
-    note: "حساب جديد — للتجربة كولية أمر أو سبّاحة",
+    note: "حساب صاحب المنصة — يتحقق الخادم من تسجيله مسبقاً",
   },
 ];
 
@@ -86,7 +80,7 @@ export function GoogleSignInButton({
   const [copiedUri, setCopiedUri] = useState(false);
 
   const [customName, setCustomName] = useState("مصطفى عزت");
-  const [customEmail, setCustomEmail] = useState("mostafa.ezzat@gmail.com");
+  const [customEmail, setCustomEmail] = useState("moustafadesign.12@gmail.com");
   const [selectedAvatar, setSelectedAvatar] = useState(PREVIEW_ACCOUNTS[0].avatar);
 
   useEffect(() => {
@@ -162,11 +156,13 @@ export function GoogleSignInButton({
       });
 
       const targetPath =
-        res.persona.role === "coach"
-          ? "/dashboard/coach"
-          : res.persona.role === "facility_manager"
-            ? "/dashboard/facility"
-            : "/dashboard/athlete";
+        res.isNewUser || res.persona.needsOnboarding
+          ? "/auth/onboarding"
+          : res.persona.role === "coach"
+            ? "/dashboard/coach"
+            : res.persona.role === "facility_manager"
+              ? "/dashboard/facility"
+              : "/dashboard/athlete";
 
       setPreviewOpen(false);
       if (onSuccessNavigate) onSuccessNavigate();

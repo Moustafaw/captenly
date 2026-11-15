@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { sortCoachesWithVerificationPriority } from "@/lib/coachSearch";
 
 type HomeCategoryKey = "all" | "swimming" | "ladies" | "kids" | "heated";
 
@@ -93,9 +94,13 @@ export default function Desktop24() {
       ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
       : "/explore";
 
-  const verifiedCoaches = useMemo(
-    () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
-    [coaches]
+  const visibleCoaches = useMemo(
+    () =>
+      sortCoachesWithVerificationPriority(
+        coaches.filter((c) => c.sportSector !== "fitness"),
+        userLocation
+      ),
+    [coaches, userLocation]
   );
 
   const categories: { key: HomeCategoryKey; label: string; icon?: string }[] = [
@@ -130,7 +135,7 @@ export default function Desktop24() {
                     </span>
                     <span className="text-secondary">•</span>
                     <span className="flex items-center gap-1.5">
-                      <Icon name="workspace_premium" className="text-[16px] text-electric-volt" /> كباتن معتمدون بالشارات فقط
+                      <Icon name="workspace_premium" className="text-[16px] text-electric-volt" /> كباتن مسجلون وموثقون بالشارات
                     </span>
                     <span className="text-secondary">•</span>
                     <span className="flex items-center gap-1.5">
@@ -370,16 +375,16 @@ export default function Desktop24() {
               </div>
             </section>
 
-            {/* Verified Coaches Section — Zero Fake Coaches Rule */}
-            {!(isAthleteOrParent && verifiedCoaches.length === 0) && (
+            {/* Coaches Section — Verified First, Registered Live Immediately */}
+            {!(isAthleteOrParent && visibleCoaches.length === 0) && (
               <section className="flex flex-col gap-space-md">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <h2 className="font-section-title text-section-title text-dark-slate">
-                      نخبة الكباتن المعتمدين والموثقين شخصياً
+                      نخبة الكباتن والمدربين على كابتنلي
                     </h2>
                     <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                      جميع الكباتن هنا مسجلون ومعتمدون بالشارات الخضراء الموثقة.
+                      يتصدر الترتيب الكباتن الموثقون بالشارات الخضراء، مع ظهور جميع الكباتن المسجلين مباشرة.
                     </p>
                   </div>
                   {!isAthleteOrParent && (
@@ -392,9 +397,9 @@ export default function Desktop24() {
                   )}
                 </div>
 
-                {verifiedCoaches.length > 0 ? (
+                {visibleCoaches.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop">
-                    {verifiedCoaches.map((coach) => (
+                    {visibleCoaches.map((coach) => (
                       <VerifiedCoachCard key={coach.id} coach={coach} />
                     ))}
                   </div>

@@ -18,7 +18,6 @@ function Desktop10Inner() {
     registerMemberWithCredentials,
     restoreProfileByLogin,
     addMinorAthlete,
-    userLocation,
   } = useCaptenly();
 
   const initialTab =
@@ -46,9 +45,7 @@ function Desktop10Inner() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [city, setCity] = useState(
-    userLocation.isSpecified && userLocation.city ? userLocation.city : "كل مصر"
-  );
+  const [city, setCity] = useState("كل مصر");
   const [registerFeedback, setRegisterFeedback] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
 
@@ -110,7 +107,7 @@ function Desktop10Inner() {
       if (res.nextPath) {
         router.push(res.nextPath);
       } else if (role === "coach") {
-        router.push("/claim?mode=coach");
+        router.push("/dashboard/coach");
       } else if (role === "facility_manager") {
         router.push("/claim");
       } else {
@@ -311,7 +308,7 @@ function Desktop10Inner() {
                   className="rounded-xl bg-surface-snow px-4 py-3 text-sm outline-none border border-surface-container"
                 >
                   <option value="adult_athlete">سبّاح / متدرب وولي أمر (حساب موحد)</option>
-                  <option value="coach">كابتن سباحة (يتطلب توثيق ومراجعة لاحقة)</option>
+                  <option value="coach">كابتن سباحة (يتفعّل ملفك مباشرة — التوثيق اختياري)</option>
                   <option value="facility_manager">إدارة أكاديمية أو مسبح (يتطلب توثيق ومراجعة)</option>
                 </select>
               </div>
@@ -392,6 +389,10 @@ function Desktop10Inner() {
                       )}
                     </div>
                   )}
+                </div>
+              ) : role === "coach" ? (
+                <div className="rounded-2xl bg-lime-tint/60 border border-deep-olive/30 p-3 text-[11px] font-bold text-deep-olive leading-relaxed">
+                  يُفعَّل حساب الكابتن وينشر ملفك تلقائياً في البحث والرئيسية فور التسجيل. التوثيق بالشارات الخضراء عبر صفحة الاعتماد (/claim) اختياري تماماً ويمنحك أفضلية وترتيباً أعلى أمام المستخدمين.
                 </div>
               ) : (
                 <div className="rounded-2xl bg-lime-tint/60 border border-deep-olive/30 p-3 text-[11px] font-bold text-deep-olive leading-relaxed">

@@ -23,8 +23,6 @@ export default function Phone5() {
     uploadInstaPayReceipt,
     confirmReceiptByProvider,
     effectiveOffline,
-    isOfflineSimulated,
-    toggleOfflineSimulation,
     offlineQueue,
     syncOfflineQueue,
     syncLedgersFromServer,
@@ -158,15 +156,6 @@ export default function Phone5() {
                 : "دفتر الحصص الـ QR أوفلاين"}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={toggleOfflineSimulation}
-            className={`px-3 py-1 rounded-full text-[11px] font-bold shrink-0 ${
-              isOfflineSimulated ? "bg-amber-400 text-dark-slate" : "bg-white/15 text-white"
-            }`}
-          >
-            {isOfflineSimulated ? "أوفلاين ✓" : "محاكاة بدون نت"}
-          </button>
         </div>
         <p className="text-[11px] text-surface-container-high leading-relaxed">
           {effectiveOffline

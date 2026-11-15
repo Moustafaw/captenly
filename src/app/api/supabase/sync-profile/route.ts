@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import type { AccountRole } from "@/types/captenly";
+import type { AccountRole, UserSocialLinks } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { attachMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
+import { getDeterministicCoachId } from "@/lib/coachProvisioning";
+import { ensureSelfRegisteredCoachInDb } from "@/lib/server/coachDb";
+import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +101,7 @@ function normalizeRowToProfile(row: Record<string, unknown>) {
 }
 
 export async function GET(request: Request) {
+  await ensureSingleOwnerAccountBaseline();
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ ok: false, found: false, profile: null, error: "unauthorized" }, { status: 401 });
@@ -190,6 +194,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureSingleOwnerAccountBaseline();
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ persisted: false, error: "unauthorized" }, { status: 401 });
@@ -280,19 +285,17 @@ export async function POST(request: Request) {
             ? existingSocial._linkedCoachId
             : caller.linkedCoachId;
     } else {
-      // Non-admins can NEVER self-promote to coach/facility_manager or attach unapproved entities
-      const safeMemberRequested = requestedRole === "parent" ? "parent" : "adult_athlete";
-      if (!existingRow) {
-        effectiveRole = safeMemberRequested;
-      } else if (existingNeedsOnboarding) {
-        effectiveRole =
-          existingRole === "coach" || existingRole === "facility_manager" || existingRole === "super_admin"
-            ? existingRole
-            : safeMemberRequested;
-      } else if (existingRole === "adult_athlete" || existingRole === "parent") {
-        effectiveRole = safeMemberRequested;
+      const isOnboardingCompletion = !existingRow || existingNeedsOnboarding;
+      if (isOnboardingCompletion) {
+        effectiveRole = ALLOWED_ROLES.has(requestedRole) ? requestedRole : "adult_athlete";
+      } else if (
+        existingRole === "coach" ||
+        existingRole === "facility_manager" ||
+        existingRole === "super_admin"
+      ) {
+        effectiveRole = existingRole;
       } else {
-        effectiveRole = existingRole || safeMemberRequested;
+        effectiveRole = requestedRole === "parent" ? "parent" : "adult_athlete";
       }
 
       effectiveLinkedFacilityId =
@@ -300,9 +303,10 @@ export async function POST(request: Request) {
           ? existingSocial._linkedFacilityId
           : caller.linkedFacilityId;
       effectiveLinkedCoachId =
-        typeof existingSocial._linkedCoachId === "string"
-          ? existingSocial._linkedCoachId
-          : caller.linkedCoachId;
+        typeof existingSocial._linkedCoachId === "string" && existingSocial._linkedCoachId.trim()
+          ? existingSocial._linkedCoachId.trim()
+          : caller.linkedCoachId ||
+            (effectiveRole === "coach" ? getDeterministicCoachId(effectiveMemberCode) : undefined);
     }
 
     const incomingPhone = typeof body.phone === "string" ? body.phone.trim() : "";
@@ -356,6 +360,13 @@ export async function POST(request: Request) {
       ...(incomingIntent ? { _accountIntent: incomingIntent } : {}),
     };
 
+    const effectiveNeedsOnboarding =
+      body.needsOnboarding === false
+        ? false
+        : existingRow
+          ? Boolean(existingRow.needs_onboarding)
+          : false;
+
     const baseRecord: Record<string, unknown> = {
       member_code: effectiveMemberCode,
       email,
@@ -366,7 +377,7 @@ export async function POST(request: Request) {
       governorate: effectiveGov,
       auth_provider: typeof body.authProvider === "string" ? body.authProvider : "captenly",
       has_parent_supervision: Boolean(body.hasParentSupervision),
-      needs_onboarding: false,
+      needs_onboarding: effectiveNeedsOnboarding,
       updated_at: new Date().toISOString(),
     };
 
@@ -397,8 +408,28 @@ export async function POST(request: Request) {
       }
 
       if (!error) {
+        if (effectiveRole === "coach") {
+          await ensureSelfRegisteredCoachInDb({
+            memberCode: effectiveMemberCode,
+            fullNameAr,
+            city: effectiveCity || undefined,
+            governorate: effectiveGov || undefined,
+            phone: effectivePhone || undefined,
+            email: email || caller.email || undefined,
+            avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
+            bioAr: typeof extendedRecord.bio_ar === "string" ? extendedRecord.bio_ar : undefined,
+            socialLinks: cleanIncomingSocial as UserSocialLinks,
+            linkedCoachId: effectiveLinkedCoachId,
+          }).catch(() => {});
+        }
         return attachMemberSessionCookie(
-          NextResponse.json({ persisted: true, memberCode: effectiveMemberCode }),
+          NextResponse.json({
+            persisted: true,
+            memberCode: effectiveMemberCode,
+            role: effectiveRole,
+            linkedCoachId: effectiveLinkedCoachId,
+            linkedFacilityId: effectiveLinkedFacilityId,
+          }),
           sessionCookieInput
         );
       }
@@ -430,7 +461,7 @@ export async function POST(request: Request) {
             avatar_url = coalesce(excluded.avatar_url, public.captenly_profiles.avatar_url),
             auth_provider = excluded.auth_provider,
             has_parent_supervision = excluded.has_parent_supervision,
-            needs_onboarding = false,
+            needs_onboarding = excluded.needs_onboarding,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
             social_links = excluded.social_links,
             updated_at = now()`,
@@ -445,7 +476,7 @@ export async function POST(request: Request) {
             avatarVal,
             baseRecord.auth_provider,
             baseRecord.has_parent_supervision,
-            false,
+            effectiveNeedsOnboarding,
             bioVal,
             socialVal,
           ]
@@ -464,7 +495,7 @@ export async function POST(request: Request) {
             avatar_url = coalesce(excluded.avatar_url, public.captenly_profiles.avatar_url),
             auth_provider = excluded.auth_provider,
             has_parent_supervision = excluded.has_parent_supervision,
-            needs_onboarding = false,
+            needs_onboarding = excluded.needs_onboarding,
             bio_ar = coalesce(excluded.bio_ar, public.captenly_profiles.bio_ar),
             social_links = excluded.social_links,
             updated_at = now()`,
@@ -478,7 +509,7 @@ export async function POST(request: Request) {
             avatarVal,
             baseRecord.auth_provider,
             baseRecord.has_parent_supervision,
-            false,
+            effectiveNeedsOnboarding,
             bioVal,
             socialVal,
           ]
@@ -488,8 +519,28 @@ export async function POST(request: Request) {
     });
 
     if (pgRes.ok) {
+      if (effectiveRole === "coach") {
+        await ensureSelfRegisteredCoachInDb({
+          memberCode: effectiveMemberCode,
+          fullNameAr,
+          city: effectiveCity || undefined,
+          governorate: effectiveGov || undefined,
+          phone: effectivePhone || undefined,
+          email: email || caller.email || undefined,
+          avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
+          bioAr: typeof extendedRecord.bio_ar === "string" ? extendedRecord.bio_ar : undefined,
+          socialLinks: cleanIncomingSocial as UserSocialLinks,
+          linkedCoachId: effectiveLinkedCoachId,
+        }).catch(() => {});
+      }
       return attachMemberSessionCookie(
-        NextResponse.json({ persisted: true, memberCode: effectiveMemberCode }),
+        NextResponse.json({
+          persisted: true,
+          memberCode: effectiveMemberCode,
+          role: effectiveRole,
+          linkedCoachId: effectiveLinkedCoachId,
+          linkedFacilityId: effectiveLinkedFacilityId,
+        }),
         sessionCookieInput
       );
     }

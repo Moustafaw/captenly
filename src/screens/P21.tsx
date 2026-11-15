@@ -8,6 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
+import { sortCoachesWithVerificationPriority } from "@/lib/coachSearch";
 
 type MobileCat = "all" | "swimming" | "kids" | "heated" | "ladies";
 
@@ -116,9 +117,13 @@ export default function Phone21() {
       ? `/explore?city=${encodeURIComponent(cleanCityLabel)}`
       : "/explore";
 
-  const verifiedCoaches = useMemo(
-    () => coaches.filter((c) => c.isVerifiedCoach && c.sportSector !== "fitness"),
-    [coaches]
+  const visibleCoaches = useMemo(
+    () =>
+      sortCoachesWithVerificationPriority(
+        coaches.filter((c) => c.sportSector !== "fitness"),
+        userLocation
+      ),
+    [coaches, userLocation]
   );
 
   const cats: { key: MobileCat; label: string; icon?: string }[] = [
@@ -336,21 +341,21 @@ export default function Phone21() {
         </Link>
       </section>
 
-      {/* Verified Coaches — Zero Fake Coaches Rule */}
-      {!(isAthleteOrParent && verifiedCoaches.length === 0) && (
+      {/* Coaches Section — Verified First, Registered Live Immediately */}
+      {!(isAthleteOrParent && visibleCoaches.length === 0) && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-              الكباتن الموثقون
+              الكباتن والمدربون
             </h2>
             <Link href="/coaches" className="text-xs font-bold text-deep-olive">
               عرض الدليل ←
             </Link>
           </div>
 
-          {verifiedCoaches.length > 0 ? (
+          {visibleCoaches.length > 0 ? (
             <div className="flex flex-col gap-3">
-              {verifiedCoaches.map((coach) => (
+              {visibleCoaches.map((coach) => (
                 <VerifiedCoachCard key={coach.id} coach={coach} />
               ))}
             </div>

@@ -33,11 +33,13 @@ export default function GoogleCompletePage() {
       });
 
       const targetPath =
-        res.persona.role === "coach"
-          ? "/dashboard/coach"
-          : res.persona.role === "facility_manager"
-            ? "/dashboard/facility"
-            : "/dashboard/athlete";
+        res.isNewUser || res.persona.needsOnboarding
+          ? "/auth/onboarding"
+          : res.persona.role === "coach"
+            ? "/dashboard/coach"
+            : res.persona.role === "facility_manager"
+              ? "/dashboard/facility"
+              : "/dashboard/athlete";
 
       router.replace(targetPath);
       if (typeof window !== "undefined") {

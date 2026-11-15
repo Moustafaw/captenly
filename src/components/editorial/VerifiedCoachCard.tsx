@@ -47,12 +47,14 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
                 {coach.fullNameAr.slice(0, 2)}
               </div>
             )}
-            <span
-              title="كابتن موثق بالشارات الخضراء"
-              className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-status-success text-on-primary flex items-center justify-center text-[12px] shadow-sm font-bold"
-            >
-              ✓
-            </span>
+            {coach.isVerifiedCoach && (
+              <span
+                title="كابتن موثق بالشارات الخضراء"
+                className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-status-success text-on-primary flex items-center justify-center text-[12px] shadow-sm font-bold"
+              >
+                ✓
+              </span>
+            )}
           </Link>
 
           <button
@@ -78,10 +80,17 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-center">
-          <span className="text-deep-olive font-micro-caption text-micro-caption font-bold inline-flex items-center gap-1">
-            <Icon name="verified" className="text-[14px]" />
-            <span>موثق بالشارات الخضراء ({coach.badges.length})</span>
-          </span>
+          {coach.isVerifiedCoach ? (
+            <span className="text-deep-olive font-micro-caption text-micro-caption font-bold inline-flex items-center gap-1">
+              <Icon name="verified" className="text-[14px]" />
+              <span>موثق بالشارات الخضراء ({coach.badges.length})</span>
+            </span>
+          ) : (
+            <span className="text-text-muted font-micro-caption text-micro-caption font-bold inline-flex items-center gap-1">
+              <Icon name="person" className="text-[14px] text-dark-slate" />
+              <span>كابتن مسجل على كابتنلي</span>
+            </span>
+          )}
           {coach.rating > 0 && (
             <span className="font-badge-label text-badge-label text-status-warning flex items-center gap-0.5">
               <Icon name="star" className="text-[14px]" />

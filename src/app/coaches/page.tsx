@@ -7,9 +7,10 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
+import { filterAndSortExploreCoaches } from "@/lib/coachSearch";
 
 export default function CoachesDirectoryPage() {
-  const { coaches, facilities, isAuthenticated, currentPersona } = useCaptenly();
+  const { coaches, facilities, isAuthenticated, currentPersona, userLocation } = useCaptenly();
   const isFacilityManager = isAuthenticated && currentPersona.role === "facility_manager";
   const isCoachRole = isAuthenticated && currentPersona.role === "coach";
   const isAthleteOrParent =
@@ -19,20 +20,15 @@ export default function CoachesDirectoryPage() {
   const [searchQ, setSearchQ] = useState("");
   const [tab, setTab] = useState<"coaches" | "facilities">("coaches");
 
-  const verifiedCoaches = useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    return coaches.filter((c) => {
-      if (!c.isVerifiedCoach) return false;
-      if (c.sportSector === "fitness") return false;
-      if (q) {
-        const hay = `${c.fullNameAr} ${c.titleAr} ${c.city} ${c.governorate} ${c.specialties.map((s) => s.nameAr).join(" ")}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      } else if (cityFilter !== "الكل" && c.city !== cityFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [coaches, cityFilter, searchQ]);
+  const matchingCoaches = useMemo(
+    () =>
+      filterAndSortExploreCoaches(
+        coaches,
+        { searchQuery: searchQ, city: cityFilter },
+        userLocation
+      ),
+    [coaches, cityFilter, searchQ, userLocation]
+  );
 
   const filteredFacilities = useMemo(() => {
     const q = searchQ.trim().toLowerCase();
@@ -62,7 +58,7 @@ export default function CoachesDirectoryPage() {
               دليل الكباتن والأكاديميات الموثقة في مصر
             </h1>
             <p className="font-body-default text-surface-container-high">
-              لا تُنشر أي ملفات كباتن إلا بعد تسجيل الكابتن برقم موبايله واعتماد شهاداته للحصول على الشارات الخضراء، بينما يمكن للمنشآت تفعيل صفحاتها وإدارة بياناتها مجاناً.
+              يظهر ملف الكابتن هنا فور إنشاء حسابه على المنصة دون قيود، بينما يحصل الكباتن الموثقون بالشارات الخضراء على أولوية الترتيب وثقة أعلى أمام السباحين.
             </p>
           </div>
 
@@ -119,7 +115,7 @@ export default function CoachesDirectoryPage() {
                   : "bg-surface-snow text-text-muted hover:text-dark-slate"
               }`}
             >
-              الكباتن الموثقون ({verifiedCoaches.length})
+              الكباتن والمدربون ({matchingCoaches.length})
             </button>
             <button
               type="button"
@@ -164,9 +160,9 @@ export default function CoachesDirectoryPage() {
         {/* Coaches Tab */}
         {tab === "coaches" && (
           <section className="flex flex-col gap-space-md">
-            {verifiedCoaches.length > 0 ? (
+            {matchingCoaches.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop">
-                {verifiedCoaches.map((coach) => (
+                {matchingCoaches.map((coach) => (
                   <VerifiedCoachCard key={coach.id} coach={coach} />
                 ))}
               </div>
@@ -177,10 +173,12 @@ export default function CoachesDirectoryPage() {
                 </div>
                 <div className="max-w-xl flex flex-col gap-2">
                   <h2 className="font-section-title text-section-title text-dark-slate">
-                    لا نعرض أي كابتن دون توثيق فعلي لشهاداته أولاً
+                    {searchQ.trim() || cityFilter !== "الكل"
+                      ? "لا يوجد كباتن مطابقون لبحثك في هذا النطاق حالياً"
+                      : "لا يوجد كباتن مسجلون حتى الآن"}
                   </h2>
                   <p className="font-body-default text-text-muted">
-                    حفاظاً على مصداقية المنصة وأمان السباحين، يظهر ملف الكابتن هنا فور تسجيله بنفسه برقم موبايله ورفع شهادة النقابة أو الاتحاد لاستلام الشارات الخضراء.
+                    يظهر أي كابتن مسجل فور إنشائه الحساب على كابتنلي، مع أولوية الظهور للكباتن الموثقين بالشارات الخضراء.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
