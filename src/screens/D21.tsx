@@ -49,10 +49,6 @@ export default function Desktop21() {
         <header className="flex flex-col gap-5">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="flex flex-col gap-2 max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#EAF4F8] border border-[#00ACC1]/25 text-[#1D6E7D] font-bold text-xs w-fit">
-                <Icon name="menu_book" className="text-[15px] text-[#00ACC1]" />
-                <span>دليل التوعية الرياضي الموثق — {articles.length} مقالات تأسيسية</span>
-              </span>
               <h1 className="font-hero-headline text-[28px] md:text-[36px] font-black text-[#0B1C2E] tracking-tight leading-tight">
                 مجلة كابتنلي الرياضية
               </h1>
