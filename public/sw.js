@@ -1,4 +1,4 @@
-const CACHE_NAME = "captenly-pwa-v1";
+const CACHE_NAME = "captenly-pwa-v2";
 const CORE_SHELL_URLS = [
   "/",
   "/explore",
@@ -6,7 +6,8 @@ const CORE_SHELL_URLS = [
   "/dashboard/ledger",
   "/dashboard/athlete",
   "/manifest.json",
-  "/icon.svg",
+  "/captenly-icon-v2.svg",
+  "/favicon-v2.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -62,7 +63,9 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/screens/") ||
     url.pathname.startsWith("/images/") ||
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname === "/icon.svg" ||
+    url.pathname === "/captenly-icon-v2.svg" ||
+    url.pathname === "/favicon-v2.png" ||
+    url.pathname === "/apple-touch-icon-v2.png" ||
     url.pathname === "/manifest.json"
   ) {
     event.respondWith(

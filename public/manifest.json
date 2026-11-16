@@ -1,5 +1,5 @@
 {
-  "name": "كابتنلي CAPTENLY — المنصة الرياضية وجواز السفر الرياضي",
+  "name": "كابتنلي | CAPTENLY",
   "short_name": "كابتنلي CAPTENLY",
   "description": "المنظومة الرقمية المصرية لاكتشاف الرياضة وتوثيق التطور وحفظ الحصص (السباحة واللياقة البدنية)",
   "start_url": "/",
@@ -11,10 +11,20 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/captenly-icon-v2.svg?v=2",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-v2.png?v=2",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon-v2.png?v=2",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }

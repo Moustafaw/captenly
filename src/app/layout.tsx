@@ -13,12 +13,17 @@ import { AuthGateModal } from "@/components/auth/AuthGateModal";
 import { FloatingCompareDrawer } from "@/components/FloatingCompareDrawer";
 
 export const metadata: Metadata = {
-  title: "كابتنلي CAPTENLY — المنظومة الرقمية للسباحة في مصر",
+  title: "كابتنلي | CAPTENLY",
   description:
     "المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة، توثيق الكباتن بـ 6 شارات مستقلة، جواز السفر الرياضي، ودفتر الحصص الأوفلاين.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/captenly-icon-v2.svg?v=2", type: "image/svg+xml" },
+      { url: "/favicon-v2.png?v=2", sizes: "64x64", type: "image/png" },
+    ],
+    shortcut: "/favicon-v2.png?v=2",
+    apple: "/apple-touch-icon-v2.png?v=2",
   },
 };
 
