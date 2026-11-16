@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { parseCaptenlyQr } from "@/lib/qrPayload";
 import type { SessionLedger } from "@/types/captenly";
 
 interface QrCameraScannerModalProps {
@@ -13,76 +14,6 @@ interface QrCameraScannerModalProps {
   scopeCoachId?: string;
   onMemberDetectedForEnroll?: (payload: { memberCode: string; athleteNameAr?: string }) => void;
   onLedgerCheckedIn?: (ledgerId: string, messageAr: string) => void;
-}
-
-type ParsedQrResult =
-  | { kind: "subscription_qr"; subscriptionCode: string }
-  | { kind: "ledger_qr"; ledgerCode: string; pinCode: string }
-  | { kind: "member_qr"; memberCode: string }
-  | { kind: "unknown"; raw: string };
-
-function parseCaptenlyQr(raw: string): ParsedQrResult {
-  const clean = raw.trim();
-  if (clean.startsWith("{") && clean.endsWith("}")) {
-    try {
-      const obj = JSON.parse(clean) as {
-        subCode?: string;
-        subscriptionCode?: string;
-        code?: string;
-        ledgerCode?: string;
-        pinCode?: string;
-      };
-      if (obj.subCode || obj.subscriptionCode) {
-        return {
-          kind: "subscription_qr",
-          subscriptionCode: String(obj.subCode || obj.subscriptionCode).trim().toUpperCase(),
-        };
-      }
-      if (obj.ledgerCode) {
-        return {
-          kind: "ledger_qr",
-          ledgerCode: String(obj.ledgerCode).trim().toUpperCase(),
-          pinCode: String(obj.pinCode || "").trim(),
-        };
-      }
-      if (obj.code) {
-        const c = String(obj.code).trim().toUpperCase();
-        if (c.startsWith("SUB-")) {
-          return { kind: "subscription_qr", subscriptionCode: c };
-        }
-        return { kind: "member_qr", memberCode: c };
-      }
-    } catch {
-      // fall through
-    }
-  }
-  if (clean.toUpperCase().startsWith("CAP-SUB:")) {
-    return {
-      kind: "subscription_qr",
-      subscriptionCode: clean.slice("CAP-SUB:".length).trim().toUpperCase(),
-    };
-  }
-  if (/^SUB-[A-Z0-9-]{3,14}$/i.test(clean)) {
-    return { kind: "subscription_qr", subscriptionCode: clean.toUpperCase() };
-  }
-  if (clean.toUpperCase().startsWith("CAP-QR:")) {
-    const parts = clean.split(":");
-    return {
-      kind: "ledger_qr",
-      ledgerCode: (parts[1] || "").trim().toUpperCase(),
-      pinCode: (parts[2] || "").trim(),
-    };
-  }
-  if (clean.toUpperCase().startsWith("CAP-MEMBER:")) {
-    return {
-      kind: "member_qr",
-      memberCode: clean.slice("CAP-MEMBER:".length).trim().toUpperCase(),
-    };
-  }
-  if (/^CAP-(M|JR|C|F)-[A-Z0-9-]+$/i.test(clean)) {
-    return { kind: "member_qr", memberCode: clean.toUpperCase() };
-  }
-  return { kind: "unknown", raw: clean };
 }
 
 export function QrCameraScannerModal({

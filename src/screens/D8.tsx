@@ -7,6 +7,8 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { buildCaptenlyQrUrl } from "@/lib/qrPayload";
+import { useLedgerUrlScan } from "@/lib/useLedgerUrlScan";
 import { isMemberAccountRole } from "@/types/captenly";
 
 export default function Desktop8() {
@@ -111,6 +113,25 @@ export default function Desktop8() {
   const [coachNote, setCoachNote] = useState("");
   const [checkinMsg, setCheckinMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  useLedgerUrlScan({
+    isAuthenticated,
+    canScanAndEnroll,
+    isFacility,
+    isCoach,
+    linkedFacilityId,
+    linkedCoachId,
+    onSelectLedger: (ledgerId) => setSelectedLedgerId(ledgerId),
+    onStatusMessage: (status) => {
+      setEnrollMsg(status);
+      setCheckinMsg(status);
+    },
+    onPrefillEnroll: ({ memberCode: mc, athleteNameAr }) => {
+      setNewMemberCode(mc);
+      if (athleteNameAr) setNewAthleteName(athleteNameAr);
+      setShowEnrollForm(true);
+    },
+  });
 
   // InstaPay form
   const [receiptRef, setReceiptRef] = useState("");
@@ -226,6 +247,35 @@ export default function Desktop8() {
           </div>
         </section>
 
+        {/* Top System-Scan Status Banner (visible in all ledger states) */}
+        {(checkinMsg || enrollMsg) && (
+          <div
+            className={`rounded-2xl px-4 py-3 text-xs font-bold flex items-center justify-between gap-2 shadow-sm ${
+              (checkinMsg || enrollMsg)!.ok
+                ? "bg-[#EAF4F8] text-[#1D6E7D] border border-[#00ACC1]/30"
+                : "bg-red-50 text-red-900 border border-red-200"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Icon
+                name={(checkinMsg || enrollMsg)!.ok ? "check_circle" : "info"}
+                className="text-[16px] shrink-0"
+              />
+              <span>{(checkinMsg || enrollMsg)!.msg}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setCheckinMsg(null);
+                setEnrollMsg(null);
+              }}
+              className="underline shrink-0"
+            >
+              إخفاء
+            </button>
+          </div>
+        )}
+
         {/* Unlinked Member State vs Multi-Ledger Directory */}
         {roleLedgers.length === 0 && !isProvider ? (
           <section className="bg-white rounded-[24px] p-8 md:p-12 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
@@ -289,9 +339,9 @@ export default function Desktop8() {
             </div>
 
             <div className="lg:col-span-5 flex flex-col items-center justify-center gap-3 bg-[#F7F9FA] border border-[#0F172A]/8 rounded-2xl p-6">
-              <QrCodeBox value={`CAP-MEMBER:${memberCode}`} size={180} label={memberCode} />
+              <QrCodeBox value={buildCaptenlyQrUrl("member", memberCode)} size={180} label={memberCode} />
               <span className="text-xs text-[#64748B] text-center max-w-xs">
-                امسح أو شارك كود عضويتك مع الكابتن أو إدارة المدرسة لتفعيل الباقة (8 أو 12 أو 24 حصة)
+                امسح أو شارك كود عضويتك مع الكابتن أو إدارة المدرسة لتفعيل الباقة (يدعم المسح من كاميرا المنصة أو شريط نظام الهاتف ✓)
               </span>
             </div>
           </section>
@@ -926,7 +976,10 @@ export default function Desktop8() {
                         كارت الـ QR وكود اشتراكك الحالي داخل صالة المسبح
                       </h3>
                       <QrCodeBox
-                        value={`CAP-SUB:${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
+                        value={buildCaptenlyQrUrl(
+                          "subscription",
+                          activeLedger.subscriptionCode || activeLedger.ledgerCode
+                        )}
                         size={180}
                         label={
                           activeLedger.isCodeExpired || activeLedger.status === "completed"
@@ -937,7 +990,7 @@ export default function Desktop8() {
                       <p className="text-xs text-[#64748B] max-w-xs">
                         {activeLedger.isCodeExpired || activeLedger.status === "completed"
                           ? "انتهت صلاحية هذا الكود بعد إتمام جميع حصص الباقة. عند التجديد سيصدر لك كود اشتراك جديد تلقائياً."
-                          : "أظهر هذا الباركود أو أملِ كود الاشتراك للمسؤول عند البوابة لخصم الحصة فورياً (يعمل بدون إنترنت)."}
+                          : "أظهر هذا الباركود للكابتن أو مسؤول البوابة — يقبل المسح بكاميرا المنصة أو بسكانر النظام في الموبايل، ويعمل كود الاشتراك يدوياً بدون إنترنت."}
                       </p>
                     </div>
                   )}

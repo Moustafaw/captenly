@@ -176,19 +176,19 @@ export function AuthorArticlesManager({
       {/* Header & Overview */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h3 className="font-card-title text-dark-slate flex items-center gap-2">
-            <Icon name="article" className="text-[20px] text-deep-olive" />
+          <h3 className="font-card-title text-[#0B1C2E] font-black flex items-center gap-2">
+            <Icon name="article" className="text-[20px] text-[#1D6E7D]" />
             <span>مقالاتي ومنشوراتي الرياضية ({myArticles.length})</span>
           </h3>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p className="text-xs text-[#64748B] mt-0.5">
             انشر مقالاتك ونصائحك التدريبية لتظهر فوراً في «مجلة كابتنلي» وفي بروفايلك العام مع إمكانية تعديلها في أي وقت.
           </p>
         </div>
         <Link
           href="/magazine"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate hover:bg-lime-tint"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#F7F9FA] border border-[#E2E8F0] text-xs font-bold text-[#0B1C2E] hover:bg-[#EAF4F8] transition"
         >
-          <Icon name="menu_book" className="text-[15px] text-deep-olive" />
+          <Icon name="menu_book" className="text-[15px] text-[#1D6E7D]" />
           <span>تصفح مجلة كابتنلي</span>
         </Link>
       </div>
@@ -197,8 +197,8 @@ export function AuthorArticlesManager({
         <div
           className={`rounded-2xl p-3.5 text-xs font-bold border flex items-center justify-between gap-2 ${
             localMsg.ok
-              ? "bg-lime-tint text-deep-olive border-electric-volt"
-              : "bg-status-danger/10 text-status-danger border-status-danger/30"
+              ? "bg-[#EAF4F8] text-[#1D6E7D] border-[#00ACC1]/30"
+              : "bg-red-50 text-red-900 border-red-200"
           }`}
         >
           <span>{localMsg.text}</span>
@@ -211,48 +211,48 @@ export function AuthorArticlesManager({
       {/* Existing Articles List */}
       {myArticles.length > 0 && (
         <div className="flex flex-col gap-3">
-          <div className="text-xs font-extrabold text-dark-slate">
+          <div className="text-xs font-extrabold text-[#0B1C2E]">
             مقالاتك المنشورة ({myArticles.length}) — اضغط على «تعديل» لتحديث أي مقال:
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {myArticles.map((art) => (
               <div
                 key={art.id}
-                className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex flex-col justify-between gap-3"
+                className="rounded-2xl bg-[#F7F9FA] p-4 border border-[#E2E8F0] flex flex-col justify-between gap-3"
               >
                 <div className="flex items-start gap-3">
                   {art.imageUrl ? (
                     <img
                       src={art.imageUrl}
                       alt={art.titleAr}
-                      className="w-20 h-16 rounded-xl object-cover shrink-0 border border-surface-container"
+                      className="w-20 h-16 rounded-xl object-cover shrink-0 border border-[#E2E8F0]"
                     />
                   ) : (
-                    <div className="px-2.5 py-1.5 rounded-xl bg-surface-card border border-surface-container text-[10px] font-bold text-text-muted shrink-0">
+                    <div className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E2E8F0] text-[10px] font-bold text-[#64748B] shrink-0">
                       مقال نصي
                     </div>
                   )}
                   <div className="flex flex-col gap-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-extrabold text-deep-olive bg-lime-tint px-2.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-extrabold text-[#1D6E7D] bg-[#EAF4F8] px-2.5 py-0.5 rounded-full">
                         {art.categoryAr}
                       </span>
-                      <span className="text-[10px] text-text-muted">{art.publishedDateAr}</span>
+                      <span className="text-[10px] text-[#64748B]">{art.publishedDateAr}</span>
                     </div>
                     <Link
                       href={`/magazine/${art.slug}`}
-                      className="font-bold text-sm text-dark-slate hover:text-deep-olive line-clamp-1"
+                      className="font-bold text-sm text-[#0B1C2E] hover:text-[#1D6E7D] line-clamp-1"
                     >
                       {art.titleAr}
                     </Link>
-                    <p className="text-xs text-text-muted line-clamp-2">{art.excerptAr}</p>
+                    <p className="text-xs text-[#64748B] line-clamp-2">{art.excerptAr}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-container/70">
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E2E8F0]">
                   <Link
                     href={`/magazine/${art.slug}`}
-                    className="text-[11px] font-bold text-deep-olive hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-[#1D6E7D] hover:underline flex items-center gap-1"
                   >
                     <Icon name="open_in_new" className="text-[13px]" />
                     <span>عرض المقال</span>
@@ -261,7 +261,7 @@ export function AuthorArticlesManager({
                     <button
                       type="button"
                       onClick={() => startEdit(art)}
-                      className="px-3 py-1.5 rounded-full bg-surface-card border border-surface-container text-[11px] font-bold text-dark-slate hover:bg-lime-tint"
+                      className="px-3 py-1.5 rounded-full bg-white border border-[#E2E8F0] text-[11px] font-bold text-[#0B1C2E] hover:bg-[#EAF4F8] transition cursor-pointer"
                     >
                       تعديل المقال
                     </button>
@@ -272,7 +272,7 @@ export function AuthorArticlesManager({
                         if (editingId === art.id) resetForm();
                         setLocalMsg({ ok: true, text: "تم حذف المقال من المجلة ومن بروفايلك." });
                       }}
-                      className="px-3 py-1.5 rounded-full bg-status-danger/10 text-status-danger text-[11px] font-bold hover:bg-status-danger/20"
+                      className="px-3 py-1.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold hover:bg-red-100 transition cursor-pointer"
                     >
                       حذف
                     </button>
@@ -287,11 +287,11 @@ export function AuthorArticlesManager({
       {/* Article Composer / Editor Form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col gap-4"
+        className="rounded-3xl bg-[#F7F9FA] p-5 border border-[#E2E8F0] flex flex-col gap-4"
       >
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h4 className="font-card-title-sm text-dark-slate flex items-center gap-1.5">
-            <Icon name={editingId ? "edit_note" : "post_add"} className="text-[18px] text-deep-olive" />
+          <h4 className="font-card-title-sm text-[#0B1C2E] font-black flex items-center gap-1.5">
+            <Icon name={editingId ? "edit_note" : "post_add"} className="text-[18px] text-[#1D6E7D]" />
             <span>
               {editingId ? "تعديل المقال المنشور" : "كتابة ونشر مقال رياضي جديد"}
             </span>
@@ -300,7 +300,7 @@ export function AuthorArticlesManager({
             <button
               type="button"
               onClick={resetForm}
-              className="text-xs font-bold text-status-danger hover:underline"
+              className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
             >
               إلغاء التعديل وبدء مقال جديد
             </button>
@@ -309,21 +309,21 @@ export function AuthorArticlesManager({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="md:col-span-2 flex flex-col gap-1">
-            <label className="text-xs font-bold text-dark-slate">عنوان المقال *</label>
+            <label className="text-xs font-bold text-[#0B1C2E]">عنوان المقال *</label>
             <input
               required
               value={titleAr}
               onChange={(e) => setTitleAr(e.target.value)}
               placeholder="مثلاً: كيف تختار مدرسة السباحة المناسبة لطفلك قبل موسم الصيف؟"
-              className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+              className="rounded-xl bg-white px-3.5 py-2.5 text-xs text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-bold text-dark-slate">التصنيف الرياضي</label>
+            <label className="text-xs font-bold text-[#0B1C2E]">التصنيف الرياضي</label>
             <select
               value={categoryAr}
               onChange={(e) => setCategoryAr(e.target.value)}
-              className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs font-bold outline-none border border-surface-container"
+              className="rounded-xl bg-white px-3.5 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
             >
               {ARTICLE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -335,20 +335,20 @@ export function AuthorArticlesManager({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-dark-slate">
+          <label className="text-xs font-bold text-[#0B1C2E]">
             مقدمة مختصرة / ملخص سريع (اختياري)
           </label>
           <input
             value={excerptAr}
             onChange={(e) => setExcerptAr(e.target.value)}
-            placeholder="جملة أو جملتان تلخص فكرة المقال للقراء في بطاقة المجلة..."
-            className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+            placeholder="جملة أو جملتان تلخص فكرة المقال للقراء في بطاقة المجلة وصندوق الخلاصة..."
+            className="rounded-xl bg-white px-3.5 py-2.5 text-xs text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-dark-slate">
-            نص المقال الكامل * (افصل بين الفقرات بسطر جديد)
+          <label className="text-xs font-bold text-[#0B1C2E]">
+            نص المقال الكامل * (افصل بين الفقرات بسطر جديد — يدعم `## للعناوين الفرعية` و `1.` و `-` للقوائم و `**للتعريض**`)
           </label>
           <textarea
             required
@@ -356,31 +356,31 @@ export function AuthorArticlesManager({
             value={bodyText}
             onChange={(e) => setBodyText(e.target.value)}
             placeholder="اكتب محتوى المقال بالتفصيل هنا... كل سطر جديد يُعرض كفقرة منظمة ومريحة للقراءة في المجلة."
-            className="rounded-xl bg-surface-card px-3.5 py-3 text-xs outline-none border border-surface-container leading-relaxed"
+            className="rounded-xl bg-white px-3.5 py-3 text-xs text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1] leading-relaxed"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-dark-slate">
-            أهم النقاط المستفادة (اختياري — نقطة في كل سطر)
+          <label className="text-xs font-bold text-[#0B1C2E]">
+            أهم النقاط المستفادة (اختياري — نقطة في كل سطر، تظهر بصندوق مستقل بنهاية المقال)
           </label>
           <textarea
             rows={3}
             value={takeawaysText}
             onChange={(e) => setTakeawaysText(e.target.value)}
             placeholder={"التأكد من تواجد منقذ معتمد بجوار الحمام\nاختيار مجموعة لا تتجاوز 6 سباحين في الحارة"}
-            className="rounded-xl bg-surface-card px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+            className="rounded-xl bg-white px-3.5 py-2.5 text-xs text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
           />
         </div>
 
         {/* Optional Cover Image (Never injects a default image if empty) */}
-        <div className="rounded-xl bg-surface-card p-3.5 border border-surface-container flex flex-col gap-2.5">
+        <div className="rounded-2xl bg-white p-3.5 border border-[#E2E8F0] flex flex-col gap-2.5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-dark-slate">
+              <span className="text-xs font-bold text-[#0B1C2E]">
                 صورة المقال (اختيارية تماماً — المقاس الموصى به 1200×675 بكسل)
               </span>
-              <span className="text-[11px] text-text-muted">
+              <span className="text-[11px] text-[#64748B]">
                 إذا لم تقم برفع صورة، سيُنشر المقال بتصميم نصي نظيف بدون إضافة أي صورة افتراضية.
               </span>
             </div>
@@ -395,16 +395,16 @@ export function AuthorArticlesManager({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3.5 py-2 rounded-full bg-surface-snow border border-surface-container text-xs font-bold text-dark-slate hover:bg-lime-tint flex items-center gap-1.5"
+                className="px-3.5 py-2 rounded-full bg-[#F7F9FA] border border-[#E2E8F0] text-xs font-bold text-[#0B1C2E] hover:bg-[#EAF4F8] flex items-center gap-1.5 transition cursor-pointer"
               >
-                <Icon name="add_photo_alternate" className="text-[16px] text-deep-olive" />
+                <Icon name="add_photo_alternate" className="text-[16px] text-[#1D6E7D]" />
                 <span>{imageUrl ? "تغيير الصورة" : "رفع صورة للمقال (اختياري)"}</span>
               </button>
               {imageUrl && (
                 <button
                   type="button"
                   onClick={() => setImageUrl("")}
-                  className="px-3 py-2 rounded-full bg-status-danger/10 text-status-danger text-xs font-bold hover:bg-status-danger/20"
+                  className="px-3 py-2 rounded-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 transition cursor-pointer"
                 >
                   إزالة الصورة (نشر بدون صورة)
                 </button>
@@ -417,9 +417,9 @@ export function AuthorArticlesManager({
               <img
                 src={imageUrl}
                 alt="معاينة صورة المقال"
-                className="w-32 h-20 rounded-xl object-cover border border-surface-container"
+                className="w-32 h-20 rounded-xl object-cover border border-[#E2E8F0]"
               />
-              <span className="text-[11px] font-bold text-deep-olive">
+              <span className="text-[11px] font-bold text-[#1D6E7D]">
                 تم إرفاق صورة للمقال وستظهر في بطاقة المجلة وأعلى المقال ✓
               </span>
             </div>
@@ -427,32 +427,32 @@ export function AuthorArticlesManager({
         </div>
 
         {isSaving && (
-          <div className="rounded-2xl bg-lime-tint/70 border border-electric-volt p-3.5 flex flex-col gap-2 animate-captenly-enter">
-            <div className="flex items-center justify-between text-xs font-extrabold text-deep-olive">
+          <div className="rounded-2xl bg-[#EAF4F8] border border-[#00ACC1]/30 p-3.5 flex flex-col gap-2 animate-captenly-enter">
+            <div className="flex items-center justify-between text-xs font-extrabold text-[#1D6E7D]">
               <span className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-deep-olive border-t-transparent animate-spin" />
+                <span className="w-4 h-4 rounded-full border-2 border-[#1D6E7D] border-t-transparent animate-spin" />
                 {editingId ? "جاري حفظ تعديلات المقال..." : "جاري رفع ونشر المقال في المجلة والبروفايل..."}
               </span>
               <span dir="ltr">{saveProgress}%</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-surface-card overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-white overflow-hidden">
               <div
-                className="h-full bg-deep-olive rounded-full transition-all duration-300"
+                className="h-full bg-[#1D6E7D] rounded-full transition-all duration-300"
                 style={{ width: `${saveProgress}%` }}
               />
             </div>
           </div>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="submit"
             disabled={isSaving}
-            className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95 disabled:opacity-60 flex items-center gap-2"
+            className="px-6 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm disabled:opacity-60 flex items-center gap-2 transition cursor-pointer"
           >
             {isSaving ? (
               <>
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
                 <span>جاري الحفظ ({saveProgress}%)...</span>
               </>
             ) : (
@@ -462,8 +462,8 @@ export function AuthorArticlesManager({
               </>
             )}
           </button>
-          <span className="text-[11px] text-text-muted">
-            الكاتب: <strong className="text-dark-slate">{authorNameAr}</strong> ({authorRoleAr})
+          <span className="text-[11px] text-[#64748B]">
+            الكاتب: <strong className="text-[#0B1C2E]">{authorNameAr}</strong> ({authorRoleAr})
           </span>
         </div>
       </form>

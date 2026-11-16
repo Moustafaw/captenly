@@ -39,7 +39,7 @@ export function QrCodeBox({ value, size = 160, label }: QrCodeBoxProps) {
   }, [value]);
 
   return (
-    <div className="inline-flex flex-col items-center gap-2 p-3 rounded-2xl bg-surface-card border border-surface-container shadow-sm">
+    <div className="inline-flex flex-col items-center gap-2 p-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-sm">
       <svg
         width={size}
         height={size}
@@ -56,10 +56,10 @@ export function QrCodeBox({ value, size = 160, label }: QrCodeBoxProps) {
           height={qrMatrix.totalModules}
           fill="#FFFFFF"
         />
-        <path d={qrMatrix.pathData} fill="#2C3437" />
+        <path d={qrMatrix.pathData} fill="#0B1C2E" />
       </svg>
       {label && (
-        <span className="font-mono text-[11px] font-bold tracking-wider text-dark-slate bg-surface-snow px-2.5 py-0.5 rounded-full">
+        <span className="font-mono text-[11px] font-bold tracking-wider text-[#0F172A] bg-[#EAF4F8] border border-[#00ACC1]/20 px-2.5 py-0.5 rounded-full">
           {label}
         </span>
       )}

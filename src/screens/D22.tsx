@@ -10,6 +10,7 @@ import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
+import { ShareButton } from "@/components/editorial/ShareButton";
 
 export default function Desktop22() {
   const params = useParams();
@@ -145,13 +146,6 @@ export default function Desktop22() {
     if (whatsappUrl) {
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
     }
-  };
-
-  const handleShareWhatsapp = () => {
-    const text = `صفحة ${facility.nameAr} (${facility.city}) على كابتنلي: ${
-      typeof window !== "undefined" ? window.location.href : ""
-    }`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -323,14 +317,12 @@ export default function Desktop22() {
                 <span>{inCompare ? "في المقارنة ✓" : "أضف للمقارنة"}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleShareWhatsapp}
-                className="px-4 py-2.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] font-badge-label text-xs flex items-center gap-1.5 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors"
-              >
-                <Icon name="share" className="text-[15px]" />
-                <span>مشاركة الباقة</span>
-              </button>
+              <ShareButton
+                title={`${facility.nameAr} — ${facility.city} | كابتنلي`}
+                text={`تعرّف على مواعيد وباقات ${facility.nameAr} على منصة كابتنلي`}
+                label="مشاركة الصفحة"
+                className="px-4 py-2.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] font-badge-label text-xs flex items-center gap-1.5 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors cursor-pointer"
+              />
             </div>
           </div>
         </section>

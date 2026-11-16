@@ -10,6 +10,7 @@ import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
+import { ShareButton } from "@/components/editorial/ShareButton";
 
 export default function Phone13() {
   const params = useParams();
@@ -146,13 +147,6 @@ export default function Phone13() {
     }
   };
 
-  const handleShareWhatsapp = () => {
-    const text = `صفحة ${facility.nameAr} (${facility.city}) على كابتنلي: ${
-      typeof window !== "undefined" ? window.location.href : ""
-    }`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-  };
-
   return (
     <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0B1C2E] min-h-screen px-4 py-4 flex flex-col gap-4 pb-24">
       {/* Verified text status only (zero unclaimed amber banner) */}
@@ -199,14 +193,12 @@ export default function Phone13() {
           >
             <Icon name="compare_arrows" className="text-[16px]" />
           </button>
-          <button
-            type="button"
-            onClick={handleShareWhatsapp}
-            aria-label="مشاركة المنشأة"
-            className="w-9 h-9 rounded-full bg-white/95 text-[#0B1C2E] border border-[#E2E8F0] hover:bg-[#EAF4F8] flex items-center justify-center shadow transition cursor-pointer"
-          >
-            <Icon name="share" className="text-[15px]" />
-          </button>
+          <ShareButton
+            title={`${facility.nameAr} — ${facility.city} | كابتنلي`}
+            text={`تعرّف على مواعيد وباقات ${facility.nameAr} على منصة كابتنلي`}
+            ariaLabel="مشاركة المنشأة"
+            variant="icon"
+          />
         </div>
       </div>
 

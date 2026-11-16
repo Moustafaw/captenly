@@ -7,6 +7,8 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { buildCaptenlyQrUrl } from "@/lib/qrPayload";
+import { useLedgerUrlScan } from "@/lib/useLedgerUrlScan";
 import { isMemberAccountRole } from "@/types/captenly";
 
 export default function Phone5() {
@@ -107,6 +109,22 @@ export default function Phone5() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  useLedgerUrlScan({
+    isAuthenticated,
+    canScanAndEnroll,
+    isFacility,
+    isCoach,
+    linkedFacilityId,
+    linkedCoachId,
+    onSelectLedger: (ledgerId) => setSelectedId(ledgerId),
+    onStatusMessage: (status) => setMsg({ ok: status.ok, text: status.msg }),
+    onPrefillEnroll: ({ memberCode: mc, athleteNameAr }) => {
+      setNewMemberCode(mc);
+      if (athleteNameAr) setNewAthleteName(athleteNameAr);
+      setShowEnrollForm(true);
+    },
+  });
+
   const [refNum, setRefNum] = useState("");
   const [amountEgp, setAmountEgp] = useState("");
 
@@ -190,6 +208,21 @@ export default function Phone5() {
         )}
       </div>
 
+      {msg && (
+        <div
+          className={`rounded-2xl px-4 py-3 text-xs font-bold flex items-center justify-between gap-2 shadow-sm ${
+            msg.ok
+              ? "bg-[#EAF4F8] text-[#1D6E7D] border border-[#00ACC1]/30"
+              : "bg-red-50 text-red-900 border border-red-200"
+          }`}
+        >
+          <span>{msg.text}</span>
+          <button type="button" onClick={() => setMsg(null)} className="underline shrink-0">
+            إخفاء
+          </button>
+        </div>
+      )}
+
       {roleLedgers.length === 0 && !isProvider ? (
         <section className="bg-white rounded-[20px] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col items-center text-center gap-4">
           <span className="text-[#1D6E7D] text-[11px] font-extrabold">
@@ -202,7 +235,7 @@ export default function Phone5() {
             أنت الآن بحساب <strong className="text-[#0F172A]">{currentPersona.fullNameAr}</strong> ولا توجد باقات نشطة بعد. شارك كود عضويتك مع الكابتن لتفعيل الـ QR أو استعرض حسابات متعددة الدفاتر أدناه:
           </p>
 
-          <QrCodeBox value={`CAP-MEMBER:${memberCode}`} size={160} label={memberCode} />
+          <QrCodeBox value={buildCaptenlyQrUrl("member", memberCode)} size={160} label={memberCode} />
 
           <div className="w-full rounded-xl bg-[#F7F9FA] border border-[#0F172A]/8 p-3.5 flex items-center justify-between gap-2">
             <div className="text-right">
@@ -583,12 +616,15 @@ export default function Phone5() {
                 ) : (
                   <>
                     <QrCodeBox
-                      value={`CAP-SUB:${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
+                      value={buildCaptenlyQrUrl(
+                        "subscription",
+                        activeLedger.subscriptionCode || activeLedger.ledgerCode
+                      )}
                       size={165}
                       label={`كود الاشتراك: ${activeLedger.subscriptionCode || activeLedger.ledgerCode}`}
                     />
                     <p className="text-[11px] text-[#64748B] max-w-xs">
-                      أظهر هذا الباركود أو كود الاشتراك للمسؤول عند النزول للحوض.
+                      أظهر هذا الباركود للمسؤول — يدعم المسح من كاميرا وسكانر نظام الموبايل أو كاميرا المنصة أوفلاين.
                     </p>
                   </>
                 )}

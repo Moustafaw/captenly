@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
+import { ShareButton } from "@/components/editorial/ShareButton";
 
 export default function CoachPublicProfilePage({ params }: { params: { slug: string } }) {
   const {
@@ -121,6 +122,12 @@ export default function CoachPublicProfilePage({ params }: { params: { slug: str
                 <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-[#F7F9FA] text-[#0F172A] border border-[#0F172A]/10">
                   {coach.SingleCoachId}
                 </span>
+                <ShareButton
+                  title={`${coach.fullNameAr} — ${coach.titleAr || "كابتن سباحة موثق"} | كابتنلي`}
+                  text={`ملف ${coach.fullNameAr} المعتمد على منصة كابتنلي (${coach.city})`}
+                  label="مشاركة الملف"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] border border-[#E2E8F0] text-xs font-bold transition cursor-pointer"
+                />
               </div>
               <h1 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A]">
                 {coach.fullNameAr}
