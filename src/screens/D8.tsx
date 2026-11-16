@@ -172,27 +172,38 @@ export default function Desktop8() {
   const totalCheckinsDone = roleLedgers.reduce((sum, l) => sum + l.completedSessions, 0);
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
-      <div className="max-w-[1220px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-16">
+      <div className="max-w-[1220px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-6">
         {/* Top Offline PWA Status Strip */}
-        <section className="rounded-2xl bg-dark-slate text-surface-card p-5 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <section className="rounded-[24px] bg-gradient-to-l from-[#EAF4F8] via-[#F5FAFC] to-white text-[#0F172A] p-5 shadow-[0_4px_20px_rgba(15,23,42,0.03)] border border-[#1D6E7D]/15 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                effectiveOffline ? "bg-amber-400 text-dark-slate" : "bg-deep-carbon text-electric-volt"
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                effectiveOffline ? "bg-amber-500 text-white" : "bg-[#1D6E7D] text-white"
               }`}
             >
-              <Icon name={effectiveOffline ? "wifi_off" : "qr_code_2"} className="text-[20px]" />
+              <Icon name={effectiveOffline ? "wifi_off" : "qr_code_2"} className="text-[22px]" />
             </div>
             <div>
-              <h1 className="font-card-title text-surface-card">
-                {isCoach
-                  ? "دفاتر حصص المتدربين والسباحين (QR Ledger)"
-                  : isFacility
-                  ? "دفاتر حصص المشتركين في المنشأة (QR Ledger)"
-                  : "دفتر الحصص الرقمي والأوفلاين PWA (QR Ledger)"}
-              </h1>
-              <p className="text-xs text-surface-container-high mt-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-card-title text-[#0F172A]">
+                  {isCoach
+                    ? "دفاتر حصص المتدربين والسباحين (QR Ledger)"
+                    : isFacility
+                    ? "دفاتر حصص المشتركين في المنشأة (QR Ledger)"
+                    : "دفتر الحصص الرقمي والأوفلاين PWA (QR Ledger)"}
+                </h1>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                    effectiveOffline
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20"
+                  }`}
+                >
+                  {effectiveOffline ? "وضع أوفلاين" : "متزامن سحابياً وأوفلاين ✓"}
+                </span>
+              </div>
+              <p className="text-xs text-[#475569] mt-1">
                 {effectiveOffline
                   ? "أنت الآن في وضع الأوفلاين — أي حصة تُسجّل الآن تُحفظ محلياً وتُزامَن تلقائياً عند عودة الشبكة."
                   : isProvider
@@ -207,7 +218,7 @@ export default function Desktop8() {
               <button
                 type="button"
                 onClick={() => syncOfflineQueue()}
-                className="px-4 py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold"
+                className="px-4 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold shadow-sm transition-colors"
               >
                 مزامنة {pendingOfflineCount} حصة محفوظة أوفلاين ↻
               </button>
@@ -217,31 +228,31 @@ export default function Desktop8() {
 
         {/* Unlinked Member State vs Multi-Ledger Directory */}
         {roleLedgers.length === 0 && !isProvider ? (
-          <section className="bg-surface-card rounded-[24px] p-8 md:p-12 shadow-sm border border-surface-container grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <section className="bg-white rounded-[24px] p-8 md:p-12 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-7 flex flex-col gap-4">
-              <div className="inline-flex items-center gap-2 text-deep-olive font-extrabold text-xs w-fit">
+              <div className="inline-flex items-center gap-2 text-[#1D6E7D] font-extrabold text-xs w-fit">
                 <Icon name="qr_code_2" className="text-[16px]" />
                 <span>جاهز للتفعيل مع كابتنك أو أكاديميتك</span>
               </div>
 
-              <h2 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-[1.38]">
+              <h2 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A] leading-[1.38]">
                 دفتر الحصص الرقمي يُفعّل لكل اشتراك مع كابتن أو أكاديمية موثقة
               </h2>
-              <p className="font-body-default text-text-muted leading-relaxed">
-                أنت الآن مسجل بحساب <strong className="text-dark-slate">{currentPersona.fullNameAr}</strong> ولا توجد باقات نشطة مرتبطة بكودك بعد. بمجرد اشتراكك وإعطاء كود عضويتك للكابتن أو إدارة المنشأة، سيظهر لك هنا دفتر حصص منفصل لكل باقة أو لكل فرد في الأسرة.
+              <p className="font-body-default text-[#475569] leading-relaxed">
+                أنت الآن مسجل بحساب <strong className="text-[#0F172A]">{currentPersona.fullNameAr}</strong> ولا توجد باقات نشطة مرتبطة بكودك بعد. بمجرد اشتراكك وإعطاء كود عضويتك للكابتن أو إدارة المنشأة، سيظهر لك هنا دفتر حصص منفصل لكل باقة أو لكل فرد في الأسرة.
               </p>
 
-              <div className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="rounded-2xl bg-[#F7F9FA] p-5 border border-[#0F172A]/8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <span className="text-xs text-text-muted">كود عضويتك الفريد ({currentPersona.fullNameAr})</span>
-                  <div className="text-2xl md:text-3xl font-mono font-black text-deep-olive tracking-wider mt-1">
+                  <span className="text-xs text-[#64748B]">كود عضويتك الفريد ({currentPersona.fullNameAr})</span>
+                  <div className="text-2xl md:text-3xl font-mono font-black text-[#1D6E7D] tracking-wider mt-1">
                     {memberCode}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={copyMemberCode}
-                  className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs flex items-center gap-2 shrink-0 w-fit"
+                  className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-badge-label text-xs flex items-center gap-2 shrink-0 w-fit shadow-sm transition-colors"
                 >
                   <Icon name={copiedCode ? "check" : "content_copy"} className="text-[16px]" />
                   <span>{copiedCode ? "تم النسخ ✓" : "نسخ كود العضوية"}</span>
@@ -251,13 +262,13 @@ export default function Desktop8() {
               <div className="flex flex-wrap gap-2.5 pt-2">
                 <Link
                   href="/explore"
-                  className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs hover:opacity-95"
+                  className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-badge-label text-xs transition-colors"
                 >
                   استكشف المسابح والأكاديميات ←
                 </Link>
                 <Link
                   href="/dashboard/athlete"
-                  className="px-5 py-2.5 rounded-full bg-surface-snow text-dark-slate border border-surface-container font-badge-label text-xs hover:bg-lime-tint/40"
+                  className="px-5 py-2.5 rounded-full bg-[#F7F9FA] text-[#0F172A] border border-[#0F172A]/10 font-badge-label text-xs hover:bg-[#EAF4F8] transition-colors"
                 >
                   ملفي الرياضي وتحليل الأداء
                 </Link>
@@ -269,7 +280,7 @@ export default function Desktop8() {
                     await syncLedgersFromServer();
                     setSyncingCloud(false);
                   }}
-                  className="px-5 py-2.5 rounded-full bg-lime-tint text-deep-olive border border-deep-olive/25 font-badge-label text-xs hover:brightness-95 inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20 font-badge-label text-xs hover:bg-[#DCEEF5] inline-flex items-center gap-1.5 transition-colors"
                 >
                   <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
                   <span>{syncingCloud ? "جاري فحص التفعيل..." : "تحديث الدفاتر من السحابة"}</span>
@@ -277,34 +288,34 @@ export default function Desktop8() {
               </div>
             </div>
 
-            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-3 bg-surface-snow rounded-2xl p-6">
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-3 bg-[#F7F9FA] border border-[#0F172A]/8 rounded-2xl p-6">
               <QrCodeBox value={`CAP-MEMBER:${memberCode}`} size={180} label={memberCode} />
-              <span className="text-xs text-text-muted text-center max-w-xs">
+              <span className="text-xs text-[#64748B] text-center max-w-xs">
                 امسح أو شارك كود عضويتك مع الكابتن أو إدارة المدرسة لتفعيل الباقة (8 أو 12 أو 24 حصة)
               </span>
             </div>
           </section>
         ) : (
-          <div className="flex flex-col gap-space-lg">
+          <div className="flex flex-col gap-6">
             {/* Multi-Swimmer / Multi-Client Directory Section */}
-            <section className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+            <section className="bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-5">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-section-title text-dark-slate">
+                    <h2 className="font-section-title text-[#0F172A]">
                       {isProvider
                         ? `سجل دفاتر السباحين والعملاء (${roleLedgers.length})`
                         : `دفاتر الحصص المرتبطة بحسابك (${roleLedgers.length})`}
                     </h2>
                     {isProvider && (
-                      <span className="text-xs font-extrabold text-deep-olive">
+                      <span className="text-xs font-extrabold text-[#1D6E7D]">
                         • {activeCount} باقات نشطة {renewalCount > 0 ? `• ${renewalCount} قريبة من التجديد` : ""}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-text-muted mt-0.5">
+                  <p className="text-xs text-[#64748B] mt-0.5">
                     {isProvider
-                      ? "اختر أي متدرب أو عميل من القائمة لعرض باركود الحضور أو تسجيل حصة جديدة له، أو أضف متدرباً جديداً بكود العضوية."
+                      ? "اختر أي متدرب أو عميل من القائمة لعرض تفاصيل باقته أو تسجيل حصة جديدة له، أو أضف متدرباً جديداً بكود العضوية."
                       : "كل باقة أو فرد لديه دفتر حصص مستقل برصيده وسجل حضوره وباركوده الخاص."}
                   </p>
                 </div>
@@ -315,7 +326,7 @@ export default function Desktop8() {
                       <button
                         type="button"
                         onClick={() => setScannerOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-deep-olive text-white text-xs font-bold hover:brightness-105 shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold shadow-sm transition-colors"
                       >
                         <Icon name="qr_code_scanner" className="text-[16px]" />
                         <span>مسح QR بالكاميرا</span>
@@ -330,7 +341,7 @@ export default function Desktop8() {
                         await syncLedgersFromServer();
                         setSyncingCloud(false);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-snow text-dark-slate border border-surface-container text-xs font-bold hover:bg-lime-tint/50 disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-[#F7F9FA] text-[#0F172A] border border-[#0F172A]/10 text-xs font-bold hover:bg-[#EAF4F8] disabled:opacity-60 transition-colors"
                     >
                       <Icon name="sync" className={`text-[15px] ${syncingCloud ? "animate-spin" : ""}`} />
                       <span>{syncingCloud ? "جاري المزامنة..." : "مزامنة السحابة"}</span>
@@ -340,7 +351,7 @@ export default function Desktop8() {
                       <button
                         type="button"
                         onClick={() => setShowEnrollForm((v) => !v)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95 shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#DCEEF5] text-[#1D6E7D] border border-[#1D6E7D]/25 text-xs font-bold transition-colors"
                       >
                         <Icon name={showEnrollForm ? "close" : "add"} className="text-[16px]" />
                         <span>{showEnrollForm ? "إغلاق النموذج" : "إضافة دفتر / مشترك جديد"}</span>
@@ -353,21 +364,21 @@ export default function Desktop8() {
               {/* Provider Stats Row */}
               {isProvider && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-bold">إجمالي الدفاتر</span>
-                    <span className="text-xl font-black text-dark-slate">{roleLedgers.length}</span>
+                  <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-[#64748B] font-bold">إجمالي الدفاتر</span>
+                    <span className="text-xl font-black text-[#0F172A]">{roleLedgers.length}</span>
                   </div>
-                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-bold">باقات نشطة</span>
-                    <span className="text-xl font-black text-deep-olive">{activeCount}</span>
+                  <div className="rounded-2xl bg-[#EAF4F8]/70 border border-[#1D6E7D]/15 px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-[#1D6E7D] font-bold">باقات نشطة</span>
+                    <span className="text-xl font-black text-[#1D6E7D]">{activeCount}</span>
                   </div>
-                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-bold">قريبة من التجديد</span>
+                  <div className="rounded-2xl bg-amber-50/80 border border-amber-200/70 px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-amber-800 font-bold">قريبة من التجديد</span>
                     <span className="text-xl font-black text-amber-700">{renewalCount}</span>
                   </div>
-                  <div className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-bold">حصص تم توثيقها</span>
-                    <span className="text-xl font-black text-dark-slate">{totalCheckinsDone}</span>
+                  <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-[#64748B] font-bold">حصص تم توثيقها</span>
+                    <span className="text-xl font-black text-[#0F172A]">{totalCheckinsDone}</span>
                   </div>
                 </div>
               )}
@@ -392,37 +403,37 @@ export default function Desktop8() {
                       setManualSubCodeNote("");
                     }
                   }}
-                  className="rounded-2xl bg-dark-slate text-surface-card p-4 border border-electric-volt/25 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                  className="rounded-2xl bg-gradient-to-l from-[#EAF4F8] to-[#F7F9FA] text-[#0F172A] p-4 border border-[#1D6E7D]/20 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-electric-volt text-dark-slate flex items-center justify-center shrink-0">
-                      <Icon name="keyboard" className="text-[19px]" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#1D6E7D] text-white flex items-center justify-center shrink-0">
+                      <Icon name="keyboard" className="text-[20px]" />
                     </div>
-                    <div>
-                      <div className="text-xs font-extrabold text-electric-volt">
-                        إدخال كود الاشتراك يدوياً (بدون كاميرا) أو المسح بالـ QR
+                    <div className="min-w-0">
+                      <div className="text-xs font-extrabold text-[#0F172A]">
+                        إدخال كود الاشتراك يدوياً (بدون كاميرا) أو التحقق المباشر
                       </div>
-                      <div className="text-[11px] text-white/80">
-                        اكتب كود الاشتراك المتجدد للسباح (مثل <span className="font-mono text-electric-volt">SUB-4821-08</span>) لخصم حصة فورية؛ ينتهي الكود تلقائياً بانتهاء حصص الاشتراك.
+                      <div className="text-[11px] text-[#475569]">
+                        اكتب كود الاشتراك المتجدد للسباح (مثل <span className="font-mono font-bold text-[#1D6E7D]">SUB-4821-08</span>) لخصم حصة فورية؛ ينتهي الكود تلقائياً بانتهاء الحصص.
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <input
                       value={manualSubCodeInput}
                       onChange={(e) => setManualSubCodeInput(e.target.value)}
                       placeholder="كود الاشتراك: SUB-XXXX-XX"
-                      className="rounded-xl bg-deep-carbon text-white px-3.5 py-2 text-xs font-mono border border-white/15 outline-none w-full sm:w-44"
+                      className="rounded-xl bg-white text-[#0F172A] px-3.5 py-2 text-xs font-mono border border-[#0F172A]/12 focus:border-[#1D6E7D] outline-none w-full sm:w-44"
                     />
                     <input
                       value={manualSubCodeNote}
                       onChange={(e) => setManualSubCodeNote(e.target.value)}
                       placeholder="ملاحظة الحصة (اختياري)"
-                      className="rounded-xl bg-deep-carbon text-white px-3 py-2 text-xs border border-white/15 outline-none w-full sm:w-40"
+                      className="rounded-xl bg-white text-[#0F172A] px-3 py-2 text-xs border border-[#0F172A]/12 focus:border-[#1D6E7D] outline-none w-full sm:w-40"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-xl bg-electric-volt text-dark-slate text-xs font-extrabold hover:brightness-105 shrink-0"
+                      className="px-4 py-2 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold shrink-0 shadow-sm transition-colors"
                     >
                       خصم حصة بالكود ✓
                     </button>
@@ -434,7 +445,7 @@ export default function Desktop8() {
               {enrollMsg && (
                 <div
                   className={`rounded-xl px-4 py-3 text-xs font-bold flex items-center justify-between ${
-                    enrollMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-900"
+                    enrollMsg.ok ? "bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20" : "bg-red-50 text-red-900 border border-red-200"
                   }`}
                 >
                   <span>{enrollMsg.msg}</span>
@@ -448,14 +459,14 @@ export default function Desktop8() {
               {canScanAndEnroll && showEnrollForm && (
                 <form
                   onSubmit={handleQuickEnroll}
-                  className="rounded-2xl bg-surface-snow p-5 border border-deep-olive/25 flex flex-col gap-4"
+                  className="rounded-2xl bg-[#F7F9FA] p-5 border border-[#1D6E7D]/25 flex flex-col gap-4"
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h3 className="font-card-title-sm text-dark-slate">
+                    <h3 className="font-card-title-sm text-[#0F172A]">
                       تفعيل دفتر حصص لسباح أو عميل جديد بكود العضوية
                     </h3>
                     <div className="flex flex-wrap gap-1.5 text-[11px]">
-                      <span className="text-text-muted">أكواد سريعة:</span>
+                      <span className="text-[#64748B]">أكواد سريعة:</span>
                       {memberRegistry.slice(0, 4).map((m) => (
                         <button
                           key={m.memberCode}
@@ -464,7 +475,7 @@ export default function Desktop8() {
                             setNewMemberCode(m.memberCode);
                             setNewAthleteName(m.fullNameAr);
                           }}
-                          className="px-2 py-0.5 rounded-full bg-surface-card border border-surface-container font-mono font-bold text-deep-olive hover:bg-lime-tint"
+                          className="px-2.5 py-0.5 rounded-full bg-white border border-[#0F172A]/10 font-mono font-bold text-[#1D6E7D] hover:bg-[#EAF4F8]"
                         >
                           {m.memberCode} ({m.fullNameAr.split(" ")[0]})
                         </button>
@@ -474,30 +485,30 @@ export default function Desktop8() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-dark-slate">كود العضوية *</label>
+                      <label className="text-[11px] font-bold text-[#0F172A]">كود العضوية *</label>
                       <input
                         required
                         value={newMemberCode}
                         onChange={(e) => setNewMemberCode(e.target.value)}
                         placeholder="CAP-M-XXXX"
-                        className="rounded-xl bg-white px-3 py-2 font-mono text-xs outline-none border border-surface-container"
+                        className="rounded-xl bg-white px-3 py-2 font-mono text-xs outline-none border border-[#0F172A]/10"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-dark-slate">اسم السباح / العميل</label>
+                      <label className="text-[11px] font-bold text-[#0F172A]">اسم السباح / العميل</label>
                       <input
                         value={newAthleteName}
                         onChange={(e) => setNewAthleteName(e.target.value)}
                         placeholder={matchedEnrollMember?.fullNameAr || "تلقائي من الكود أو اكتب الاسم"}
-                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-dark-slate">المنشأة</label>
+                      <label className="text-[11px] font-bold text-[#0F172A]">المنشأة</label>
                       <select
                         value={newFacilityId}
                         onChange={(e) => setNewFacilityId(e.target.value)}
-                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+                        className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
                       >
                         {(isFacility && linkedFacilityId
                           ? facilities.filter((f) => f.id === linkedFacilityId)
@@ -510,17 +521,17 @@ export default function Desktop8() {
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-dark-slate">اسم الباقة والحصص</label>
+                      <label className="text-[11px] font-bold text-[#0F172A]">اسم الباقة والحصص</label>
                       <div className="flex gap-1.5">
                         <input
                           value={newPkgTitle}
                           onChange={(e) => setNewPkgTitle(e.target.value)}
-                          className="flex-1 min-w-0 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-surface-container"
+                          className="flex-1 min-w-0 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-[#0F172A]/10"
                         />
                         <select
                           value={newSessionsCount}
                           onChange={(e) => setNewSessionsCount(Number(e.target.value) as 8 | 12 | 24)}
-                          className="w-20 rounded-xl bg-white px-2 py-2 text-xs outline-none border border-surface-container"
+                          className="w-20 rounded-xl bg-white px-2 py-2 text-xs outline-none border border-[#0F172A]/10"
                         >
                           <option value={8}>8</option>
                           <option value={12}>12</option>
@@ -529,17 +540,17 @@ export default function Desktop8() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-dark-slate">الرسوم ج.م وتفعيل</label>
+                      <label className="text-[11px] font-bold text-[#0F172A]">الرسوم ج.م وتفعيل</label>
                       <div className="flex gap-1.5">
                         <input
                           type="number"
                           value={newFeeEgp}
                           onChange={(e) => setNewFeeEgp(e.target.value)}
-                          className="w-20 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-surface-container"
+                          className="w-20 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-[#0F172A]/10"
                         />
                         <button
                           type="submit"
-                          className="flex-1 rounded-xl bg-deep-olive text-white font-bold text-xs px-3 py-2 hover:brightness-110"
+                          className="flex-1 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs px-3 py-2 transition-colors"
                         >
                           إضافة ✓
                         </button>
@@ -552,13 +563,13 @@ export default function Desktop8() {
               {/* Search & Status Filters for Providers */}
               {isProvider && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center bg-surface-snow rounded-full px-3.5 py-2 border border-surface-container flex-1 max-w-md">
-                    <Icon name="search" className="text-text-muted text-[16px] ml-2 shrink-0" />
+                  <div className="flex items-center bg-[#F7F9FA] rounded-full px-3.5 py-2 border border-[#0F172A]/10 flex-1 max-w-md">
+                    <Icon name="search" className="text-[#64748B] text-[16px] ml-2 shrink-0" />
                     <input
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="ابحث باسم السباح، المنشأة، أو رقم الدفتر..."
-                      className="w-full bg-transparent text-xs outline-none text-dark-slate"
+                      className="w-full bg-transparent text-xs outline-none text-[#0F172A]"
                     />
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -572,10 +583,10 @@ export default function Desktop8() {
                         key={tab.id}
                         type="button"
                         onClick={() => setStatusFilter(tab.id as typeof statusFilter)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
                           statusFilter === tab.id
-                            ? "bg-deep-olive text-white"
-                            : "bg-surface-snow text-text-muted hover:text-dark-slate"
+                            ? "bg-[#1D6E7D] text-white"
+                            : "bg-[#F7F9FA] text-[#64748B] hover:text-[#0F172A] border border-[#0F172A]/8"
                         }`}
                       >
                         {tab.label}
@@ -587,7 +598,7 @@ export default function Desktop8() {
 
               {/* Swimmers / Clients Cards Directory */}
               {filteredLedgers.length === 0 ? (
-                <div className="rounded-xl bg-surface-snow p-6 text-center text-xs text-text-muted">
+                <div className="rounded-xl bg-[#F7F9FA] p-6 text-center text-xs text-[#64748B]">
                   لا توجد دفاتر مطابقة لفلتر البحث الحالي.
                 </div>
               ) : (
@@ -605,37 +616,37 @@ export default function Desktop8() {
                         }}
                         className={`text-right rounded-2xl p-4 transition-all border flex flex-col gap-2.5 ${
                           isSelected
-                            ? "bg-lime-tint/35 border-deep-olive shadow-sm ring-1 ring-deep-olive/30"
-                            : "bg-surface-snow border-surface-container hover:border-deep-olive/40"
+                            ? "bg-[#EAF4F8]/65 border-[#1D6E7D] shadow-sm ring-1 ring-[#1D6E7D]/25"
+                            : "bg-[#F7F9FA] border-[#0F172A]/8 hover:border-[#1D6E7D]/40"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-card-title-sm text-dark-slate truncate">
+                              <span className="font-card-title-sm text-[#0F172A] truncate">
                                 {l.athleteNameAr}
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-black border ${
                                   l.isCodeExpired || l.status === "completed"
                                     ? "bg-red-50 text-red-700 border-red-200 line-through"
-                                    : "bg-lime-tint text-deep-olive border-deep-olive/25"
+                                    : "bg-[#EAF4F8] text-[#1D6E7D] border-[#1D6E7D]/25"
                                 }`}
                               >
                                 {l.subscriptionCode || l.ledgerCode}
                               </span>
                             </div>
-                            <div className="text-[11px] text-text-muted truncate mt-0.5">
+                            <div className="text-[11px] text-[#64748B] truncate mt-0.5">
                               {l.facilityNameAr} {l.trackLabelAr ? `• ${l.trackLabelAr}` : ""}
                             </div>
                           </div>
                           <span
                             className={`text-[11px] font-extrabold shrink-0 ${
                               l.status === "completed" || l.isCodeExpired
-                                ? "text-status-danger"
+                                ? "text-[#DC2626]"
                                 : l.status === "renewal_due"
                                 ? "text-amber-700"
-                                : "text-deep-olive"
+                                : "text-[#1D6E7D]"
                             }`}
                           >
                             {l.status === "completed" || l.isCodeExpired
@@ -646,30 +657,30 @@ export default function Desktop8() {
                           </span>
                         </div>
 
-                        <div className="text-xs font-bold text-dark-slate/85 truncate">
+                        <div className="text-xs font-bold text-[#334155] truncate">
                           {l.packageTitleAr}
                         </div>
 
                         <div className="flex flex-col gap-1">
-                          <div className="h-1.5 w-full rounded-full bg-surface-container overflow-hidden">
+                          <div className="h-1.5 w-full rounded-full bg-[#E2E8F0] overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
                                 l.status === "renewal_due"
-                                  ? "bg-amber-600"
+                                  ? "bg-amber-500"
                                   : l.status === "completed"
-                                  ? "bg-dark-slate"
-                                  : "bg-deep-olive"
+                                  ? "bg-[#334155]"
+                                  : "bg-[#1D6E7D]"
                               }`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-mono text-text-muted">
+                            <span className="font-mono text-[#64748B]">
                               {isProvider
                                 ? l.subscriptionCode || l.ledgerCode
                                 : `${l.ledgerCode} • PIN ${l.pinCode}`}
                             </span>
-                            <span className="font-extrabold text-deep-olive">
+                            <span className="font-extrabold text-[#1D6E7D]">
                               {l.completedSessions} / {l.totalSessions} حصص
                             </span>
                           </div>
@@ -683,20 +694,20 @@ export default function Desktop8() {
 
             {/* Active Selected Ledger Detail View */}
             {activeLedger && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left Main Ledger & Attendance Control */}
                 <div className="lg:col-span-7 flex flex-col gap-5">
-                  <section className="bg-surface-card rounded-[20px] p-6 md:p-8 shadow-sm border border-surface-container flex flex-col gap-6">
+                  <section className="bg-white rounded-[24px] p-6 md:p-8 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className={`text-xs font-extrabold ${
+                            className={`text-xs font-extrabold rounded-full px-2.5 py-0.5 ${
                               activeLedger.status === "completed"
-                                ? "text-text-muted"
+                                ? "bg-[#F1F5F9] text-[#64748B]"
                                 : activeLedger.status === "renewal_due"
-                                ? "text-amber-700"
-                                : "text-deep-olive"
+                                ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                : "bg-[#EAF4F8] text-[#1D6E7D]"
                             }`}
                           >
                             {activeLedger.status === "completed"
@@ -705,21 +716,21 @@ export default function Desktop8() {
                               ? "تنبيه: متبقي حصتان أو أقل"
                               : "باقة نشطة ✓"}
                           </span>
-                          <span className="font-mono text-xs text-text-muted">• {activeLedger.ledgerCode}</span>
+                          <span className="font-mono text-xs text-[#64748B]">• {activeLedger.ledgerCode}</span>
                         </div>
-                        <h2 className="font-section-title text-dark-slate mt-1.5">
+                        <h2 className="font-section-title text-[#0F172A] mt-2">
                           {activeLedger.athleteNameAr}
                         </h2>
-                        <p className="text-xs text-text-muted mt-0.5">
+                        <p className="text-xs text-[#64748B] mt-0.5">
                           {activeLedger.packageTitleAr} — {activeLedger.facilityNameAr} • {activeLedger.coachNameAr}
                         </p>
                       </div>
 
-                      <div className="text-right sm:text-left shrink-0">
-                        <div className="text-3xl font-black text-deep-olive">
+                      <div className="text-right sm:text-left shrink-0 bg-[#F7F9FA] rounded-2xl px-4 py-2.5 border border-[#0F172A]/6">
+                        <div className="text-3xl font-black text-[#1D6E7D]">
                           {activeLedger.completedSessions} / {activeLedger.totalSessions}
                         </div>
-                        <div className="text-xs text-text-muted">حصة مكتملة</div>
+                        <div className="text-[11px] font-bold text-[#64748B]">حصة مكتملة</div>
                       </div>
                     </div>
 
@@ -731,10 +742,10 @@ export default function Desktop8() {
                         return (
                           <div
                             key={num}
-                            className={`h-12 rounded-xl flex flex-col items-center justify-center font-bold text-xs border ${
+                            className={`h-14 rounded-xl flex flex-col items-center justify-center font-bold text-xs border transition-colors ${
                               done
-                                ? "bg-lime-tint border-deep-olive text-deep-olive"
-                                : "bg-surface-snow border-surface-container text-text-muted"
+                                ? "bg-[#EAF4F8] border-[#1D6E7D]/50 text-[#1D6E7D]"
+                                : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#64748B]"
                             }`}
                           >
                             <span>{done ? "✓" : num}</span>
@@ -746,15 +757,15 @@ export default function Desktop8() {
 
                     {/* Check-in Interactive Box (Facility/Coach/Subscriptions Staff ONLY) */}
                     {canScanAndEnroll ? (
-                      <div className="rounded-2xl bg-surface-snow p-5 flex flex-col gap-3">
-                        <div className="font-card-title-sm text-dark-slate">
+                      <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/8 p-5 flex flex-col gap-3">
+                        <div className="font-card-title-sm text-[#0F172A]">
                           تسجيل حضور {activeLedger.athleteNameAr} وخصم الحصة ({effectiveOffline ? "أوفلاين" : "متصل"})
                         </div>
 
                         {checkinMsg && (
                           <div
                             className={`p-3 rounded-xl text-xs font-bold ${
-                              checkinMsg.ok ? "bg-lime-tint text-deep-olive" : "bg-red-50 text-red-800"
+                              checkinMsg.ok ? "bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20" : "bg-red-50 text-red-800 border border-red-200"
                             }`}
                           >
                             {checkinMsg.msg}
@@ -766,13 +777,13 @@ export default function Desktop8() {
                             value={pinInput}
                             onChange={(e) => setPinInput(e.target.value)}
                             placeholder="أدخل كود الاشتراك أو PIN (4 أرقام)"
-                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
                           />
                           <input
                             value={coachNote}
                             onChange={(e) => setCoachNote(e.target.value)}
                             placeholder="ملاحظة الحصة (اختياري)"
-                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-surface-container"
+                            className="rounded-xl bg-white px-3.5 py-2.5 text-sm outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
                           />
                           <button
                             type="button"
@@ -798,37 +809,40 @@ export default function Desktop8() {
                                 setCoachNote("");
                               }
                             }}
-                            className="py-2.5 px-4 rounded-xl bg-dark-slate text-electric-volt font-bold text-xs hover:opacity-95 disabled:opacity-40"
+                            className="py-2.5 px-4 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm disabled:opacity-40 transition-colors"
                           >
                             خصم حصة بالـ QR / PIN ✓
                           </button>
                         </div>
                       </div>
                     ) : !isProvider ? (
-                      <div className="rounded-2xl bg-surface-snow p-4 text-xs font-bold text-deep-olive border border-surface-container">
-                        اعرض رمز الـ QR أو كود الاشتراك المتجدد أعلاه للكابتن أو مسؤول الاشتراكات في المسبح لتسجيل حضورك تلقائياً.
+                      <div className="rounded-2xl bg-[#EAF4F8]/70 p-4 text-xs font-bold text-[#1D6E7D] border border-[#1D6E7D]/20 flex items-center gap-2">
+                        <Icon name="info" className="text-[16px] shrink-0" />
+                        <span>
+                          اعرض رمز الـ QR أو كود الاشتراك المتجدد أعلاه للكابتن أو مسؤول الاشتراكات في المسبح لتسجيل حضورك تلقائياً.
+                        </span>
                       </div>
                     ) : null}
 
                     {/* History */}
                     <div className="flex flex-col gap-2">
-                      <h3 className="font-card-title-sm text-dark-slate">سجل الحصص الموثق</h3>
+                      <h3 className="font-card-title-sm text-[#0F172A]">سجل الحصص الموثق</h3>
                       {activeLedger.checkins.length === 0 ? (
-                        <p className="text-xs text-text-muted">لم تُسجّل أي حصة بعد في هذه الباقة.</p>
+                        <p className="text-xs text-[#64748B]">لم تُسجّل أي حصة بعد في هذه الباقة.</p>
                       ) : (
                         activeLedger.checkins.map((c) => (
                           <div
                             key={c.sessionNumber}
-                            className="rounded-xl bg-surface-snow px-4 py-3 flex items-center justify-between gap-2 text-xs"
+                            className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 px-4 py-3 flex items-center justify-between gap-2 text-xs"
                           >
                             <div>
-                              <span className="font-bold text-dark-slate">حصة #{c.sessionNumber}</span>
-                              <span className="text-text-muted mx-2">•</span>
-                              <span className="text-text-muted">{c.coachNoteAr}</span>
+                              <span className="font-bold text-[#0F172A]">حصة #{c.sessionNumber}</span>
+                              <span className="text-[#94A3B8] mx-2">•</span>
+                              <span className="text-[#475569]">{c.coachNoteAr}</span>
                             </div>
                             <span
-                              className={`text-xs font-bold ${
-                                c.wasOffline ? "text-amber-700" : "text-deep-olive"
+                              className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${
+                                c.wasOffline ? "bg-amber-50 text-amber-800" : "bg-[#EAF4F8] text-[#1D6E7D]"
                               }`}
                             >
                               {c.dateAr}
@@ -843,16 +857,16 @@ export default function Desktop8() {
                 {/* Right Sidebar: Subscription Code / QR & InstaPay Archive */}
                 <aside className="lg:col-span-5 flex flex-col gap-5">
                   {isProvider ? (
-                    <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
+                    <div className="bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-4">
                       <div className="flex items-center justify-between gap-2">
-                        <h3 className="font-card-title text-dark-slate">
+                        <h3 className="font-card-title text-[#0F172A]">
                           بيانات اشتراك المتدرب: {activeLedger.athleteNameAr}
                         </h3>
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0 ${
                             activeLedger.isCodeExpired || activeLedger.status === "completed"
                               ? "bg-red-50 text-red-700"
-                              : "bg-lime-tint text-deep-olive"
+                              : "bg-[#EAF4F8] text-[#1D6E7D]"
                           }`}
                         >
                           {activeLedger.isCodeExpired || activeLedger.status === "completed"
@@ -861,31 +875,31 @@ export default function Desktop8() {
                         </span>
                       </div>
 
-                      <div className="rounded-2xl bg-surface-snow p-4 border border-surface-container flex items-center justify-between gap-3">
+                      <div className="rounded-2xl bg-[#F7F9FA] p-4 border border-[#0F172A]/8 flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-[11px] text-text-muted font-bold">
+                          <div className="text-[11px] text-[#64748B] font-bold">
                             كود الاشتراك الحالي (صالح لـ {activeLedger.totalSessions} حصص)
                           </div>
                           <div
                             className={`font-mono text-2xl font-black mt-0.5 ${
                               activeLedger.isCodeExpired || activeLedger.status === "completed"
                                 ? "text-red-700 line-through"
-                                : "text-deep-olive"
+                                : "text-[#1D6E7D]"
                             }`}
                           >
                             {activeLedger.subscriptionCode || activeLedger.ledgerCode}
                           </div>
                         </div>
                         <div className="text-left">
-                          <div className="text-[11px] text-text-muted">الحصص المتبقية</div>
-                          <div className="text-xl font-black text-dark-slate">
+                          <div className="text-[11px] text-[#64748B]">الحصص المتبقية</div>
+                          <div className="text-xl font-black text-[#0F172A]">
                             {Math.max(0, activeLedger.totalSessions - activeLedger.completedSessions)} من{" "}
                             {activeLedger.totalSessions}
                           </div>
                         </div>
                       </div>
 
-                      <p className="text-xs text-text-muted leading-relaxed">
+                      <p className="text-xs text-[#64748B] leading-relaxed">
                         {activeLedger.isCodeExpired || activeLedger.status === "completed"
                           ? "انتهت صلاحية كود هذا الاشتراك لإتمام كافة الحصص. يمكنك تجديد اشتراك السباح بالأسفل لتوليد كود اشتراك جديد فوري."
                           : "يمكنك مسح الـ QR من هاتف السباح بالكاميرا أو إدخال كود الاشتراك أعلاه يدوياً لخصم الحصة."}
@@ -901,14 +915,14 @@ export default function Desktop8() {
                           });
                           setCheckinMsg({ ok: res.ok, msg: res.messageAr });
                         }}
-                        className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:opacity-95"
+                        className="w-full py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#1D6E7D] text-[#1D6E7D] hover:text-white border border-[#1D6E7D]/25 text-xs font-bold transition-colors"
                       >
                         تجديد الاشتراك وتوليد كود اشتراك جديد ({activeLedger.totalSessions} حصص) ↻
                       </button>
                     </div>
                   ) : (
-                    <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col items-center text-center gap-3">
-                      <h3 className="font-card-title text-dark-slate">
+                    <div className="bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col items-center text-center gap-3">
+                      <h3 className="font-card-title text-[#0F172A]">
                         كارت الـ QR وكود اشتراكك الحالي داخل صالة المسبح
                       </h3>
                       <QrCodeBox
@@ -920,7 +934,7 @@ export default function Desktop8() {
                             : `كود الاشتراك: ${activeLedger.subscriptionCode || activeLedger.ledgerCode}`
                         }
                       />
-                      <p className="text-xs text-text-muted max-w-xs">
+                      <p className="text-xs text-[#64748B] max-w-xs">
                         {activeLedger.isCodeExpired || activeLedger.status === "completed"
                           ? "انتهت صلاحية هذا الكود بعد إتمام جميع حصص الباقة. عند التجديد سيصدر لك كود اشتراك جديد تلقائياً."
                           : "أظهر هذا الباركود أو أملِ كود الاشتراك للمسؤول عند البوابة لخصم الحصة فورياً (يعمل بدون إنترنت)."}
@@ -928,8 +942,8 @@ export default function Desktop8() {
                     </div>
                   )}
 
-                  <div className="bg-surface-card rounded-[20px] p-6 shadow-sm border border-surface-container flex flex-col gap-4">
-                    <h3 className="font-card-title text-dark-slate">
+                  <div className="bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-4">
+                    <h3 className="font-card-title text-[#0F172A]">
                       أرشيف إيصالات الدفع المباشر (InstaPay / كاش)
                     </h3>
                     <div className="flex flex-col gap-2">
@@ -943,22 +957,22 @@ export default function Desktop8() {
                         return (
                           <div
                             key={r.id}
-                            className="rounded-xl bg-surface-snow p-3 flex flex-col gap-1.5 text-xs border border-surface-container/60"
+                            className="rounded-xl bg-[#F7F9FA] p-3 flex flex-col gap-1.5 text-xs border border-[#0F172A]/8"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <div className="font-bold text-dark-slate">{r.channel}</div>
-                                <div className="text-text-muted font-mono">
+                                <div className="font-bold text-[#0F172A]">{r.channel}</div>
+                                <div className="text-[#64748B] font-mono">
                                   مرجع: {r.referenceNumber}
                                 </div>
                               </div>
-                              <div className="font-bold text-deep-olive">{r.amountEgp} ج.م</div>
+                              <div className="font-bold text-[#1D6E7D]">{r.amountEgp} ج.م</div>
                             </div>
-                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-surface-container/50">
+                            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#0F172A]/6">
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                                   r.confirmedByProvider
-                                    ? "bg-lime-tint text-deep-olive"
+                                    ? "bg-[#EAF4F8] text-[#1D6E7D]"
                                     : "bg-amber-50 text-amber-800 border border-amber-200"
                                 }`}
                               >
@@ -970,7 +984,7 @@ export default function Desktop8() {
                                 <button
                                   type="button"
                                   onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
-                                  className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold hover:opacity-90"
+                                  className="px-3 py-1 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-[10px] font-bold transition-colors"
                                 >
                                   تأكيد الاستلام ✓
                                 </button>
@@ -995,15 +1009,15 @@ export default function Desktop8() {
                         setReceiptSaved(true);
                         setTimeout(() => setReceiptSaved(false), 2500);
                       }}
-                      className="flex flex-col gap-2.5 pt-2 border-t border-surface-container"
+                      className="flex flex-col gap-2.5 pt-2 border-t border-[#0F172A]/8"
                     >
-                      <div className="text-xs font-bold text-dark-slate">إرفاق مرجع تحويل جديد</div>
+                      <div className="text-xs font-bold text-[#0F172A]">إرفاق مرجع تحويل جديد</div>
                       <input
                         required
                         value={receiptRef}
                         onChange={(e) => setReceiptRef(e.target.value)}
                         placeholder="رقم مرجع إنستاباي أو فودافون كاش"
-                        className="rounded-xl bg-surface-snow px-3.5 py-2.5 text-xs outline-none border border-surface-container"
+                        className="rounded-xl bg-[#F7F9FA] px-3.5 py-2.5 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <select
@@ -1013,7 +1027,7 @@ export default function Desktop8() {
                               e.target.value as "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)"
                             )
                           }
-                          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                          className="rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
                         >
                           <option value="إنستاباي (InstaPay)">InstaPay</option>
                           <option value="فودافون كاش (Vodafone Cash)">Vodafone Cash</option>
@@ -1022,17 +1036,17 @@ export default function Desktop8() {
                           type="number"
                           value={receiptAmount}
                           onChange={(e) => setReceiptAmount(e.target.value)}
-                          className="rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                          className="rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
                         />
                       </div>
                       <button
                         type="submit"
-                        className="w-full py-2.5 rounded-full bg-deep-olive text-white font-bold text-xs"
+                        className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm transition-colors"
                       >
                         حفظ الإيصال في السجل الدائم
                       </button>
                       {receiptSaved && (
-                        <span className="text-xs font-bold text-deep-olive text-center">
+                        <span className="text-xs font-bold text-[#1D6E7D] text-center">
                           ✓ تم توثيق الإيصال في أرشيفك بنجاح
                         </span>
                       )}

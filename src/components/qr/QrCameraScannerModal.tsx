@@ -424,19 +424,19 @@ export function QrCameraScannerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-deep-carbon/75 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#0F172A]/75 backdrop-blur-sm flex items-center justify-center p-4"
       dir="rtl"
     >
-      <div className="w-full max-w-lg rounded-3xl bg-surface-card border border-surface-container shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="w-full max-w-lg rounded-3xl bg-white border border-[#0F172A]/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="p-4 sm:p-5 bg-dark-slate text-white flex items-center justify-between gap-2">
+        <div className="p-4 sm:p-5 bg-[#1D6E7D] text-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-full bg-electric-volt text-dark-slate flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center border border-white/20">
               <Icon name="qr_code_scanner" className="text-[22px]" />
             </div>
             <div>
-              <h3 className="font-card-title text-sm sm:text-base">ماسح QR لحضور السباحين</h3>
-              <p className="text-[11px] text-white/75">
+              <h3 className="font-card-title text-sm sm:text-base text-white">ماسح QR لحضور السباحين</h3>
+              <p className="text-[11px] text-white/80">
                 وجّه الكاميرا نحو باركود السباح لخصم الحصة أو تفعيل باقته فوراً
               </p>
             </div>
@@ -444,7 +444,7 @@ export function QrCameraScannerModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center"
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-colors"
             aria-label="إغلاق الماسح"
           >
             <Icon name="close" className="text-[18px]" />
@@ -454,7 +454,7 @@ export function QrCameraScannerModal({
         <div className="p-4 sm:p-5 overflow-y-auto flex flex-col gap-4">
           {/* Camera Viewfinder */}
           {scanStatus.type !== "success" && scanStatus.type !== "needs_enroll" && (
-            <div className="relative rounded-2xl overflow-hidden bg-dark-slate aspect-[4/3] w-full flex items-center justify-center border border-surface-container">
+            <div className="relative rounded-2xl overflow-hidden bg-[#0F172A] aspect-[4/3] w-full flex items-center justify-center border border-[#0F172A]/10">
               <video
                 ref={videoRef}
                 playsInline
@@ -466,22 +466,22 @@ export function QrCameraScannerModal({
 
               {!cameraError && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="w-48 h-48 rounded-2xl border-2 border-electric-volt shadow-[0_0_0_9999px_rgba(15,23,26,0.45)] flex items-center justify-center">
-                    <div className="w-full h-0.5 bg-electric-volt/85 animate-pulse" />
+                  <div className="w-48 h-48 rounded-2xl border-2 border-[#38BDF8] shadow-[0_0_0_9999px_rgba(15,23,42,0.45)] flex items-center justify-center">
+                    <div className="w-full h-0.5 bg-[#38BDF8]/90 animate-pulse" />
                   </div>
                 </div>
               )}
 
               {!cameraReady && !cameraError && (
-                <div className="absolute inset-0 bg-dark-slate/85 text-white flex flex-col items-center justify-center gap-2 text-xs font-bold">
-                  <span className="w-7 h-7 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
+                <div className="absolute inset-0 bg-[#0F172A]/85 text-white flex flex-col items-center justify-center gap-2 text-xs font-bold">
+                  <span className="w-7 h-7 rounded-full border-2 border-[#38BDF8] border-t-transparent animate-spin" />
                   <span>جاري تشغيل الكاميرا الخلفية...</span>
                 </div>
               )}
 
               {cameraError && (
-                <div className="absolute inset-0 bg-dark-slate/95 text-white p-6 flex flex-col items-center justify-center text-center gap-3">
-                  <Icon name="no_photography" className="text-[36px] text-electric-volt" />
+                <div className="absolute inset-0 bg-[#0F172A]/95 text-white p-6 flex flex-col items-center justify-center text-center gap-3">
+                  <Icon name="no_photography" className="text-[36px] text-[#38BDF8]" />
                   <p className="text-xs leading-relaxed text-white/90">{cameraError}</p>
                 </div>
               )}
@@ -490,25 +490,25 @@ export function QrCameraScannerModal({
 
           {/* Scan Status Box */}
           {scanStatus.type === "loading" && (
-            <div className="rounded-2xl bg-surface-snow p-4 text-xs font-bold text-dark-slate flex items-center gap-2.5">
-              <span className="w-4 h-4 rounded-full border-2 border-deep-olive border-t-transparent animate-spin" />
+            <div className="rounded-2xl bg-[#F7F9FA] p-4 text-xs font-bold text-[#0F172A] border border-[#0F172A]/8 flex items-center gap-2.5">
+              <span className="w-4 h-4 rounded-full border-2 border-[#1D6E7D] border-t-transparent animate-spin" />
               <span>{scanStatus.titleAr}</span>
             </div>
           )}
 
           {scanStatus.type === "success" && (
-            <div className="rounded-2xl bg-lime-tint/60 border border-deep-olive/30 p-5 flex flex-col items-center text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-deep-olive text-white flex items-center justify-center">
+            <div className="rounded-2xl bg-[#EAF4F8] border border-[#1D6E7D]/25 p-5 flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-[#1D6E7D] text-white flex items-center justify-center shadow-sm">
                 <Icon name="check_circle" className="text-[28px]" />
               </div>
-              <div className="font-card-title text-base text-dark-slate">{scanStatus.titleAr}</div>
+              <div className="font-card-title text-base text-[#0F172A]">{scanStatus.titleAr}</div>
               {scanStatus.detailAr && (
-                <p className="text-xs font-bold text-deep-olive leading-relaxed">{scanStatus.detailAr}</p>
+                <p className="text-xs font-bold text-[#1D6E7D] leading-relaxed">{scanStatus.detailAr}</p>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold transition-colors"
               >
                 تم — إغلاق ✓
               </button>
@@ -516,12 +516,12 @@ export function QrCameraScannerModal({
           )}
 
           {scanStatus.type === "needs_enroll" && scanStatus.memberCode && (
-            <div className="rounded-2xl bg-surface-snow border border-deep-olive/25 p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-deep-olive font-bold text-sm">
+            <div className="rounded-2xl bg-[#EAF4F8]/70 border border-[#1D6E7D]/25 p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-[#1D6E7D] font-bold text-sm">
                 <Icon name="person_add" className="text-[20px]" />
                 <span>{scanStatus.titleAr}</span>
               </div>
-              <p className="text-xs text-text-muted leading-relaxed">{scanStatus.detailAr}</p>
+              <p className="text-xs text-[#475569] leading-relaxed">{scanStatus.detailAr}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -531,7 +531,7 @@ export function QrCameraScannerModal({
                   });
                   onClose();
                 }}
-                className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+                className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold transition-colors"
               >
                 تعبئة كود العضوية ({scanStatus.memberCode}) وتفعيل باقة الآن ←
               </button>
@@ -550,9 +550,9 @@ export function QrCameraScannerModal({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="py-2.5 px-4 rounded-xl bg-surface-snow hover:bg-lime-tint/50 border border-surface-container text-xs font-bold text-dark-slate flex items-center justify-center gap-1.5"
+              className="py-2.5 px-4 rounded-xl bg-[#F7F9FA] hover:bg-[#EAF4F8] border border-[#0F172A]/10 text-xs font-bold text-[#0F172A] flex items-center justify-center gap-1.5 transition-colors"
             >
-              <Icon name="image_search" className="text-[17px] text-deep-olive" />
+              <Icon name="image_search" className="text-[17px] text-[#1D6E7D]" />
               <span>مسح من صورة باركود محفوظة</span>
             </button>
             <input
@@ -575,11 +575,11 @@ export function QrCameraScannerModal({
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
                 placeholder="اكتب كود الاشتراك SUB-XXXX-XX أو CAP-M-XXXX..."
-                className="flex-1 min-w-0 rounded-xl bg-surface-snow px-3 py-2 text-xs font-mono border border-surface-container outline-none"
+                className="flex-1 min-w-0 rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs font-mono border border-[#0F172A]/10 focus:border-[#1D6E7D] outline-none"
               />
               <button
                 type="submit"
-                className="px-3 py-2 rounded-xl bg-dark-slate text-electric-volt text-xs font-bold shrink-0"
+                className="px-3.5 py-2 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold shrink-0 transition-colors"
               >
                 تحقق
               </button>
