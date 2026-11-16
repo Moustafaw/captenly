@@ -185,7 +185,7 @@ export function AvatarUploader({
       <div className="inline-flex flex-col items-center gap-1.5 shrink-0">
         <div className="relative group">
           <div
-            className={`${boxClass} rounded-full overflow-hidden bg-surface-container-high border-2 border-electric-volt flex items-center justify-center shadow-sm`}
+            className={`${boxClass} rounded-full overflow-hidden bg-[#EAF4F8] border-2 border-[#1D6E7D] flex items-center justify-center shadow-sm`}
           >
             {activeUrl ? (
               <img
@@ -195,7 +195,7 @@ export function AvatarUploader({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Icon name="person" className="text-deep-olive text-[32px]" />
+              <Icon name="person" className="text-[#1D6E7D] text-[32px]" />
             )}
           </div>
 
@@ -205,7 +205,7 @@ export function AvatarUploader({
             disabled={busy}
             title={labelAr}
             aria-label={labelAr}
-            className="absolute -bottom-1 -left-1 w-8 h-8 rounded-full bg-dark-slate text-electric-volt border-2 border-white flex items-center justify-center shadow-md hover:scale-105 transition-transform cursor-pointer"
+            className="absolute -bottom-1 -left-1 w-8 h-8 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white border-2 border-white flex items-center justify-center shadow-md hover:scale-105 transition-transform cursor-pointer"
           >
             <Icon name={busy ? "sync" : "photo_camera"} className={`text-[15px] ${busy ? "animate-spin" : ""}`} />
           </button>
@@ -224,7 +224,7 @@ export function AvatarUploader({
           onClick={() => inputRef.current?.click()}
           disabled={busy}
           className={`text-[11px] font-bold hover:underline ${
-            darkSurface ? "text-electric-volt" : "text-deep-olive"
+            darkSurface ? "text-white" : "text-[#1D6E7D]"
           }`}
         >
           {busy ? "جاري الرفع..." : labelAr}
@@ -232,33 +232,33 @@ export function AvatarUploader({
 
         <span
           className={`text-[10px] leading-tight text-center ${
-            darkSurface ? "text-white/70" : "text-text-muted"
+            darkSurface ? "text-white/75" : "text-[#64748B]"
           }`}
         >
           المقاس الموصى به: 400×400 بكسل (1:1)
         </span>
 
-        {errorMsg && <span className="text-[10px] text-status-danger font-bold">{errorMsg}</span>}
+        {errorMsg && <span className="text-[10px] text-[#DC2626] font-bold">{errorMsg}</span>}
       </div>
 
       {rawImageSrc && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#0F172A]/75 backdrop-blur-sm flex items-center justify-center p-4"
           dir="rtl"
         >
-          <div className="w-full max-w-md bg-surface-card rounded-3xl p-6 shadow-2xl border border-surface-container flex flex-col gap-4 text-dark-slate">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-[#0F172A]/10 flex flex-col gap-4 text-[#0F172A]">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <h3 className="font-card-title text-dark-slate">ضبط وتكبير الصورة الشخصية</h3>
-                <p className="text-[11px] text-text-muted mt-0.5">
-                  المقاس الموصى به: <strong className="text-dark-slate">400×400 بكسل</strong> (مربعة 1:1 — حد أقصى 5 ميجابايت)
+                <h3 className="font-card-title text-[#0F172A]">ضبط وتكبير الصورة الشخصية</h3>
+                <p className="text-[11px] text-[#64748B] mt-0.5">
+                  المقاس الموصى به: <strong className="text-[#0F172A]">400×400 بكسل</strong> (مربعة 1:1 — حد أقصى 5 ميجابايت)
                 </p>
               </div>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setRawImageSrc(null)}
-                className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center disabled:opacity-40"
+                className="w-8 h-8 rounded-full bg-[#F7F9FA] text-[#64748B] hover:text-[#0F172A] flex items-center justify-center disabled:opacity-40"
                 aria-label="إغلاق"
               >
                 <Icon name="close" className="text-[18px]" />
@@ -269,7 +269,7 @@ export function AvatarUploader({
               className={`rounded-xl px-3 py-2 text-[11px] font-bold flex items-center justify-between ${
                 isSmallResolution
                   ? "bg-amber-50 text-amber-900 border border-amber-200"
-                  : "bg-lime-tint/50 text-deep-olive border border-deep-olive/20"
+                  : "bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20"
               }`}
             >
               <span>
@@ -309,7 +309,7 @@ export function AvatarUploader({
                   dragRef.current.active = false;
                 }}
                 style={{ width: previewSize, height: previewSize }}
-                className="relative rounded-2xl overflow-hidden bg-dark-slate border-2 border-deep-olive cursor-grab active:cursor-grabbing select-none touch-none"
+                className="relative rounded-2xl overflow-hidden bg-[#0F172A] border-2 border-[#1D6E7D] cursor-grab active:cursor-grabbing select-none touch-none"
               >
                 <img
                   src={rawImageSrc}
@@ -326,12 +326,12 @@ export function AvatarUploader({
                   }}
                 />
                 {/* Circular avatar guide */}
-                <div className="pointer-events-none absolute inset-0 rounded-full border-2 border-electric-volt/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]" />
+                <div className="pointer-events-none absolute inset-0 rounded-full border-2 border-[#38BDF8]/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]" />
 
                 {busy && (
-                  <div className="absolute inset-0 bg-dark-slate/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 text-white p-4">
-                    <div className="w-11 h-11 rounded-full border-[3px] border-white/25 border-t-electric-volt animate-spin" />
-                    <span className="text-xs font-extrabold text-electric-volt">
+                  <div className="absolute inset-0 bg-[#0F172A]/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 text-white p-4">
+                    <div className="w-11 h-11 rounded-full border-[3px] border-white/25 border-t-[#38BDF8] animate-spin" />
+                    <span className="text-xs font-extrabold text-[#38BDF8]">
                       {uploadProgress}%
                     </span>
                   </div>
@@ -340,27 +340,27 @@ export function AvatarUploader({
             </div>
 
             {busy || uploadProgress > 0 ? (
-              <div className="rounded-2xl bg-surface-snow p-3.5 border border-surface-container flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs font-bold text-dark-slate">
+              <div className="rounded-2xl bg-[#F7F9FA] p-3.5 border border-[#0F172A]/8 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs font-bold text-[#0F172A]">
                   <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full border-2 border-deep-olive border-t-transparent animate-spin inline-block" />
+                    <span className="w-4 h-4 rounded-full border-2 border-[#1D6E7D] border-t-transparent animate-spin inline-block" />
                     <span>{uploadStatusText}</span>
                   </span>
-                  <span className="font-mono text-deep-olive">{uploadProgress}%</span>
+                  <span className="font-mono text-[#1D6E7D]">{uploadProgress}%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-[#E2E8F0] overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-deep-olive transition-all duration-300"
+                    className="h-full rounded-full bg-[#1D6E7D] transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 bg-surface-snow rounded-2xl px-4 py-2.5">
+              <div className="flex items-center gap-3 bg-[#F7F9FA] border border-[#0F172A]/8 rounded-2xl px-4 py-2.5">
                 <button
                   type="button"
                   onClick={() => setZoom((z) => Math.max(0.85, Number((z - 0.15).toFixed(2))))}
-                  className="w-8 h-8 rounded-full bg-surface-card text-dark-slate border border-surface-container flex items-center justify-center font-bold"
+                  className="w-8 h-8 rounded-full bg-white text-[#0F172A] border border-[#0F172A]/10 flex items-center justify-center font-bold"
                   aria-label="تصغير"
                 >
                   -
@@ -372,12 +372,12 @@ export function AvatarUploader({
                   step={0.05}
                   value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
-                  className="flex-1 accent-deep-olive"
+                  className="flex-1 accent-[#1D6E7D]"
                 />
                 <button
                   type="button"
                   onClick={() => setZoom((z) => Math.min(2.6, Number((z + 0.15).toFixed(2))))}
-                  className="w-8 h-8 rounded-full bg-surface-card text-dark-slate border border-surface-container flex items-center justify-center font-bold"
+                  className="w-8 h-8 rounded-full bg-white text-[#0F172A] border border-[#0F172A]/10 flex items-center justify-center font-bold"
                   aria-label="تكبير"
                 >
                   +
@@ -393,7 +393,7 @@ export function AvatarUploader({
                   setZoom(1.05);
                   setOffset({ x: 0, y: 0 });
                 }}
-                className="px-4 py-2.5 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate text-xs font-bold disabled:opacity-40"
+                className="px-4 py-2.5 rounded-full bg-[#F7F9FA] text-[#64748B] hover:text-[#0F172A] border border-[#0F172A]/10 text-xs font-bold disabled:opacity-40"
               >
                 إعادة ضبط
               </button>
@@ -401,10 +401,10 @@ export function AvatarUploader({
                 type="button"
                 disabled={busy}
                 onClick={handleApplyCrop}
-                className="flex-1 py-2.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-sm hover:opacity-95 disabled:opacity-70 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm text-sm disabled:opacity-70 flex items-center justify-center gap-2 transition-colors"
               >
                 {busy && (
-                  <span className="w-4 h-4 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
+                  <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
                 )}
                 <span>{busy ? "جاري رفع وحفظ الصورة..." : "اعتماد وحفظ الصورة ✓"}</span>
               </button>

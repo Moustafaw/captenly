@@ -76,7 +76,7 @@ export function resolveEntityContactChannels(input: {
       shortLabelAr: "واتساب",
       url: formatWhatsappNumberUrl(waDigits),
       rawValue: input.whatsappNumber!.trim(),
-      buttonBgClass: "bg-action-whatsapp text-surface-card",
+      buttonBgClass: "bg-[#15803D] hover:bg-[#166534] text-white",
     });
   }
 

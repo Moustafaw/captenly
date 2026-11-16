@@ -138,7 +138,7 @@ export function ContactChannelsBar({
             onClick={(e) => handleGuardedChannel(e, onWhatsappClick)}
             title={ch.labelAr}
             aria-label={ch.labelAr}
-            className="w-9 h-9 rounded-full bg-surface-card border border-surface-container hover:scale-105 text-dark-slate flex items-center justify-center transition-transform shadow-sm shrink-0"
+            className="w-9 h-9 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 hover:scale-105 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] text-[#0F172A] flex items-center justify-center transition-all shadow-sm shrink-0"
           >
             <SocialChannelGlyph kind={ch.kind} className="w-4 h-4" />
           </button>

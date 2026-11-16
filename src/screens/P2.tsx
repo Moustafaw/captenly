@@ -146,43 +146,50 @@ export default function Phone2() {
   }
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin pt-4 pb-24 flex flex-col gap-4">
-      {/* Modern Profile Header Card */}
-      <section className="rounded-3xl bg-dark-slate text-surface-card p-5 shadow-md flex flex-col gap-3.5">
-        <div className="flex items-start gap-3.5">
-          <div className="bg-white/10 rounded-full p-1 shrink-0">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0F172A] min-h-screen px-margin pt-4 pb-24 flex flex-col gap-4">
+      {/* Option B Luxury Mobile Profile Header Card */}
+      <section className="relative rounded-[24px] bg-white text-[#0F172A] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)] border border-[#0F172A]/8 overflow-hidden flex flex-col gap-3.5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-12 -left-12 w-40 h-40 rounded-full bg-[#EAF4F8]/90 blur-2xl"
+        />
+        <div className="relative z-10 flex items-start gap-3.5">
+          <div className="relative shrink-0">
             {currentPersona.avatarUrl ? (
               <img
                 src={currentPersona.avatarUrl}
                 alt={currentPersona.fullNameAr}
-                className="w-14 h-14 rounded-full object-cover border-2 border-electric-volt"
+                className="w-16 h-16 rounded-full object-cover border-2 border-[#1D6E7D] shadow-sm"
               />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-deep-carbon text-electric-volt flex items-center justify-center font-extrabold text-sm border border-white/15">
+              <div className="w-16 h-16 rounded-full bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center font-extrabold text-sm border-2 border-[#1D6E7D]/30">
                 {currentPersona.fullNameAr?.slice(0, 2) || "سب"}
               </div>
             )}
+            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#1D6E7D] text-white border-2 border-white flex items-center justify-center">
+              <Icon name="verified" className="text-[11px]" />
+            </span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               {currentPersona.memberCode && (
-                <span className="px-2.5 py-0.5 rounded-full bg-deep-carbon text-electric-volt font-mono text-[10px] font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20 font-mono text-[10px] font-bold">
                   {currentPersona.memberCode}
                 </span>
               )}
               {currentPersona.city && (
-                <span className="text-[10px] text-surface-container-high">{currentPersona.city}</span>
+                <span className="text-[10px] font-bold text-[#64748B]">{currentPersona.city}</span>
               )}
             </div>
-            <h1 className="font-card-title text-base text-surface-card mt-1 leading-snug">
+            <h1 className="font-card-title text-base text-[#0F172A] mt-1 leading-snug">
               {currentPersona.fullNameAr}
             </h1>
             {currentPersona.bioAr ? (
-              <p className="text-[11px] text-surface-container-high mt-0.5 line-clamp-2">
+              <p className="text-[11px] text-[#475569] mt-0.5 line-clamp-2">
                 {currentPersona.bioAr}
               </p>
             ) : (
-              <Link href="/dashboard/athlete/settings" className="text-[11px] text-electric-volt mt-0.5 inline-block hover:underline">
+              <Link href="/dashboard/athlete/settings" className="text-[11px] text-[#1D6E7D] font-bold mt-0.5 inline-block hover:underline">
                 أضف نبذة تعريفية +
               </Link>
             )}
@@ -190,33 +197,33 @@ export default function Phone2() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-deep-carbon py-2 text-center">
-            <div className="text-sm font-black text-electric-volt">{myPBs.length}</div>
-            <div className="text-[10px] text-surface-container-high">أرقام PB</div>
+        <div className="relative z-10 grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/8 py-2.5 text-center">
+            <div className="text-sm font-black text-[#1D6E7D]">{myPBs.length}</div>
+            <div className="text-[10px] font-bold text-[#64748B]">أرقام PB</div>
           </div>
-          <div className="rounded-2xl bg-deep-carbon py-2 text-center">
-            <div className="text-sm font-black text-electric-volt">
+          <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/8 py-2.5 text-center">
+            <div className="text-sm font-black text-[#1D6E7D]">
               {hasSkillEvaluation ? `${avgScore}/5` : "—"}
             </div>
-            <div className="text-[10px] text-surface-container-high">المهارة</div>
+            <div className="text-[10px] font-bold text-[#64748B]">المهارة</div>
           </div>
-          <div className="rounded-2xl bg-deep-carbon py-2 text-center">
-            <div className="text-sm font-black text-electric-volt">{myLedgers.length}</div>
-            <div className="text-[10px] text-surface-container-high">حصص QR</div>
+          <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/8 py-2.5 text-center">
+            <div className="text-sm font-black text-[#1D6E7D]">{myLedgers.length}</div>
+            <div className="text-[10px] font-bold text-[#64748B]">حصص QR</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="relative z-10 grid grid-cols-2 gap-2">
           <Link
             href="/dashboard/ledger"
-            className="py-2 rounded-full bg-electric-volt text-dark-slate text-xs font-bold text-center"
+            className="py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold text-center shadow-sm transition-colors"
           >
             دفتر الحصص QR
           </Link>
           <Link
             href="/dashboard/athlete/settings"
-            className="py-2 rounded-full bg-white/10 text-surface-card text-xs font-bold text-center"
+            className="py-2.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] text-xs font-bold text-center hover:bg-[#EAF4F8] transition-colors"
           >
             تعديل الصورة والإعدادات
           </Link>
@@ -225,9 +232,9 @@ export default function Phone2() {
 
       {/* Staff Role Account Switcher on Mobile */}
       {myStaffAssignments.some((st) => st.invitationStatus !== "declined") && (
-        <section className="rounded-2xl bg-lime-tint border border-deep-olive/35 p-4 flex flex-col gap-2.5">
-          <div className="text-xs font-extrabold text-dark-slate flex items-center gap-1.5">
-            <Icon name="swap_horiz" className="text-[18px] text-deep-olive" />
+        <section className="rounded-2xl bg-[#EAF4F8] border border-[#1D6E7D]/25 p-4 flex flex-col gap-2.5">
+          <div className="text-xs font-extrabold text-[#0F172A] flex items-center gap-1.5">
+            <Icon name="swap_horiz" className="text-[18px] text-[#1D6E7D]" />
             <span>دعوات وصلاحيات العمل بالمنشأة</span>
           </div>
           {myStaffAssignments
@@ -236,23 +243,23 @@ export default function Phone2() {
               st.invitationStatus === "pending" ? (
                 <div
                   key={st.id}
-                  className="rounded-xl bg-surface-card p-3 border border-deep-olive/25 flex flex-col gap-2"
+                  className="rounded-xl bg-white p-3 border border-[#1D6E7D]/20 flex flex-col gap-2"
                 >
-                  <div className="text-xs font-bold text-dark-slate">
+                  <div className="text-xs font-bold text-[#0F172A]">
                     دعوة: {st.roleTitleAr} ({st.facilityNameAr})
                   </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => respondToStaffInvitation(st.facilityId, st.id, "accepted")}
-                      className="flex-1 py-2 rounded-full bg-deep-olive text-white text-xs font-bold"
+                      className="flex-1 py-2 rounded-full bg-[#1D6E7D] text-white text-xs font-bold"
                     >
                       قبول ✓
                     </button>
                     <button
                       type="button"
                       onClick={() => respondToStaffInvitation(st.facilityId, st.id, "declined")}
-                      className="flex-1 py-2 rounded-full bg-red-50 text-status-danger text-xs font-bold"
+                      className="flex-1 py-2 rounded-full bg-red-50 text-[#DC2626] text-xs font-bold"
                     >
                       رفض ✕
                     </button>
@@ -268,8 +275,8 @@ export default function Phone2() {
                   }}
                   className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold ${
                     activeStaffAssignment?.id === st.id
-                      ? "bg-deep-olive text-electric-volt"
-                      : "bg-dark-slate text-electric-volt"
+                      ? "bg-[#155460] text-white"
+                      : "bg-[#1D6E7D] text-white"
                   }`}
                 >
                   تبديل إلى: {st.roleTitleAr} ({st.facilityNameAr}) ←
@@ -290,8 +297,10 @@ export default function Phone2() {
             key={item.key}
             type="button"
             onClick={() => setTab(item.key as typeof tab)}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold shrink-0 ${
-              tab === item.key ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-text-muted"
+            className={`px-4 py-2 rounded-full text-xs font-bold shrink-0 border transition-colors ${
+              tab === item.key
+                ? "bg-[#1D6E7D] border-[#1D6E7D] text-white shadow-sm"
+                : "bg-white border-[#0F172A]/8 text-[#64748B]"
             }`}
           >
             {item.label}
@@ -309,8 +318,8 @@ export default function Phone2() {
                   setSelectedAthleteId("");
                   setPbTargetAthleteId("");
                 }}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
-                  !selectedAthleteId ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-dark-slate"
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 border ${
+                  !selectedAthleteId ? "bg-[#1D6E7D] border-[#1D6E7D] text-white" : "bg-white border-[#0F172A]/10 text-[#0F172A]"
                 }`}
               >
                 كل الأسرة
@@ -322,10 +331,10 @@ export default function Phone2() {
                     setSelectedAthleteId("self");
                     setPbTargetAthleteId("self");
                   }}
-                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 border ${
                     selectedAthleteId === "self"
-                      ? "bg-deep-olive text-white"
-                      : "bg-surface-card text-dark-slate"
+                      ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                      : "bg-white border-[#0F172A]/10 text-[#0F172A]"
                   }`}
                 >
                   حسابي ({currentPersona.fullNameAr.split(" ")[0]})
@@ -339,10 +348,10 @@ export default function Phone2() {
                     setSelectedAthleteId(child.id);
                     setPbTargetAthleteId(child.id);
                   }}
-                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 ${
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 border ${
                     selectedAthleteId === child.id
-                      ? "bg-deep-olive text-white"
-                      : "bg-surface-card text-dark-slate"
+                      ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                      : "bg-white border-[#0F172A]/10 text-[#0F172A]"
                   }`}
                 >
                   {child.fullNameAr}
@@ -351,20 +360,21 @@ export default function Phone2() {
             </div>
           )}
 
-          <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            <h2 className="font-card-title text-dark-slate">أرقامي القياسية (PB)</h2>
+          <section className="bg-white rounded-[20px] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-3">
+            <h2 className="font-card-title text-[#0F172A]">أرقامي القياسية (PB)</h2>
             <div className="flex flex-col gap-2">
               {myPBs.map((rec) => {
                 const pct = calcMobileImprovementPct(rec.previousValue, rec.currentValue, rec.unitAr);
                 return (
-                  <div key={rec.id} className="rounded-xl bg-surface-snow p-3 flex items-center justify-between">
+                  <div key={rec.id} className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 p-3 flex items-center justify-between">
                     <div>
-                      <div className="font-bold text-xs text-dark-slate">{rec.eventTitleAr}</div>
-                      <div className="text-[10px] text-text-muted">
-                        {rec.athleteNameAr} {pct !== null && pct > 0 ? `• ↑ تطور +${pct}%` : ""}
+                      <div className="font-bold text-xs text-[#0F172A]">{rec.eventTitleAr}</div>
+                      <div className="text-[10px] text-[#64748B]">
+                        {rec.athleteNameAr}{" "}
+                        {pct !== null && pct > 0 ? `• ↑ تطور +${pct}%` : ""}
                       </div>
                     </div>
-                    <div className="font-black text-base text-deep-olive">
+                    <div className="font-black text-base text-[#1D6E7D]">
                       {rec.currentValue} {rec.unitAr}
                     </div>
                   </div>
@@ -401,13 +411,13 @@ export default function Phone2() {
                 setNewVal("");
                 setPrevVal("");
               }}
-              className="grid grid-cols-3 gap-2 pt-2 border-t border-surface-container"
+              className="grid grid-cols-3 gap-2 pt-3 border-t border-[#E2E8F0]"
             >
               {canManageFamily && minorAthletes.length > 0 && (
                 <select
                   value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
                   onChange={(e) => setPbTargetAthleteId(e.target.value)}
-                  className="col-span-3 rounded-xl bg-surface-snow px-3 py-2 text-xs font-bold outline-none border border-surface-container"
+                  className="col-span-3 rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
                 >
                   {!isParentOnlyIntent && (
                     <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
@@ -424,12 +434,12 @@ export default function Phone2() {
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="السباق (50م حرة)"
-                className="col-span-2 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+                className="col-span-2 rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
               />
               <select
                 value={pbUnitAr}
                 onChange={(e) => setPbUnitAr(e.target.value)}
-                className="rounded-xl bg-surface-snow px-2 py-2 text-xs font-bold outline-none border border-surface-container"
+                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
               >
                 <option value="ثانية">ثانية</option>
                 <option value="متر">متر</option>
@@ -444,7 +454,7 @@ export default function Phone2() {
                 value={newVal}
                 onChange={(e) => setNewVal(e.target.value)}
                 placeholder="الرقم الجديد"
-                className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
+                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
               />
               <input
                 type="number"
@@ -452,43 +462,49 @@ export default function Phone2() {
                 value={prevVal}
                 onChange={(e) => setPrevVal(e.target.value)}
                 placeholder="الرقم السابق"
-                className="rounded-xl bg-surface-snow px-2.5 py-2 text-xs outline-none border border-surface-container"
+                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
               />
-              <button type="submit" className="px-3.5 py-2 rounded-xl bg-dark-slate text-electric-volt text-xs font-bold">
+              <button
+                type="submit"
+                className="px-3.5 py-2.5 rounded-2xl bg-[#1D6E7D] hover:bg-[#165966] text-white text-xs font-black transition cursor-pointer"
+              >
                 + سجل
               </button>
             </form>
           </section>
 
-          <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+          <section className="bg-white rounded-3xl p-4 border border-[#E2E8F0] shadow-[0_6px_22px_rgba(11,28,46,0.04)] flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-card-title-sm text-dark-slate">التقييم المهاري (5 محاور)</h2>
-              <span className="text-xs font-extrabold text-deep-olive">
+              <h2 className="font-black text-sm text-[#0B1C2E]">التقييم المهاري (5 محاور)</h2>
+              <span className="text-xs font-black text-[#1D6E7D] px-2.5 py-0.5 rounded-full bg-[#EAF4F8] border border-[#00ACC1]/20">
                 {hasSkillEvaluation ? `${avgScore} / 5` : "لم يُقيّم بعد"}
               </span>
             </div>
             {activeSkillEvaluation.metrics.map((m) => (
-              <div key={m.labelAr} className="flex flex-col gap-1">
+              <div key={m.labelAr} className="flex flex-col gap-1.5">
                 <div className="flex justify-between text-xs font-bold">
-                  <span>{m.labelAr}</span>
-                  <span className="text-deep-olive">{m.score}/5</span>
+                  <span className="text-[#0B1C2E]">{m.labelAr}</span>
+                  <span className="text-[#1D6E7D] font-black">{m.score}/5</span>
                 </div>
-                <div className="h-2 rounded-full bg-surface-snow overflow-hidden">
-                  <div className="h-full bg-deep-olive rounded-full" style={{ width: `${(m.score / 5) * 100}%` }} />
+                <div className="h-2 rounded-full bg-[#EAF4F8] overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-l from-[#00ACC1] to-[#1D6E7D] rounded-full transition-all"
+                    style={{ width: `${(m.score / 5) * 100}%` }}
+                  />
                 </div>
               </div>
             ))}
             {hasSkillEvaluation && activeSkillEvaluation.coachFeedbackAr ? (
-              <p className="text-[11px] text-text-muted bg-surface-snow p-3 rounded-xl leading-relaxed">
+              <p className="text-[11px] text-[#64748B] bg-[#F7F9FA] border border-[#E2E8F0] p-3 rounded-2xl leading-relaxed">
                 {activeSkillEvaluation.coachNameAr && (
-                  <strong className="text-dark-slate">
+                  <strong className="text-[#0B1C2E]">
                     ملاحظة الكابتن ({activeSkillEvaluation.coachNameAr}):{" "}
                   </strong>
                 )}
                 {activeSkillEvaluation.coachFeedbackAr}
               </p>
             ) : (
-              <p className="text-[11px] text-text-muted bg-surface-snow p-3 rounded-xl leading-relaxed">
+              <p className="text-[11px] text-[#64748B] bg-[#F7F9FA] border border-[#E2E8F0] p-3 rounded-2xl leading-relaxed">
                 لم يُسجّل تقييم مهاري من الكابتن بعد.
               </p>
             )}
@@ -497,12 +513,12 @@ export default function Phone2() {
       )}
 
       {tab === "ledgers" && (
-        <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3 border border-surface-container">
+        <section className="bg-white rounded-3xl p-4 shadow-[0_6px_22px_rgba(11,28,46,0.04)] flex flex-col gap-3 border border-[#E2E8F0]">
           <div className="flex items-center justify-between">
-            <span className="font-card-title-sm text-sm text-dark-slate">دفاتر الحصص وأكواد الاشتراك</span>
+            <span className="font-black text-sm text-[#0B1C2E]">دفاتر الحصص وأكواد الاشتراك</span>
             <Link
               href="/dashboard/ledger"
-              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+              className="px-3.5 py-1.5 rounded-full bg-[#1D6E7D] hover:bg-[#165966] text-white text-[11px] font-black transition"
             >
               شاشة الـ QR ←
             </Link>
@@ -513,44 +529,51 @@ export default function Phone2() {
                 l.isCodeExpired || l.status === "completed" || l.completedSessions >= l.totalSessions
               );
               return (
-                <div key={l.id} className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex justify-between items-center gap-2">
+                <div
+                  key={l.id}
+                  className="rounded-2xl bg-[#F7F9FA] p-3.5 border border-[#E2E8F0] flex justify-between items-center gap-2"
+                >
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-xs text-dark-slate">{l.facilityNameAr}</span>
+                      <span className="font-black text-xs text-[#0B1C2E]">{l.facilityNameAr}</span>
                       <span
-                        className={`px-2 py-0.5 rounded font-mono text-[10px] font-black border ${
+                        className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-black border ${
                           isExpired
                             ? "bg-red-50 text-red-700 border-red-200 line-through"
-                            : "bg-lime-tint text-deep-olive border-deep-olive/25"
+                            : "bg-[#EAF4F8] text-[#1D6E7D] border-[#00ACC1]/25"
                         }`}
                       >
                         {l.subscriptionCode || l.ledgerCode}
                       </span>
                     </div>
-                    <div className="text-[11px] text-text-muted mt-0.5">{l.packageTitleAr}</div>
+                    <div className="text-[11px] text-[#64748B] font-semibold mt-0.5">{l.packageTitleAr}</div>
                   </div>
                   <div className="text-left shrink-0">
-                    <div className="text-sm font-black text-deep-olive">
+                    <div className="text-sm font-black text-[#1D6E7D]">
                       {Math.max(0, l.totalSessions - l.completedSessions)} متبقية
                     </div>
-                    <div className="text-[10px] text-text-muted">من {l.totalSessions} حصة</div>
+                    <div className="text-[10px] text-[#64748B] font-semibold">من {l.totalSessions} حصة</div>
                   </div>
                 </div>
               );
             })
           ) : (
-            <p className="text-xs text-text-muted">
-              لا توجد باقات مفعلة حالياً — شارك كود عضويتك <strong className="font-mono">{currentPersona.memberCode}</strong> مع الأكاديمية أو الكابتن.
+            <p className="text-xs text-[#64748B]">
+              لا توجد باقات مفعلة حالياً — شارك كود عضويتك{" "}
+              <strong className="font-mono text-[#1D6E7D]">{currentPersona.memberCode}</strong> مع الأكاديمية أو الكابتن.
             </p>
           )}
         </section>
       )}
 
       {canManageFamily && tab === "family" && (
-        <section className="bg-surface-card rounded-2xl p-4 shadow-sm flex flex-col gap-3 border border-surface-container">
+        <section className="bg-white rounded-3xl p-4 shadow-[0_6px_22px_rgba(11,28,46,0.04)] flex flex-col gap-3 border border-[#E2E8F0]">
           <div className="flex items-center justify-between">
-            <div className="font-card-title-sm text-sm text-dark-slate">متابعة الأبناء (اختياري)</div>
-            <Link href="/dashboard/athlete/settings/family" className="text-[11px] font-bold text-deep-olive">
+            <div className="font-black text-sm text-[#0B1C2E]">متابعة الأبناء (اختياري)</div>
+            <Link
+              href="/dashboard/athlete/settings/family"
+              className="text-[11px] font-black text-[#1D6E7D] hover:underline"
+            >
               إدارة وتعديل ←
             </Link>
           </div>
@@ -559,31 +582,34 @@ export default function Phone2() {
             const facLabel = childLedger?.facilityNameAr || child.activeFacilityNameAr;
             const coachLabel = childLedger?.coachNameAr || child.activeCoachNameAr;
             return (
-              <div key={child.id} className="rounded-xl bg-surface-snow p-3 flex justify-between items-center gap-2 text-xs">
+              <div
+                key={child.id}
+                className="rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0] p-3.5 flex justify-between items-center gap-2 text-xs"
+              >
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-dark-slate">
+                    <span className="font-black text-[#0B1C2E]">
                       {child.fullNameAr} ({child.age} سنوات)
                     </span>
                     {child.childMemberCode && (
                       <code
                         dir="ltr"
-                        className="px-1.5 py-0.5 rounded bg-lime-tint text-deep-olive font-mono text-[10px] font-bold"
+                        className="px-2 py-0.5 rounded-full bg-[#EAF4F8] border border-[#00ACC1]/20 text-[#1D6E7D] font-mono text-[10px] font-black"
                       >
                         {child.childMemberCode}
                       </code>
                     )}
                   </div>
                   {child.currentStarLevel > 0 && child.starTitleAr && (
-                    <div className="text-[11px] text-deep-olive font-bold mt-0.5">{child.starTitleAr}</div>
+                    <div className="text-[11px] text-[#1D6E7D] font-bold mt-0.5">{child.starTitleAr}</div>
                   )}
-                  <div className="text-[10px] text-text-muted mt-0.5">
+                  <div className="text-[10px] text-[#64748B] font-semibold mt-0.5">
                     {coachLabel || facLabel
                       ? [coachLabel, facLabel].filter(Boolean).join(" • ")
                       : "غير مربوط بأكاديمية بعد"}
                   </div>
                 </div>
-                <Icon name="verified" className="text-deep-olive text-[16px] shrink-0" />
+                <Icon name="verified" className="text-[#00ACC1] text-[18px] shrink-0" />
               </div>
             );
           })}
@@ -599,13 +625,13 @@ export default function Phone2() {
               });
               setChildName("");
             }}
-            className="flex gap-2 pt-2 border-t border-surface-container"
+            className="flex gap-2 pt-3 border-t border-[#E2E8F0]"
           >
             <input
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
               placeholder="اسم الطفل"
-              className="flex-1 rounded-xl bg-surface-snow px-3 py-2 text-xs outline-none border border-surface-container"
+              className="flex-1 rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
             />
             <input
               type="number"
@@ -613,9 +639,12 @@ export default function Phone2() {
               max={14}
               value={childAge}
               onChange={(e) => setChildAge(e.target.value)}
-              className="w-14 rounded-xl bg-surface-snow px-2 py-2 text-xs outline-none border border-surface-container"
+              className="w-14 rounded-2xl bg-[#F7F9FA] px-2 py-2.5 text-xs font-bold text-[#0B1C2E] text-center outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
             />
-            <button type="submit" className="px-3.5 py-2 rounded-xl bg-deep-olive text-white text-xs font-bold">
+            <button
+              type="submit"
+              className="px-4 py-2.5 rounded-2xl bg-[#1D6E7D] hover:bg-[#165966] text-white text-xs font-black transition cursor-pointer"
+            >
               + إضافة
             </button>
           </form>

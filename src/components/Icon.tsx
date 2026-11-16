@@ -120,8 +120,8 @@ export interface IconProps {
 const ICON_MAP: Record<string, LucideIcon> = {
   // Navigation & Chrome
   home: Home,
-  explore: Compass,
-  travel_explore: Compass,
+  explore: Search,
+  travel_explore: Search,
   compare_arrows: ArrowLeftRight,
   swap_horiz: ArrowLeftRight,
   swap_vert: ArrowUpDown,

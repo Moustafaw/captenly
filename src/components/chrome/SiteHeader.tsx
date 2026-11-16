@@ -164,10 +164,10 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="hidden lg:block sticky top-0 w-full z-50 bg-surface-card/95 backdrop-blur-md shadow-[0_2px_12px_rgba(44,52,55,0.06)]">
+    <header className="hidden lg:block sticky top-0 w-full z-50 bg-white/95 backdrop-blur-md shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
       {/* Row 1: Brand + Location + Spacious Search + User Controls */}
       <div className="h-[64px] max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+        <Link href="/" className="relative z-10 flex items-center gap-2.5 shrink-0 cursor-pointer">
           <img
             alt="كابتنلي"
             className="h-11 w-auto object-contain"
@@ -229,11 +229,11 @@ export function SiteHeader() {
                 href="/favorites"
                 aria-label="المفضلة"
                 title="المفضلة"
-                className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+                className="relative w-9 h-9 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors border border-[#0F172A]/6"
               >
                 <Icon name="bookmark" className="text-[18px]" />
                 {savedFavoriteIds.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center">
                     {savedFavoriteIds.length}
                   </span>
                 )}
@@ -242,11 +242,11 @@ export function SiteHeader() {
               <Link
                 href="/notifications"
                 aria-label="الإشعارات"
-                className="relative w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+                className="relative w-9 h-9 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors border border-[#0F172A]/6"
               >
                 <Icon name="notifications" className="text-[18px]" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-deep-olive text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center">
                     {unreadNotificationsCount}
                   </span>
                 )}
@@ -256,7 +256,7 @@ export function SiteHeader() {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((v) => !v)}
-                  className="w-9 h-9 rounded-full bg-primary overflow-hidden border border-deep-olive/30 flex items-center justify-center cursor-pointer shadow-sm text-on-primary hover:brightness-110 transition-all"
+                  className="w-9 h-9 rounded-full bg-[#1D6E7D] overflow-hidden border border-[#1D6E7D]/30 flex items-center justify-center cursor-pointer shadow-sm text-white hover:brightness-110 transition-all"
                   aria-label="حسابي"
                 >
                   {currentPersona.avatarUrl ? (
@@ -267,13 +267,13 @@ export function SiteHeader() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Icon name="person" className="text-on-primary text-[18px]" />
+                    <Icon name="person" className="text-white text-[18px]" />
                   )}
                 </button>
                 {menuOpen && (
-                  <div className="absolute left-0 top-12 w-72 bg-surface-card rounded-2xl shadow-[0_12px_36px_rgba(26,31,33,0.16)] p-2.5 flex flex-col border border-surface-container z-50">
-                    <div className="px-3 py-2 rounded-xl bg-surface-snow mb-1.5 flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
+                  <div className="absolute left-0 top-12 w-72 bg-white rounded-2xl shadow-[0_12px_36px_rgba(15,23,42,0.14)] p-2.5 flex flex-col border border-[#0F172A]/10 z-50">
+                    <div className="px-3 py-2.5 rounded-xl bg-[#EAF4F8]/70 border border-[#1D6E7D]/15 mb-1.5 flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-[#1D6E7D]/25 flex items-center justify-center shrink-0">
                         {currentPersona.avatarUrl ? (
                           <img
                             src={currentPersona.avatarUrl}
@@ -282,21 +282,21 @@ export function SiteHeader() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <Icon name="person" className="text-deep-olive text-[18px]" />
+                          <Icon name="person" className="text-[#1D6E7D] text-[18px]" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-card-title-sm text-dark-slate truncate">{currentPersona.fullNameAr}</div>
+                        <div className="font-card-title-sm text-[#0F172A] truncate">{currentPersona.fullNameAr}</div>
                         {currentPersona.email && (
-                          <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted truncate" dir="ltr">
+                          <div className="flex items-center gap-1 text-[10px] font-mono text-[#64748B] truncate" dir="ltr">
                             <GoogleMark className="w-3 h-3 shrink-0" />
                             <span className="truncate">{currentPersona.email}</span>
                           </div>
                         )}
                         {currentPersona.memberCode && currentPersona.role !== "facility_manager" && (
-                          <div className="flex items-center justify-between text-[11px] text-text-muted mt-0.5">
+                          <div className="flex items-center justify-between text-[11px] text-[#64748B] mt-0.5">
                             <span>كود:</span>
-                            <span className="font-mono font-bold text-deep-olive">
+                            <span className="font-mono font-bold text-[#1D6E7D]">
                               {currentPersona.memberCode}
                             </span>
                           </div>
@@ -309,9 +309,9 @@ export function SiteHeader() {
                       currentPersona.role !== "coach" &&
                       currentPersona.role !== "facility_manager" &&
                       acceptedStaffAssignments.length > 0 && (
-                        <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-surface-snow border border-surface-container flex flex-col gap-1.5">
-                          <div className="text-[10px] font-bold text-text-muted flex items-center gap-1">
-                            <Icon name="workspaces" className="text-[13px] text-deep-olive" />
+                        <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/8 flex flex-col gap-1.5">
+                          <div className="text-[10px] font-bold text-[#64748B] flex items-center gap-1">
+                            <Icon name="workspaces" className="text-[13px] text-[#1D6E7D]" />
                             <span>نطاق العمل الحالي:</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
@@ -324,8 +324,8 @@ export function SiteHeader() {
                               }}
                               className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
                                 !verifiedStaffAssignment
-                                  ? "bg-dark-slate text-electric-volt"
-                                  : "bg-surface-card text-dark-slate border border-surface-container"
+                                  ? "bg-[#1D6E7D] text-white"
+                                  : "bg-white text-[#0F172A] border border-[#0F172A]/10"
                               }`}
                             >
                               حسابي الشخصي
@@ -343,8 +343,8 @@ export function SiteHeader() {
                               }}
                               className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
                                 verifiedStaffAssignment
-                                  ? "bg-dark-slate text-electric-volt"
-                                  : "bg-surface-card text-dark-slate border border-surface-container"
+                                  ? "bg-[#1D6E7D] text-white"
+                                  : "bg-white text-[#0F172A] border border-[#0F172A]/10"
                               }`}
                             >
                               إدارة المنشأة
@@ -354,8 +354,8 @@ export function SiteHeader() {
                       )}
 
                     {myStaffAssignments.length > 0 && (
-                      <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-lime-tint/60 border border-deep-olive/20 flex flex-col gap-1.5">
-                        <div className="text-[10px] font-bold text-deep-olive flex items-center gap-1">
+                      <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-[#EAF4F8]/70 border border-[#1D6E7D]/20 flex flex-col gap-1.5">
+                        <div className="text-[10px] font-bold text-[#1D6E7D] flex items-center gap-1">
                           <Icon name="swap_horiz" className="text-[14px]" />
                           <span>صلاحيات ودعوات فريق العمل:</span>
                         </div>
@@ -364,9 +364,9 @@ export function SiteHeader() {
                             return (
                               <div
                                 key={assign.id}
-                                className="w-full p-2 rounded-lg bg-surface-card border border-deep-olive/30 flex flex-col gap-1.5"
+                                className="w-full p-2 rounded-lg bg-white border border-[#1D6E7D]/25 flex flex-col gap-1.5"
                               >
-                                <span className="text-[10px] font-bold text-dark-slate truncate">
+                                <span className="text-[10px] font-bold text-[#0F172A] truncate">
                                   دعوة: {assign.roleTitleAr} ({assign.facilityNameAr})
                                 </span>
                                 <div className="flex gap-1.5">
@@ -375,7 +375,7 @@ export function SiteHeader() {
                                     onClick={() =>
                                       respondToStaffInvitation(assign.facilityId, assign.id, "accepted")
                                     }
-                                    className="flex-1 py-1 rounded-md bg-deep-olive text-white text-[10px] font-bold"
+                                    className="flex-1 py-1 rounded-md bg-[#1D6E7D] text-white text-[10px] font-bold"
                                   >
                                     قبول ✓
                                   </button>
@@ -384,7 +384,7 @@ export function SiteHeader() {
                                     onClick={() =>
                                       respondToStaffInvitation(assign.facilityId, assign.id, "declined")
                                     }
-                                    className="flex-1 py-1 rounded-md bg-red-50 text-status-danger text-[10px] font-bold"
+                                    className="flex-1 py-1 rounded-md bg-red-50 text-[#DC2626] text-[10px] font-bold"
                                   >
                                     رفض ✕
                                   </button>
@@ -410,8 +410,8 @@ export function SiteHeader() {
                               }}
                               className={`w-full px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition-all ${
                                 isCurrent
-                                  ? "bg-dark-slate text-electric-volt"
-                                  : "bg-surface-card text-dark-slate hover:bg-surface-snow border border-surface-container"
+                                  ? "bg-[#1D6E7D] text-white"
+                                  : "bg-white text-[#0F172A] hover:bg-[#F7F9FA] border border-[#0F172A]/10"
                               }`}
                             >
                               <span className="truncate">{assign.facilityNameAr} ({assign.roleTitleAr})</span>
@@ -429,16 +429,12 @@ export function SiteHeader() {
                           { href: "/dashboard/coach", icon: "sports_score", label: "لوحة الكابتن والربط" },
                           { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر طلابي (QR)" },
                           { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                          { href: "/badges", icon: "verified", label: "مركز الشارات الخضراء" },
-                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
                         ]
                       : currentPersona.role === "facility_manager"
                       ? [
                           { href: "/dashboard/facility", icon: "stadium", label: "لوحة إدارة الأكاديمية" },
                           { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفاتر المشتركين (QR)" },
                           { href: "/favorites", icon: "bookmark", label: "المفضلة" },
-                          { href: "/badges", icon: "verified", label: "مركز التوثيق والشارات" },
-                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
                         ]
                       : [
                           {
@@ -452,32 +448,20 @@ export function SiteHeader() {
                           { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص الـ QR أوفلاين" },
                           { href: "/favorites", icon: "bookmark", label: "المفضلة" },
                           { href: "/compare", icon: "compare_arrows", label: "مقارنة المنشآت" },
-                          { href: "/dashboard/athlete/settings", icon: "tune", label: "الإعدادات وصورة البروفايل" },
                         ]
                     ).map((i) => (
                       <Link
                         key={i.href}
                         href={i.href}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-dark-slate"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[#EAF4F8] font-body-compact text-body-compact text-[#0F172A] hover:text-[#1D6E7D] transition-colors"
                       >
-                        <Icon name={i.icon} className="text-deep-olive text-[17px]" />
-                        {i.label}
+                        <Icon name={i.icon} className="text-[#1D6E7D] text-[17px]" />
+                        <span>{i.label}</span>
                       </Link>
                     ))}
 
-                    <div className="h-px bg-border-hairline my-1.5" />
-                    <div className="flex flex-col gap-1.5 px-1">
-                      <Link
-                        href="/dashboard/athlete/settings"
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-surface-container-low font-body-compact text-body-compact text-deep-olive font-bold"
-                      >
-                        {currentPersona.authProvider === "google" ? (
-                          <GoogleMark className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <Icon name="tune" className="text-[17px]" />
-                        )}
-                        <span>إدارة البيانات وصورة الملف</span>
-                      </Link>
+                    <div className="h-px bg-[#0F172A]/8 my-1.5" />
+                    <div className="flex flex-col gap-1 px-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -487,7 +471,7 @@ export function SiteHeader() {
                           }
                           setMenuOpen(false);
                         }}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-50 font-body-compact text-body-compact text-status-danger font-bold text-right"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-50 font-body-compact text-body-compact text-[#DC2626] font-bold text-right transition-colors"
                       >
                         <Icon name="logout" className="text-[17px]" />
                         <span>تسجيل الخروج</span>

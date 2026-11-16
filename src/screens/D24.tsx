@@ -129,10 +129,6 @@ export default function Desktop24() {
               />
               <div className="relative z-10 grid grid-cols-12 gap-6 lg:gap-8 min-h-[340px] items-center">
                 <div className="col-span-12 lg:col-span-7 flex flex-col justify-center gap-5 p-2 lg:p-4">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-xs font-bold w-fit">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1D6E7D]" />
-                    <span>منصة السباحة والرياضات المائية الأولى في مصر</span>
-                  </span>
                   <h1 className="font-hero-headline text-hero-headline text-[#0F172A] leading-tight max-w-xl">
                     اكتشف أفضل الأندية والمدارس الرياضية الموثقة حولك في مصر
                   </h1>

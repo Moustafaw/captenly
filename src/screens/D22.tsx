@@ -67,16 +67,18 @@ export default function Desktop22() {
 
   if (!facility) {
     return (
-      <div className="screen-root bg-canvas-alabaster font-body-default min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-[24px] bg-surface-card border border-surface-container p-8 text-center flex flex-col items-center gap-4 shadow-sm">
-          <Icon
-            name={gplaceLoading || placesHydrating ? "travel_explore" : "pool"}
-            className={`text-[36px] text-deep-olive ${gplaceLoading || placesHydrating ? "animate-pulse" : ""}`}
-          />
-          <h1 className="font-section-title text-dark-slate">
+      <div className="screen-root bg-[#F7F9FA] font-body-default min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-[24px] bg-white border border-[#0F172A]/8 p-8 text-center flex flex-col items-center gap-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <div className="w-16 h-16 rounded-2xl bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center">
+            <Icon
+              name={gplaceLoading || placesHydrating ? "travel_explore" : "pool"}
+              className={`text-[32px] ${gplaceLoading || placesHydrating ? "animate-pulse" : ""}`}
+            />
+          </div>
+          <h1 className="font-section-title text-[#0F172A]">
             {gplaceLoading || placesHydrating ? "جاري تحميل بيانات المنشأة..." : "لم نجد هذه المنشأة"}
           </h1>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <p className="text-xs text-[#64748B] leading-relaxed">
             {gplaceLoading || placesHydrating
               ? "يتم جلب تفاصيل المسبح من خرائط Google وقاعدة كابتنلي الآن."
               : "قد يكون الرابط قديماً أو لم يتم تفعيل المنشأة في نطاق البحث الحالي بعد."}
@@ -84,7 +86,7 @@ export default function Desktop22() {
           {!gplaceLoading && !placesHydrating && (
             <Link
               href="/explore"
-              className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+              className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold transition-colors"
             >
               تصفح المسابح القريبة منك ←
             </Link>
@@ -153,42 +155,42 @@ export default function Desktop22() {
   };
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
-      <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-lg">
-        {/* Verified Notice (Clean dark-olive text, zero unclaimed top banner) */}
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-16">
+      <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-6">
+        {/* Verified Notice — Option B Soft Ice-Aqua Strip */}
         {!isUnclaimed && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-surface-container/60">
-            <div className={`flex items-center gap-2 font-bold text-sm ${isVerifiedOfficial ? "text-deep-olive" : "text-dark-slate"}`}>
-              <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[20px] text-deep-olive" />
+          <div className="rounded-2xl bg-[#EAF4F8]/85 border border-[#1D6E7D]/15 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-bold text-xs md:text-sm text-[#0F172A]">
+              <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[19px] text-[#1D6E7D] shrink-0" />
               <span>
                 {isVerifiedOfficial
                   ? `صفحة موثقة وتُدار رسمياً من إدارة ${facility.nameAr} (${facility.verifiedClaimDateAr || "محدثة"})`
                   : `صفحة مُسجَّلة وتُدار عبر مسؤولي ${facility.nameAr} على كابتنلي`}
               </span>
             </div>
-            <Link href="/dashboard/facility" className="text-xs font-bold text-dark-slate hover:text-deep-olive underline">
+            <Link href="/dashboard/facility" className="text-xs font-extrabold text-[#1D6E7D] hover:underline shrink-0">
               لوحة إدارة المنشأة ←
             </Link>
           </div>
         )}
 
         {/* Main Hero */}
-        <section className="rounded-[20px] bg-surface-card overflow-hidden shadow-sm border border-surface-container grid grid-cols-1 lg:grid-cols-12">
-          <div className="lg:col-span-5 relative min-h-[280px] lg:min-h-[340px]">
+        <section className="rounded-[24px] bg-white overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.04)] border border-[#0F172A]/8 grid grid-cols-1 lg:grid-cols-12">
+          <div className="lg:col-span-5 relative min-h-[280px] lg:min-h-[360px] bg-[#EAF4F8]">
             <FacilityImageOrFallback
               facility={facility}
-              className="w-full h-full min-h-[280px] lg:min-h-[340px]"
+              className="w-full h-full min-h-[280px] lg:min-h-[360px]"
               imgClassName="w-full h-full object-cover"
             />
             <div className="absolute top-4 right-4 flex flex-wrap gap-1.5">
               {facility.poolSpecs?.isHeatedWinter && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-dark-slate/90 text-electric-volt text-xs font-bold">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#1D6E7D] text-xs font-bold shadow-sm">
                   <Icon name="thermostat" className="text-[14px]" />
                   <span>مدفأ شتاءً</span>
                 </span>
               )}
               {(facility.poolSpecs?.hasLadiesOnlySlots || facility.gymSpecs?.hasLadiesOnlySlots) && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-dark-slate/90 text-white text-xs font-bold">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#0F172A]/80 backdrop-blur-md text-white text-xs font-bold shadow-sm">
                   <Icon name="female" className="text-[14px]" />
                   <span>ساعات للسيدات</span>
                 </span>
@@ -197,30 +199,33 @@ export default function Desktop22() {
           </div>
 
           <div className="lg:col-span-7 p-6 md:p-8 flex flex-col justify-between gap-5">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-xs font-bold text-deep-olive">
-                  {facility.governorate} • {facility.city}
-                  {facility.district ? ` • ${facility.district}` : ""}
+                <span className="text-xs font-extrabold text-[#1D6E7D] inline-flex items-center gap-1">
+                  <Icon name="location_on" className="text-[14px]" />
+                  <span>
+                    {facility.governorate} • {facility.city}
+                    {facility.district ? ` • ${facility.district}` : ""}
+                  </span>
                 </span>
                 {facility.rating > 0 ? (
-                  <span className="flex items-center gap-1 text-status-warning font-bold text-sm">
-                    <Icon name="star" className="text-[16px]" />
-                    {facility.rating}
-                    {facility.reviewsCount > 0 ? ` (${facility.reviewsCount} تقييم)` : ""}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF3C7]/70 text-[#B45309] font-bold text-xs">
+                    <Icon name="star" className="text-[14px] text-[#F59E0B]" />
+                    <span className="text-[#0F172A]">{facility.rating}</span>
+                    {facility.reviewsCount > 0 ? <span className="text-[#64748B]">({facility.reviewsCount} تقييم)</span> : null}
                   </span>
                 ) : null}
               </div>
 
-              <h1 className="font-hero-headline text-[26px] md:text-[32px] text-dark-slate leading-tight">
+              <h1 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A] leading-tight">
                 {facility.nameAr}
               </h1>
-              <p className="font-body-default text-text-muted">
+              <p className="font-body-default text-[#475569]">
                 {activeBranch ? activeBranch.addressAr : facility.addressAr}
               </p>
               {branchLocations.length > 0 && (
                 <div className="flex flex-col gap-1.5 pt-1">
-                  <span className="text-[11px] font-bold text-dark-slate">
+                  <span className="text-[11px] font-bold text-[#0F172A]">
                     {branchLocations.length > 1
                       ? `مواقع وفروع التدريب (${branchLocations.length} مواقع):`
                       : facility.isAcademyInHostClubs
@@ -235,10 +240,10 @@ export default function Desktop22() {
                           key={loc.id || idx}
                           type="button"
                           onClick={() => setSelectedLocIndex(idx)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors border ${
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors border ${
                             active
-                              ? "bg-dark-slate text-electric-volt border-dark-slate"
-                              : "bg-surface-snow text-dark-slate border-surface-container hover:border-deep-olive/50"
+                              ? "bg-[#1D6E7D] text-white border-[#1D6E7D] shadow-sm"
+                              : "bg-[#F7F9FA] text-[#0F172A] border-[#0F172A]/10 hover:border-[#1D6E7D]/40 hover:bg-[#EAF4F8]/50"
                           }`}
                         >
                           <Icon name="location_on" className="text-[13px] inline ml-1" />
@@ -250,26 +255,25 @@ export default function Desktop22() {
                 </div>
               )}
               {(facility.publicDescriptionAr || facility.scheduleSummaryAr) && (
-                <p className="text-xs font-semibold text-dark-slate bg-surface-snow px-3.5 py-2 rounded-xl w-fit inline-flex items-center gap-1.5">
-                  <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[15px] text-deep-olive" />
+                <p className="text-xs font-semibold text-[#0F172A] bg-[#F7F9FA] border border-[#0F172A]/6 px-3.5 py-2.5 rounded-xl w-fit inline-flex items-center gap-1.5">
+                  <Icon name={isUnclaimed ? "info" : "schedule"} className="text-[15px] text-[#1D6E7D]" />
                   <span>{facility.publicDescriptionAr || facility.scheduleSummaryAr}</span>
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1">
-                {facility.specialtiesAr.map((s, idx) => (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {facility.specialtiesAr.map((s) => (
                   <span
                     key={s}
-                    className="text-deep-olive text-xs font-bold inline-flex items-center gap-1.5"
+                    className="px-3 py-1 rounded-full bg-[#EAF4F8]/80 text-[#1D6E7D] text-xs font-bold inline-flex items-center gap-1"
                   >
-                    {idx > 0 && <span className="text-surface-variant">•</span>}
                     <span>{s}</span>
                   </span>
                 ))}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-surface-container">
+            <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-[#0F172A]/8">
               <ContactChannelsBar
                 supplyStatus={facility.supplyStatus}
                 whatsappNumber={facility.whatsappNumber}
@@ -287,7 +291,7 @@ export default function Desktop22() {
                       openAuthGateModal("تجهيز بيانات التسجيل والحجز");
                     }
                   }}
-                  className="px-5 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm hover:opacity-95"
+                  className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm shadow-sm transition-colors"
                 >
                   تجهيز الحجز والانضمام
                 </Link>
@@ -296,8 +300,10 @@ export default function Desktop22() {
               <button
                 type="button"
                 onClick={() => toggleFavorite(facility.id)}
-                className={`px-4 py-3 rounded-full font-badge-label text-xs flex items-center gap-1.5 ${
-                  fav ? "bg-electric-volt text-dark-slate" : "bg-surface-snow text-dark-slate"
+                className={`px-4 py-2.5 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
+                  fav
+                    ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                    : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
                 }`}
               >
                 <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[16px]" />
@@ -307,8 +313,10 @@ export default function Desktop22() {
               <button
                 type="button"
                 onClick={() => toggleCompareFacility(facility.id)}
-                className={`px-4 py-3 rounded-full font-badge-label text-xs flex items-center gap-1.5 ${
-                  inCompare ? "bg-dark-slate text-electric-volt" : "bg-surface-snow text-dark-slate"
+                className={`px-4 py-2.5 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
+                  inCompare
+                    ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                    : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
                 }`}
               >
                 <Icon name="compare_arrows" className="text-[16px]" />
@@ -318,7 +326,7 @@ export default function Desktop22() {
               <button
                 type="button"
                 onClick={handleShareWhatsapp}
-                className="px-4 py-3 rounded-full bg-surface-snow text-dark-slate font-badge-label text-xs flex items-center gap-1.5 hover:bg-lime-tint"
+                className="px-4 py-2.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] font-badge-label text-xs flex items-center gap-1.5 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors"
               >
                 <Icon name="share" className="text-[15px]" />
                 <span>مشاركة الباقة</span>
@@ -328,7 +336,7 @@ export default function Desktop22() {
         </section>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto bg-white p-1.5 rounded-2xl border border-[#0F172A]/8 shadow-[0_2px_12px_rgba(15,23,42,0.02)] w-fit max-w-full">
           {[
             { key: "packages", label: `المدارس والمواعيد (${schoolPrograms.length})` },
             { key: "specs", label: "المواصفات الهندسية والمواعيد" },
@@ -339,10 +347,10 @@ export default function Desktop22() {
               key={t.key}
               type="button"
               onClick={() => setActiveTab(t.key as typeof activeTab)}
-              className={`px-5 py-2.5 rounded-full font-badge-label text-xs shrink-0 transition-colors ${
+              className={`px-5 py-2.5 rounded-xl font-badge-label text-xs shrink-0 transition-all ${
                 activeTab === t.key
-                  ? "bg-dark-slate text-electric-volt shadow-sm"
-                  : "bg-surface-card text-text-muted hover:text-dark-slate"
+                  ? "bg-[#1D6E7D] text-white shadow-sm"
+                  : "text-[#475569] hover:text-[#1D6E7D] hover:bg-[#EAF4F8]/50"
               }`}
             >
               {t.label}
@@ -351,15 +359,15 @@ export default function Desktop22() {
         </div>
 
         {/* Tab Content + Sticky Cost Calculator */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-8 flex flex-col gap-4">
             {activeTab === "packages" && (
               <div className="flex flex-col gap-3">
                 {!hasRealScheduleOrPricing ? (
-                  <div className="rounded-2xl bg-surface-card p-6 border border-surface-container text-center flex flex-col items-center gap-2 shadow-sm">
-                    <Icon name="info" className="text-[28px] text-text-muted" />
-                    <h3 className="font-card-title text-dark-slate">لا توجد بيانات متوفرة الآن</h3>
-                    <p className="text-xs text-text-muted max-w-md leading-relaxed">
+                  <div className="rounded-[24px] bg-white p-8 border border-[#0F172A]/8 text-center flex flex-col items-center gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.03)]">
+                    <Icon name="info" className="text-[28px] text-[#64748B]" />
+                    <h3 className="font-card-title text-[#0F172A]">لا توجد بيانات متوفرة الآن</h3>
+                    <p className="text-xs text-[#64748B] max-w-md leading-relaxed">
                       {isUnclaimed
                         ? "هذه المنشأة غير مسجلة أو مفعّلة على منصة Captenly بعد — لذلك لا تتوفر باقات أو مواعيد حصص معلنة حتى الآن."
                         : "لم تقم إدارة المنشأة بإضافة بطاقات المواعيد والأسعار بعد."}
@@ -368,37 +376,37 @@ export default function Desktop22() {
                 ) : (
                   <>
                     {schoolPrograms.length > 0 && (
-                      <div className="rounded-2xl bg-surface-card p-5 border border-surface-container flex flex-col gap-3">
-                        <h3 className="font-card-title text-dark-slate flex items-center gap-2">
-                          <Icon name="school" className="text-[18px] text-deep-olive" />
+                      <div className="rounded-[24px] bg-white p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-4">
+                        <h3 className="font-card-title text-[#0F172A] flex items-center gap-2">
+                          <Icon name="school" className="text-[19px] text-[#1D6E7D]" />
                           <span>بطاقات المواعيد والمدارس ({schoolPrograms.length})</span>
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                           {schoolPrograms.map((prog) => (
                             <div
                               key={prog.id}
-                              className="rounded-xl bg-surface-snow p-4 border border-surface-container/70 flex flex-col justify-between gap-2"
+                              className="rounded-2xl bg-[#F7F9FA] p-4 border border-[#0F172A]/8 flex flex-col justify-between gap-2"
                             >
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="font-card-title-sm text-dark-slate">{prog.titleAr}</span>
-                                  <span className="font-black text-deep-olive text-base shrink-0">
+                                  <span className="font-card-title-sm text-[#0F172A]">{prog.titleAr}</span>
+                                  <span className="font-black text-[#1D6E7D] text-base shrink-0">
                                     {prog.priceEgp} ج.م
                                   </span>
                                 </div>
-                                <div className="text-[11px] font-bold text-deep-olive">
+                                <div className="text-[11px] font-bold text-[#1D6E7D]">
                                   {prog.trackLabelAr} {prog.ageRangeAr ? `• ${prog.ageRangeAr}` : ""}
                                 </div>
-                                <div className="text-xs text-dark-slate/85 flex items-center gap-1.5">
-                                  <Icon name="schedule" className="text-[14px] text-deep-olive" />
+                                <div className="text-xs text-[#334155] flex items-center gap-1.5">
+                                  <Icon name="schedule" className="text-[14px] text-[#1D6E7D]" />
                                   <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
                                 </div>
-                                <div className="text-[11px] text-text-muted">
+                                <div className="text-[11px] text-[#64748B]">
                                   مدة الحصة: {prog.durationMinutes || 60} دقيقة
                                   {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
                                 </div>
                                 {prog.notesAr && (
-                                  <p className="text-[11px] text-text-muted bg-surface-card p-2.5 rounded-lg mt-1 leading-relaxed">
+                                  <p className="text-[11px] text-[#475569] bg-white p-2.5 rounded-xl border border-[#0F172A]/6 mt-1 leading-relaxed">
                                     {prog.notesAr}
                                   </p>
                                 )}
@@ -414,29 +422,29 @@ export default function Desktop22() {
             )}
 
             {activeTab === "specs" && (
-              <div className="bg-surface-card rounded-2xl p-6 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white rounded-[24px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {facility.poolSpecs && (
                   <>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">نوع ومقاس المسبح</span>
-                      <div className="font-card-title text-dark-slate mt-1">{facility.poolSpecs.poolType}</div>
+                    <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 p-4">
+                      <span className="text-xs text-[#64748B]">نوع ومقاس المسبح</span>
+                      <div className="font-card-title text-[#0F172A] mt-1">{facility.poolSpecs.poolType}</div>
                     </div>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">العمق وكثافة الحارة</span>
-                      <div className="font-card-title text-dark-slate mt-1">
+                    <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 p-4">
+                      <span className="text-xs text-[#64748B]">العمق وكثافة الحارة</span>
+                      <div className="font-card-title text-[#0F172A] mt-1">
                         {facility.poolSpecs.depthRange} • حتى {facility.poolSpecs.maxSwimmersPerLane} سباح/حارة
                       </div>
                     </div>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">التدفئة والتغطية الشتوية</span>
-                      <div className="font-card-title text-dark-slate mt-1">
+                    <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 p-4">
+                      <span className="text-xs text-[#64748B]">التدفئة والتغطية الشتوية</span>
+                      <div className="font-card-title text-[#0F172A] mt-1">
                         {facility.poolSpecs.isHeatedWinter ? "مدفأ شتاءً ✓" : "غير مدفأ"} •{" "}
                         {facility.poolSpecs.isCoveredIndoor ? "مغطى داخلي" : "مكشوف"}
                       </div>
                     </div>
-                    <div className="rounded-xl bg-surface-snow p-4">
-                      <span className="text-xs text-text-muted">الإنقاذ وساعات السيدات</span>
-                      <div className="font-card-title text-dark-slate mt-1">
+                    <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 p-4">
+                      <span className="text-xs text-[#64748B]">الإنقاذ وساعات السيدات</span>
+                      <div className="font-card-title text-[#0F172A] mt-1">
                         {facility.poolSpecs.hasEdlfLifeguard ? "منقذ مائي متواجد ✓" : "غير مؤكد"} •{" "}
                         {facility.poolSpecs.hasLadiesOnlySlots ? "ساعات سيدات متاحة ✓" : "مختلط"}
                       </div>
@@ -447,29 +455,29 @@ export default function Desktop22() {
             )}
 
             {activeTab === "coaches" && (
-              <div className="bg-surface-card rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+              <div className="bg-white rounded-[24px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-4">
                 {totalCoachesCount > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {rosterCoaches.map((rc) => (
                       <div
                         key={rc.id}
-                        className="rounded-2xl bg-surface-snow p-5 border border-surface-container flex flex-col justify-between gap-3"
+                        className="rounded-2xl bg-[#F7F9FA] p-5 border border-[#0F172A]/8 flex flex-col justify-between gap-3"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-card-title text-dark-slate">{rc.fullNameAr}</h3>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive text-[11px] font-extrabold">
+                              <h3 className="font-card-title text-[#0F172A]">{rc.fullNameAr}</h3>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-extrabold">
                                 <Icon name="verified" className="text-[13px]" />
                                 <span>معتمد بالمنشأة</span>
                               </span>
                             </div>
-                            <div className="text-xs font-bold text-deep-olive mt-1">
+                            <div className="text-xs font-bold text-[#1D6E7D] mt-1">
                               {rc.roleTitleAr} • {rc.specialtyAr}
                             </div>
                             {rc.scheduleAr && (
-                              <div className="text-xs text-text-muted mt-1 flex items-center gap-1">
-                                <Icon name="schedule" className="text-[14px] text-deep-olive" />
+                              <div className="text-xs text-[#64748B] mt-1 flex items-center gap-1">
+                                <Icon name="schedule" className="text-[14px] text-[#1D6E7D]" />
                                 <span>{rc.scheduleAr}</span>
                               </div>
                             )}
@@ -477,22 +485,22 @@ export default function Desktop22() {
                           {rc.linkedCoachSlug && (
                             <Link
                               href={`/c/${rc.linkedCoachSlug}`}
-                              className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
+                              className="px-3 py-1.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-[11px] font-bold shrink-0 transition-colors"
                             >
                               ملف الكابتن ←
                             </Link>
                           )}
                         </div>
 
-                        <div className="flex flex-col gap-1.5 pt-2 border-t border-surface-container/70">
-                          <span className="text-[11px] font-extrabold text-dark-slate">
+                        <div className="flex flex-col gap-1.5 pt-2 border-t border-[#0F172A]/8">
+                          <span className="text-[11px] font-extrabold text-[#0F172A]">
                             الشهادات والاعتمادات المسجلة:
                           </span>
                           <div className="flex flex-wrap gap-1.5">
                             {rc.certificatesAr.map((cert, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-card border border-surface-container text-[11px] font-bold text-deep-olive"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#0F172A]/8 text-[11px] font-bold text-[#1D6E7D]"
                               >
                                 <Icon name="workspace_premium" className="text-[14px]" />
                                 <span>{cert}</span>
@@ -511,11 +519,11 @@ export default function Desktop22() {
                   </div>
                 ) : (
                   <div className="text-center py-6 flex flex-col items-center gap-3">
-                    <Icon name="verified" className="text-[28px] text-deep-olive" />
-                    <h3 className="font-card-title text-dark-slate">
+                    <Icon name="verified" className="text-[28px] text-[#1D6E7D]" />
+                    <h3 className="font-card-title text-[#0F172A]">
                       لم تُضف قائمة كباتن لهذه المنشأة بعد
                     </h3>
-                    <p className="text-xs text-text-muted max-w-md">
+                    <p className="text-xs text-[#64748B] max-w-md">
                       يمكن لإدارة المنشأة إضافة الكباتن وشهاداتهم مباشرة من لوحة تحكم المنشأة ليظهروا هنا تلقائياً.
                     </p>
                   </div>
@@ -524,9 +532,9 @@ export default function Desktop22() {
             )}
 
             {facilityArticles.length > 0 && (
-              <div className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-3">
-                <h3 className="font-card-title text-dark-slate flex items-center gap-2">
-                  <Icon name="article" className="text-[18px] text-deep-olive" />
+              <div className="bg-white rounded-[24px] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-3">
+                <h3 className="font-card-title text-[#0F172A] flex items-center gap-2">
+                  <Icon name="article" className="text-[18px] text-[#1D6E7D]" />
                   <span>مقالات ومنشورات {facility.nameAr} ({facilityArticles.length})</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -534,11 +542,11 @@ export default function Desktop22() {
                     <Link
                       key={art.id}
                       href={`/magazine/${art.slug}`}
-                      className="rounded-xl bg-surface-snow p-4 border border-surface-container hover:border-deep-olive/40 flex flex-col gap-1.5"
+                      className="rounded-2xl bg-[#F7F9FA] p-4 border border-[#0F172A]/8 hover:border-[#1D6E7D]/35 flex flex-col gap-1.5 transition-colors"
                     >
-                      <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
-                      <div className="font-bold text-sm text-dark-slate line-clamp-1">{art.titleAr}</div>
-                      <p className="text-xs text-text-muted line-clamp-2">{art.excerptAr}</p>
+                      <span className="text-[10px] font-bold text-[#1D6E7D]">{art.categoryAr}</span>
+                      <div className="font-bold text-sm text-[#0F172A] line-clamp-1">{art.titleAr}</div>
+                      <p className="text-xs text-[#64748B] line-clamp-2">{art.excerptAr}</p>
                     </Link>
                   ))}
                 </div>
@@ -546,17 +554,17 @@ export default function Desktop22() {
             )}
 
             {activeTab === "safety" && (
-              <div className="bg-surface-card rounded-2xl p-6 shadow-sm flex flex-col gap-3">
-                <h3 className="font-card-title text-dark-slate">
+              <div className="bg-white rounded-[24px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-3">
+                <h3 className="font-card-title text-[#0F172A]">
                   كيف تحفظ حقك وتفعّل دفتر الحصص الرقمي هنا؟
                 </h3>
-                <p className="font-body-compact text-text-muted leading-relaxed">
+                <p className="font-body-compact text-[#475569] leading-relaxed">
                   بمجرد اشتراكك مع الإدارة أو الكابتن الموثق بالمكان، اعطهم كود عضويتك الفريد (مثال: {currentPersona.memberCode}) لإضافتك إلى دفتر الحصص الرقمي وتفعيل كود الـ QR الذي يعمل حتى في حالة ضعف أو انقطاع الإنترنت داخل صالة المسبح.
                 </p>
                 <div className="pt-2">
                   <Link
                     href="/dashboard/ledger"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-lime-tint text-deep-olive text-xs font-bold"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#DCEEF5] text-[#1D6E7D] text-xs font-bold transition-colors"
                   >
                     <Icon name="qr_code_2" className="text-[16px]" />
                     <span>عرض كود عضويتي ودفتر الحصص</span>
@@ -567,14 +575,14 @@ export default function Desktop22() {
           </div>
 
           {/* Left Sticky Column: Dynamic Schedule/Pricing Cards + Contact + Google Maps */}
-          <aside className="lg:col-span-4 lg:sticky lg:top-[124px] bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-4">
-            <h3 className="font-card-title text-dark-slate">الباقات ومواعيد الحصص</h3>
+          <aside className="lg:col-span-4 lg:sticky lg:top-[124px] bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-4">
+            <h3 className="font-card-title text-[#0F172A]">الباقات ومواعيد الحصص</h3>
 
             {!hasRealScheduleOrPricing ? (
-              <div className="rounded-xl bg-surface-snow p-4 text-center flex flex-col items-center gap-1.5 border border-surface-container/70">
-                <Icon name="info" className="text-[22px] text-text-muted" />
-                <div className="font-bold text-xs text-dark-slate">لا توجد بيانات متوفرة الآن</div>
-                <p className="text-[11px] text-text-muted leading-relaxed">
+              <div className="rounded-xl bg-[#F7F9FA] p-4 text-center flex flex-col items-center gap-1.5 border border-[#0F172A]/8">
+                <Icon name="info" className="text-[22px] text-[#64748B]" />
+                <div className="font-bold text-xs text-[#0F172A]">لا توجد بيانات متوفرة الآن</div>
+                <p className="text-[11px] text-[#64748B] leading-relaxed">
                   {isUnclaimed
                     ? "هذه المنشأة غير مسجلة على المنصة بعد — لم تُضف أي مواعيد أو أسعار."
                     : "لم تُنشر بطاقات مواعيد وأسعار لهذه المنشأة حتى الآن."}
@@ -585,24 +593,24 @@ export default function Desktop22() {
                 {schoolPrograms.map((prog) => (
                   <div
                     key={prog.id}
-                    className="rounded-xl bg-surface-snow p-3.5 border border-surface-container flex flex-col gap-1"
+                    className="rounded-2xl bg-[#F7F9FA] p-3.5 border border-[#0F172A]/8 flex flex-col gap-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-xs text-dark-slate">{prog.titleAr}</span>
-                      <span className="font-black text-base text-deep-olive shrink-0">
+                      <span className="font-bold text-xs text-[#0F172A]">{prog.titleAr}</span>
+                      <span className="font-black text-base text-[#1D6E7D] shrink-0">
                         {prog.priceEgp} ج.م
                       </span>
                     </div>
-                    <div className="text-[11px] text-dark-slate/85 flex items-center gap-1">
-                      <Icon name="schedule" className="text-[13px] text-deep-olive" />
+                    <div className="text-[11px] text-[#334155] flex items-center gap-1">
+                      <Icon name="schedule" className="text-[13px] text-[#1D6E7D]" />
                       <span>{prog.sessionTimeAr || prog.scheduleAr}</span>
                     </div>
-                    <div className="text-[10px] text-text-muted">
+                    <div className="text-[10px] text-[#64748B]">
                       مدة الحصة: {prog.durationMinutes || 60} دقيقة
                       {prog.sessionsPerMonth ? ` • ${prog.sessionsPerMonth} حصة` : ""}
                     </div>
                     {prog.notesAr && (
-                      <p className="text-[11px] text-text-muted bg-surface-card rounded-lg p-2 mt-1 border border-surface-container/60 leading-relaxed">
+                      <p className="text-[11px] text-[#475569] bg-white rounded-xl p-2 mt-1 border border-[#0F172A]/6 leading-relaxed">
                         {prog.notesAr}
                       </p>
                     )}
@@ -629,22 +637,22 @@ export default function Desktop22() {
                       openAuthGateModal("تجهيز بيانات التسجيل والحجز");
                     }
                   }}
-                  className="w-full py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-center"
+                  className="w-full py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm text-center shadow-sm transition-colors"
                 >
                   تجهيز بيانات التسجيل ←
                 </Link>
               </>
             ) : (
               facility.publicDescriptionAr && (
-                <p className="text-xs text-text-muted leading-relaxed bg-surface-snow rounded-xl p-3">
+                <p className="text-xs text-[#475569] leading-relaxed bg-[#F7F9FA] rounded-xl p-3">
                   {facility.publicDescriptionAr}
                 </p>
               )
             )}
 
-            <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
-              <div className="text-xs font-bold text-dark-slate flex items-center gap-1.5">
-                <Icon name="location_on" className="text-[15px] text-deep-olive" />
+            <div className="pt-2 border-t border-[#0F172A]/8 flex flex-col gap-2">
+              <div className="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
+                <Icon name="location_on" className="text-[15px] text-[#1D6E7D]" />
                 <span>
                   {branchLocations.length > 1
                     ? `الموقع على الخريطة (${activeBranch?.labelAr || activeBranch?.city})`

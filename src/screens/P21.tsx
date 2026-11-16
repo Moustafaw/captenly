@@ -201,10 +201,6 @@ export default function Phone21() {
         </div>
 
         <div className="p-4 flex flex-col gap-3">
-          <span className="px-2.5 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold w-fit inline-flex items-center gap-1">
-            <Icon name="verified" className="text-[13px]" />
-            <span>منصة السباحة الأولى • 0% عمولة</span>
-          </span>
           <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-[#0F172A] leading-snug">
             اكتشف أفضل الأندية والمدارس الرياضية حولك
           </h1>

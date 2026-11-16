@@ -8,62 +8,49 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 
 export function FloatingCompareDrawer() {
   const pathname = usePathname();
-  const { compareFacilityIds, facilities, toggleCompareFacility, clearComparison } =
-    useCaptenly();
+  const { compareFacilityIds, facilities, clearComparison } = useCaptenly();
 
   if (compareFacilityIds.length === 0 || pathname === "/compare") {
     return null;
   }
 
-  const selectedFacilities = compareFacilityIds
-    .map((id) => facilities.find((f) => f.id === id))
-    .filter(Boolean);
+  const selectedCount = compareFacilityIds.filter((id) =>
+    facilities.some((f) => f.id === id)
+  ).length;
+
+  if (selectedCount === 0) return null;
 
   return (
-    <div className="fixed bottom-24 lg:bottom-8 left-3 right-3 z-40 pointer-events-none">
-      <div className="max-w-4xl mx-auto pointer-events-auto bg-dark-slate text-white border-2 border-electric-volt rounded-2xl shadow-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <div className="flex items-center gap-1.5 bg-electric-volt text-dark-slate font-extrabold text-xs px-3 py-1.5 rounded-xl shrink-0">
-            <Icon name="compare_arrows" className="text-[15px]" />
-            <span>مقارنة ({selectedFacilities.length}/4)</span>
-          </div>
+    <div
+      className="fixed bottom-24 left-4 lg:bottom-8 lg:left-8 z-40 pointer-events-none"
+      dir="rtl"
+    >
+      <div className="relative pointer-events-auto group">
+        <Link
+          href="/compare"
+          aria-label={`قارن الآن (${selectedCount} من 4 منشآت)`}
+          className="w-[74px] h-[74px] sm:w-[82px] sm:h-[82px] rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white border-2 border-white shadow-[0_12px_32px_rgba(29,110,125,0.36)] flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105 active:scale-95"
+        >
+          <Icon name="compare_arrows" className="text-[19px]" />
+          <span className="text-[11px] font-extrabold leading-none">قارن الآن</span>
+          <span className="text-[9px] font-bold text-white/85 leading-none mt-0.5">
+            ({selectedCount}/4)
+          </span>
+        </Link>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {selectedFacilities.map((fac) => (
-              <div
-                key={fac!.id}
-                className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 px-2.5 py-1 rounded-xl text-[11px]"
-              >
-                <span className="truncate max-w-[120px] font-bold">
-                  {fac!.nameAr.split("—")[0]}
-                </span>
-                <button
-                  onClick={() => toggleCompareFacility(fac!.id)}
-                  className="text-slate-300 hover:text-red-400"
-                  title="إزالة من المقارنة"
-                >
-                  <Icon name="close" className="text-[13px]" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ms-auto shrink-0">
-          <button
-            onClick={clearComparison}
-            className="text-xs text-slate-300 hover:text-white px-2 py-1"
-          >
-            مسح الكل
-          </button>
-          <Link
-            href="/compare"
-            className="inline-flex items-center gap-1.5 bg-electric-volt hover:brightness-105 text-dark-slate font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition"
-          >
-            <span>قارن الآن</span>
-            <Icon name="arrow_back" className="text-[15px]" />
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            clearComparison();
+          }}
+          title="إلغاء المقارنة"
+          aria-label="إلغاء تحديد المقارنة"
+          className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[#0F172A] hover:bg-[#DC2626] text-white border border-white flex items-center justify-center shadow-md transition-colors"
+        >
+          <Icon name="close" className="text-[12px]" />
+        </button>
       </div>
     </div>
   );
