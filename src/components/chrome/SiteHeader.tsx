@@ -10,9 +10,9 @@ import { signOut } from "next-auth/react";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
 
 const ACTIVE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-deep-olive font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#1D6E7D] font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 const IDLE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-text-muted hover:text-deep-olive font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#64748B] hover:text-[#1D6E7D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 
 export function SiteHeader() {
   const pathname = usePathname() || "/";
@@ -32,8 +32,6 @@ export function SiteHeader() {
     activeStaffAssignment,
     switchToStaffMode,
     respondToStaffInvitation,
-    activeWorkspaceContext,
-    switchWorkspaceContext,
   } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -85,6 +83,10 @@ export function SiteHeader() {
     (!activeStaffAssignment.invitationStatus || activeStaffAssignment.invitationStatus === "accepted")
       ? activeStaffAssignment
       : null;
+
+  const acceptedStaffAssignments = myStaffAssignments.filter(
+    (s) => !s.invitationStatus || s.invitationStatus === "accepted"
+  );
 
   const roleNavItems = !isAuthenticated
     ? [
@@ -177,32 +179,32 @@ export function SiteHeader() {
           <button
             type="button"
             onClick={() => setLocationModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-low hover:bg-lime-tint/60 rounded-full text-secondary hover:text-dark-slate cursor-pointer shrink-0 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#F7F9FA] hover:bg-[#EAF4F8] rounded-full text-[#475569] hover:text-[#1D6E7D] cursor-pointer shrink-0 transition-colors border border-[#0F172A]/5"
           >
-            <Icon name="location_on" className="text-athletic-olive text-[16px]" />
+            <Icon name="location_on" className="text-[#1D6E7D] text-[16px]" />
             <span className="font-micro-caption text-[12px] font-bold whitespace-nowrap">
               {userLocation.isSpecified
                 ? `${userLocation.city}، ${userLocation.governorate}`
                 : "نطاق البحث: كل مصر"}
             </span>
-            <Icon name="arrow_drop_down" className="text-text-muted" />
+            <Icon name="arrow_drop_down" className="text-[#64748B]" />
           </button>
 
           <form
             onSubmit={submit}
-            className="flex-1 min-w-0 flex items-center bg-surface-snow rounded-full px-3.5 py-1.5 border border-surface-container focus-within:border-deep-olive transition-colors"
+            className="flex-1 min-w-0 flex items-center bg-[#F7F9FA] rounded-full px-3.5 py-1.5 border border-[#0F172A]/10 focus-within:border-[#1D6E7D] focus-within:bg-white transition-colors"
           >
-            <Icon name="search" className="text-text-muted ml-2 text-[17px] shrink-0" />
+            <Icon name="search" className="text-[#64748B] ml-2 text-[17px] shrink-0" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-on-surface placeholder:text-text-muted px-1"
+              className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-[#0F172A] placeholder:text-[#64748B] px-1"
               placeholder="ابحث عن أكاديمية، مسبح، أو كابتن سباحة..."
               type="text"
             />
             <Link
               href="/explore?filters=1"
-              className="px-2.5 py-1 bg-surface-container text-secondary rounded-full font-micro-caption text-[11px] font-bold shrink-0 hover:bg-lime-tint hover:text-deep-olive transition-colors"
+              className="px-2.5 py-1 bg-white border border-[#0F172A]/10 text-[#475569] rounded-full font-micro-caption text-[11px] font-bold shrink-0 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors"
             >
               فلاتر ▾
             </Link>
@@ -302,15 +304,11 @@ export function SiteHeader() {
                       </div>
                     </div>
 
-                    {/* Workspace Context Switcher */}
+                    {/* Workspace Context Switcher: يظهر فقط للعضو العادي عند قبول دعوة موظف داخل منشأة */}
                     {currentPersona.role !== "guest" &&
-                      (currentPersona.linkedCoachId ||
-                        currentPersona.linkedFacilityId ||
-                        currentPersona.role === "coach" ||
-                        currentPersona.role === "facility_manager" ||
-                        myStaffAssignments.some(
-                          (s) => !s.invitationStatus || s.invitationStatus === "accepted"
-                        )) && (
+                      currentPersona.role !== "coach" &&
+                      currentPersona.role !== "facility_manager" &&
+                      acceptedStaffAssignments.length > 0 && (
                         <div className="px-2.5 py-2 mb-1.5 rounded-xl bg-surface-snow border border-surface-container flex flex-col gap-1.5">
                           <div className="text-[10px] font-bold text-text-muted flex items-center gap-1">
                             <Icon name="workspaces" className="text-[13px] text-deep-olive" />
@@ -320,53 +318,37 @@ export function SiteHeader() {
                             <button
                               type="button"
                               onClick={() => {
-                                switchWorkspaceContext("member");
+                                switchToStaffMode(null);
                                 setMenuOpen(false);
                                 router.push("/dashboard/athlete");
                               }}
                               className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                                activeWorkspaceContext === "member"
+                                !verifiedStaffAssignment
                                   ? "bg-dark-slate text-electric-volt"
                                   : "bg-surface-card text-dark-slate border border-surface-container"
                               }`}
                             >
                               حسابي الشخصي
                             </button>
-                            {(currentPersona.role === "coach" || currentPersona.linkedCoachId) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  switchWorkspaceContext("coach");
-                                  setMenuOpen(false);
-                                  router.push("/dashboard/coach");
-                                }}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                                  activeWorkspaceContext === "coach"
-                                    ? "bg-dark-slate text-electric-volt"
-                                    : "bg-surface-card text-dark-slate border border-surface-container"
-                                }`}
-                              >
-                                وضع الكابتن
-                              </button>
-                            )}
-                            {(currentPersona.role === "facility_manager" ||
-                              currentPersona.linkedFacilityId) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  switchWorkspaceContext("facility");
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const targetAssign =
+                                  verifiedStaffAssignment || acceptedStaffAssignments[0];
+                                if (targetAssign) {
+                                  switchToStaffMode(targetAssign.id);
                                   setMenuOpen(false);
                                   router.push("/dashboard/facility");
-                                }}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                                  activeWorkspaceContext === "facility"
-                                    ? "bg-dark-slate text-electric-volt"
-                                    : "bg-surface-card text-dark-slate border border-surface-container"
-                                }`}
-                              >
-                                إدارة المنشأة
-                              </button>
-                            )}
+                                }
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                verifiedStaffAssignment
+                                  ? "bg-dark-slate text-electric-volt"
+                                  : "bg-surface-card text-dark-slate border border-surface-container"
+                              }`}
+                            >
+                              إدارة المنشأة
+                            </button>
                           </div>
                         </div>
                       )}
@@ -522,19 +504,19 @@ export function SiteHeader() {
                 onClick={() => openAuthGateModal("حفظ المنشآت في المفضلة")}
                 aria-label="المفضلة"
                 title="المفضلة (يتطلب تسجيل الدخول)"
-                className="w-9 h-9 rounded-full bg-surface-container-low hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors"
+                className="w-9 h-9 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors border border-[#0F172A]/5"
               >
                 <Icon name="bookmark" className="text-[18px]" />
               </button>
               <Link
                 href="/auth/login"
-                className="px-4 py-2 rounded-full bg-surface-container-low hover:bg-surface-container text-dark-slate text-xs font-bold transition-colors whitespace-nowrap"
+                className="px-4 py-2 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] text-xs font-bold transition-colors whitespace-nowrap border border-[#0F172A]/10"
               >
                 تسجيل الدخول
               </Link>
               <Link
                 href="/auth/register"
-                className="px-4 py-2 rounded-full bg-dark-slate hover:bg-deep-carbon text-electric-volt text-xs font-extrabold transition-colors whitespace-nowrap shadow-sm"
+                className="px-4 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold transition-colors whitespace-nowrap shadow-sm"
               >
                 إنشاء حساب
               </Link>
@@ -544,7 +526,7 @@ export function SiteHeader() {
       </div>
 
       {/* Row 2: Clean Dedicated Sections Bar with Dynamic Floating Indicator */}
-      <div className="w-full bg-surface-snow/95 border-t border-surface-container/70">
+      <div className="w-full bg-[#F7F9FA]/95 border-t border-[#0F172A]/5">
         <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop h-[48px] flex items-center justify-between gap-4">
           <nav
             ref={navRef}
@@ -554,12 +536,12 @@ export function SiteHeader() {
               <>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-deep-olive/10 transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#EAF4F8] transition-all duration-300 ease-out"
                   style={{ left: indicator.left, width: indicator.width }}
                 />
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-deep-olive transition-all duration-300 ease-out"
+                  className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-[#1D6E7D] transition-all duration-300 ease-out"
                   style={{
                     left: indicator.left + 12,
                     width: Math.max(16, indicator.width - 24),
@@ -585,14 +567,14 @@ export function SiteHeader() {
           {currentPersona.role === "guest" ? (
             <Link
               href="/auth/register"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-bold shrink-0 hover:bg-[#1D6E7D] hover:text-white transition-colors"
             >
               <span>سجّل للحصول على كود عضويتك</span>
             </Link>
           ) : activeStaffAssignment ? (
             <Link
               href="/dashboard/facility"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold shrink-0"
             >
               <Icon name="badge" className="text-[14px]" />
               <span>
@@ -602,7 +584,7 @@ export function SiteHeader() {
           ) : currentPersona.role === "coach" ? (
             <Link
               href="/dashboard/coach"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold shrink-0"
             >
               <Icon name="verified" className="text-[14px]" />
               <span>وضع الكابتن ({currentPersona.memberCode || "CAP-C"})</span>
@@ -610,7 +592,7 @@ export function SiteHeader() {
           ) : currentPersona.role === "facility_manager" ? (
             <Link
               href="/dashboard/facility"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-[11px] font-bold shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold shrink-0"
             >
               <Icon name="stadium" className="text-[14px]" />
               <span>وضع إدارة المنشأة</span>
@@ -618,11 +600,11 @@ export function SiteHeader() {
           ) : (
             <Link
               href="/dashboard/ledger"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-card border border-surface-container text-[11px] font-bold text-dark-slate hover:border-deep-olive transition-colors shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#0F172A]/10 text-[11px] font-bold text-[#0F172A] hover:border-[#1D6E7D] transition-colors shrink-0"
             >
-              <Icon name="qr_code_2" className="text-[14px] text-deep-olive" />
+              <Icon name="qr_code_2" className="text-[14px] text-[#1D6E7D]" />
               <span>كود العضوية:</span>
-              <span className="font-mono text-deep-olive">{currentPersona.memberCode}</span>
+              <span className="font-mono text-[#1D6E7D]">{currentPersona.memberCode}</span>
             </Link>
           )}
         </div>

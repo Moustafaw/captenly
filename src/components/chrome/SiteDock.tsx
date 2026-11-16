@@ -109,12 +109,12 @@ export function SiteDock() {
             <>
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#65A30D]/12 transition-all duration-300 ease-out"
+                className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-[#EAF4F8] transition-all duration-300 ease-out"
                 style={{ left: indicator.left, width: indicator.width }}
               />
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute bottom-1 h-[3px] rounded-full bg-[#65A30D] transition-all duration-300 ease-out"
+                className="pointer-events-none absolute bottom-1 h-[3px] rounded-full bg-[#1D6E7D] transition-all duration-300 ease-out"
                 style={{
                   left: indicator.left + Math.max(8, indicator.width * 0.25),
                   width: Math.max(18, indicator.width * 0.5),
@@ -137,7 +137,7 @@ export function SiteDock() {
                 }
               }}
               className={`relative z-10 min-w-[52px] min-h-[46px] px-2.5 py-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-300 ${
-                t.active ? "text-deep-olive font-extrabold" : "text-text-muted hover:text-deep-olive"
+                t.active ? "text-[#1D6E7D] font-extrabold" : "text-[#64748B] hover:text-[#1D6E7D]"
               }`}
             >
               <Icon

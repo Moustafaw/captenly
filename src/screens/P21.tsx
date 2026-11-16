@@ -140,24 +140,24 @@ export default function Phone21() {
   };
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin pt-4 pb-24 flex flex-col gap-5">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0F172A] min-h-screen px-margin pt-4 pb-24 flex flex-col gap-5">
       {/* Mobile Search + Filter Pill */}
       <form
         onSubmit={handleSearch}
-        className="flex items-center gap-2 bg-surface-card rounded-full px-3.5 py-2 shadow-sm border border-surface-container"
+        className="flex items-center gap-2 bg-white rounded-full px-3.5 py-2 shadow-[0_2px_10px_rgba(15,23,42,0.04)] border border-[#0F172A]/8"
       >
-        <Icon name="search" className="text-text-muted text-[18px] shrink-0" />
+        <Icon name="search" className="text-[#64748B] text-[18px] shrink-0" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="ابحث عن كابتن سباحة، نادي، أو مسبح..."
-          className="flex-1 min-w-0 bg-transparent outline-none text-xs text-dark-slate"
+          className="flex-1 min-w-0 bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#64748B]"
         />
         <button
           type="button"
           onClick={() => setFilterModalOpen(true)}
           aria-label="فلاتر البحث"
-          className="w-8 h-8 rounded-full bg-surface-snow text-dark-slate flex items-center justify-center shrink-0"
+          className="w-8 h-8 rounded-full bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center shrink-0"
         >
           <Icon name="tune" className="text-[16px]" />
         </button>
@@ -172,8 +172,10 @@ export default function Phone21() {
               key={item.key}
               type="button"
               onClick={() => setCat(item.key)}
-              className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1 transition-all shadow-sm ${
-                active ? "bg-dark-slate text-electric-volt" : "bg-surface-card text-dark-slate"
+              className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1 transition-all border ${
+                active
+                  ? "bg-[#1D6E7D] border-[#1D6E7D] text-white shadow-sm"
+                  : "bg-white border-[#0F172A]/8 text-[#475569] hover:text-[#1D6E7D]"
               }`}
             >
               {item.icon && <Icon name={item.icon} className="text-[14px]" />}
@@ -183,28 +185,38 @@ export default function Phone21() {
         })}
       </div>
 
-      {/* Compact Mobile Hero Card */}
-      <section className="relative rounded-[20px] bg-dark-slate text-surface-card overflow-hidden shadow-lg p-5 flex flex-col gap-3">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
-          style={{ backgroundImage: "url('/screens/2c0d763d9374.jpg')" }}
-        />
-        <div className="relative z-10 flex flex-col gap-2.5">
-          <span className="px-2.5 py-0.5 rounded-full bg-electric-volt text-dark-slate text-[11px] font-bold w-fit">
-            منصتك الرياضية الموثقة • 0% عمولة
+      {/* Bright Photo-First Mobile Hero Card — Option B Luxury */}
+      <section className="rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] flex flex-col">
+        <div className="relative h-44 w-full overflow-hidden bg-[#EAF4F8]">
+          <img
+            src="/screens/2c0d763d9374.jpg"
+            alt="حوض سباحة أولمبي معتمد"
+            className="w-full h-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/25 via-transparent to-transparent pointer-events-none" />
+          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#1D6E7D] text-[11px] font-bold shadow-sm inline-flex items-center gap-1">
+            <Icon name="thermostat" className="text-[13px]" />
+            <span>فحص 28.5°C شتاءً</span>
           </span>
-          <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-surface-card leading-snug">
+        </div>
+
+        <div className="p-4 flex flex-col gap-3">
+          <span className="px-2.5 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold w-fit inline-flex items-center gap-1">
+            <Icon name="verified" className="text-[13px]" />
+            <span>منصة السباحة الأولى • 0% عمولة</span>
+          </span>
+          <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-[#0F172A] leading-snug">
             اكتشف أفضل الأندية والمدارس الرياضية حولك
           </h1>
-          <p className="text-xs text-surface-container-high leading-relaxed">
-            أسعار واضحة، كباتن معتمدون بالشارات الخضراء فقط، ودفتر حصص QR يعمل أوفلاين عند المسبح.
+          <p className="text-xs text-[#475569] leading-relaxed">
+            أسعار واضحة، كباتن مسجلون ومعتمدون، ودفتر حصص QR يعمل أوفلاين عند المسبح.
           </p>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="flex flex-col gap-2 pt-1">
             <Link
               href="/explore"
-              className="px-4 py-2.5 rounded-full bg-electric-volt text-dark-slate text-xs font-bold flex items-center gap-1"
+              className="w-full py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
             >
-              <span>استكشف المنشآت</span>
+              <span>استكشف المنشآت القريبة منك</span>
               <Icon name="arrow_back" className="text-[15px]" />
             </Link>
             <Link
@@ -217,7 +229,7 @@ export default function Phone21() {
                   ? "/dashboard/athlete"
                   : "/claim"
               }
-              className="px-4 py-2.5 rounded-full bg-white/15 text-surface-card text-xs font-bold"
+              className="w-full py-2.5 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] text-xs font-bold text-center hover:border-[#1D6E7D] hover:text-[#1D6E7D] transition-colors"
             >
               {isFacilityManager
                 ? "لوحة إدارة منشأتك"
@@ -235,12 +247,12 @@ export default function Phone21() {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
+            <h2 className="font-section-title-mobile text-section-title-mobile text-[#0F172A]">
               {userLocation.isSpecified
                 ? `مقترحات قريبة في ${cleanCityLabel}`
                 : "أندية ومسابح مقترحة في مصر"}
             </h2>
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[11px] text-[#64748B]">
               {userLocation.isSpecified
                 ? "أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي (تدوير تلقائي)"
                 : "تظهر 3 منشآت متنوعة من مختلف المحافظات لعدم تحديد نطاق بعد"}
@@ -250,7 +262,7 @@ export default function Phone21() {
             {compareFacilityIds.length > 0 && (
               <Link
                 href="/compare"
-                className="px-3 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-bold"
+                className="px-3 py-1.5 rounded-full bg-[#1D6E7D] text-white text-[11px] font-bold shadow-xs"
               >
                 قارن ({compareFacilityIds.length})
               </Link>
@@ -376,7 +388,7 @@ export default function Phone21() {
               </p>
               <Link
                 href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim?mode=coach"}
-                className="px-4 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold w-fit"
+                className="px-4 py-2.5 rounded-full bg-[#1D6E7D] text-white text-xs font-bold w-fit shadow-xs"
               >
                 {isFacilityManager ? "إدارة كباتن المنشأة" : isCoachRole ? "لوحة الكابتن" : "سجّل ووثّق ملفك ككابتن الآن"}
               </Link>
@@ -408,7 +420,7 @@ export default function Phone21() {
             >
               <Icon name="chevron_left" className="text-[16px]" />
             </button>
-            <Link href="/magazine" className="text-xs font-bold text-[#65A30D] mr-1">
+            <Link href="/magazine" className="text-xs font-bold text-[#1D6E7D] mr-1">
               الكل ←
             </Link>
           </div>
@@ -445,7 +457,7 @@ export default function Phone21() {
             return (
               <article
                 key={art.id}
-                className="w-[276px] shrink-0 snap-start bg-surface-card rounded-2xl overflow-hidden shadow-sm border border-surface-container flex flex-col justify-between"
+                className="w-[276px] shrink-0 snap-start bg-white rounded-[20px] overflow-hidden shadow-sm border border-[#0F172A]/6 flex flex-col justify-between"
               >
                 <div>
                   {art.imageUrl ? (
@@ -457,7 +469,7 @@ export default function Phone21() {
                         type="button"
                         onClick={() => toggleFavorite(art.id)}
                         className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center shadow ${
-                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-card/90 text-dark-slate"
+                          fav ? "bg-[#1D6E7D] text-white" : "bg-white/90 text-[#0F172A]"
                         }`}
                       >
                         <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
@@ -465,14 +477,14 @@ export default function Phone21() {
                     </div>
                   ) : (
                     <div className="px-3.5 pt-3.5 flex items-center justify-between">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-lime-tint text-deep-olive">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D]">
                         {art.categoryAr}
                       </span>
                       <button
                         type="button"
                         onClick={() => toggleFavorite(art.id)}
-                        className={`w-7 h-7 rounded-full flex items-center justify-center border border-surface-container ${
-                          fav ? "bg-electric-volt text-dark-slate" : "bg-surface-snow text-dark-slate"
+                        className={`w-7 h-7 rounded-full flex items-center justify-center border border-[#0F172A]/8 ${
+                          fav ? "bg-[#1D6E7D] text-white" : "bg-[#F7F9FA] text-[#0F172A]"
                         }`}
                       >
                         <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[14px]" />
@@ -480,13 +492,13 @@ export default function Phone21() {
                     </div>
                   )}
                   <div className="p-3.5 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-deep-olive">{art.categoryAr}</span>
-                    <Link href={`/magazine/${art.slug}`} className="font-card-title-sm text-xs text-dark-slate line-clamp-2">
+                    <span className="text-[10px] font-bold text-[#1D6E7D]">{art.categoryAr}</span>
+                    <Link href={`/magazine/${art.slug}`} className="font-card-title-sm text-xs text-[#0F172A] line-clamp-2">
                       {art.titleAr}
                     </Link>
                   </div>
                 </div>
-                <Link href={`/magazine/${art.slug}`} className="px-3.5 pb-3 text-[11px] font-bold text-deep-olive">
+                <Link href={`/magazine/${art.slug}`} className="px-3.5 pb-3 text-[11px] font-bold text-[#1D6E7D]">
                   اقرأ الدليل ←
                 </Link>
               </article>
@@ -497,11 +509,11 @@ export default function Phone21() {
 
       {/* Bottom Mobile Claim Banner (hidden for logged-in athletes/parents) */}
       {!isAthleteOrParent && (
-        <section className="rounded-2xl bg-surface-card p-5 shadow-sm border border-surface-container flex flex-col gap-2">
-          <h3 className="font-card-title-sm text-dark-slate">
+        <section className="rounded-[24px] bg-gradient-to-br from-[#EAF4F8] via-[#F7F9FA] to-white p-5 shadow-sm border border-[#1D6E7D]/15 flex flex-col gap-2.5">
+          <h3 className="font-card-title-sm text-[#0F172A] font-extrabold">
             {isFacilityManager ? "أدر منشأتك وفريق الكباتن والمشتركين" : "هل أنت كابتن أو صاحب أكاديمية؟"}
           </h3>
-          <p className="text-xs text-text-muted">
+          <p className="text-xs text-[#475569] leading-relaxed">
             {isFacilityManager
               ? "تابع مواعيد المدارس، فعّل اشتراكات الـ QR، ومنح صلاحيات الموظفين من لوحة المنشأة."
               : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً وفعّل دفاتر الـ QR لمشتركيك."}
@@ -509,11 +521,11 @@ export default function Phone21() {
           <div className="flex flex-wrap gap-2 pt-1">
             <Link
               href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
-              className="px-4 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold"
+              className="px-5 py-2.5 rounded-full bg-[#1D6E7D] text-white text-xs font-extrabold shadow-xs"
             >
               {isFacilityManager ? "افتح لوحة المنشأة" : isCoachRole ? "افتح لوحة الكابتن" : "طالب بصفحتك مجاناً"}
             </Link>
-            <Link href="/about" className="px-4 py-2 rounded-full bg-surface-snow text-dark-slate text-xs font-bold">
+            <Link href="/about" className="px-4 py-2.5 rounded-full bg-white border border-[#0F172A]/10 text-[#0F172A] text-xs font-bold">
               عن المنصة
             </Link>
           </div>

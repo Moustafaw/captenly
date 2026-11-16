@@ -84,9 +84,9 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
   };
 
   return (
-    <article className="bg-surface-card rounded-[16px] overflow-hidden shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow border border-surface-container/60">
+    <article className="bg-white rounded-[20px] overflow-hidden shadow-[0_4px_20px_rgba(15,23,42,0.04)] flex flex-col justify-between group hover:shadow-[0_12px_32px_rgba(29,110,125,0.1)] transition-all border border-[#0F172A]/6">
       <div>
-        <div className="relative w-full h-48 overflow-hidden bg-surface-container">
+        <div className="relative w-full h-52 overflow-hidden bg-[#EAF4F8]">
           <Link href={`/academy/${facility.slug}`} className="block w-full h-full">
             <FacilityImageOrFallback
               facility={facility}
@@ -98,15 +98,15 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
           {/* شارة التوثيق الرسمية عند الاعتماد فقط + تمييز الحساب المسجّل والأكاديميات متعددة المواقع */}
           {facility.supplyStatus === "verified_active" ? (
             <div className="absolute top-3 right-3 flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-deep-olive font-badge-label text-badge-label shadow-sm">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-[#1D6E7D] font-badge-label text-[11px] font-bold shadow-sm border border-[#1D6E7D]/10">
                 <Icon name="verified" className="text-[14px]" />
                 <span>منشأة موثقة رسمياً</span>
               </span>
             </div>
           ) : !isUnclaimed ? (
             <div className="absolute top-3 right-3 flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-dark-slate font-badge-label text-[11px] shadow-sm">
-                <Icon name="pool" className="text-[13px] text-deep-olive" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-[#0F172A] font-badge-label text-[11px] font-bold shadow-sm">
+                <Icon name="pool" className="text-[13px] text-[#1D6E7D]" />
                 <span>
                   {facility.locations && facility.locations.length > 1
                     ? `أكاديمية (${facility.locations.length} مواقع)`
@@ -123,8 +123,8 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
               aria-label={fav ? "إزالة من المفضلة" : "حفظ المنشأة في المفضلة"}
               className={`w-8 h-8 rounded-full backdrop-blur flex items-center justify-center transition-colors shadow-sm ${
                 fav
-                  ? "bg-electric-volt text-dark-slate"
-                  : "bg-surface-card/90 text-dark-slate hover:text-deep-olive"
+                  ? "bg-[#1D6E7D] text-white"
+                  : "bg-white/90 text-[#0F172A] hover:text-[#1D6E7D]"
               }`}
             >
               <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[17px]" />
@@ -137,8 +137,8 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
               title={inCompare ? "مضاف للمقارنة" : "أضف للمقارنة الجانبية"}
               className={`w-8 h-8 rounded-full backdrop-blur flex items-center justify-center transition-colors shadow-sm ${
                 inCompare
-                  ? "bg-dark-slate text-electric-volt"
-                  : "bg-surface-card/90 text-dark-slate hover:bg-dark-slate hover:text-electric-volt"
+                  ? "bg-[#1D6E7D] text-white"
+                  : "bg-white/90 text-[#0F172A] hover:bg-[#1D6E7D] hover:text-white"
               }`}
             >
               <Icon name="compare_arrows" className="text-[16px]" />
@@ -147,21 +147,21 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
 
           <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
             {facility.poolSpecs?.isHeatedWinter && (
-              <span className="px-2 py-0.5 rounded bg-dark-slate/85 text-surface-card font-micro-caption text-micro-caption">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#0F172A]/75 backdrop-blur-md text-white font-micro-caption text-[10px] font-bold">
                 مسبح مدفأ شتاءً
               </span>
             )}
             {facility.poolSpecs?.hasLadiesOnlySlots || facility.gymSpecs?.hasLadiesOnlySlots ? (
-              <span className="px-2 py-0.5 rounded bg-dark-slate/85 text-electric-volt font-micro-caption text-micro-caption">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#EAF4F8]/95 backdrop-blur-md text-[#1D6E7D] font-micro-caption text-[10px] font-bold">
                 مواعيد للسيدات
               </span>
             ) : null}
           </div>
         </div>
 
-        <div className="p-space-md flex flex-col gap-2">
-          <div className="flex items-center justify-between text-text-muted font-micro-caption text-micro-caption">
-            <span className="font-bold text-dark-slate">
+        <div className="p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between text-[#64748B] font-micro-caption text-micro-caption">
+            <span className="font-bold text-[#0F172A]">
               {facility.city}
               {facility.district ? ` • ${facility.district}` : ""}
               {facility.locations && facility.locations.length > 1
@@ -176,13 +176,13 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             ) : null}
           </div>
 
-          <Link href={`/academy/${facility.slug}`} className="group-hover:text-deep-olive transition-colors">
-            <h3 className="font-card-title text-card-title text-dark-slate leading-snug">
+          <Link href={`/academy/${facility.slug}`} className="group-hover:text-[#1D6E7D] transition-colors">
+            <h3 className="font-card-title text-card-title text-[#0F172A] leading-snug">
               {facility.nameAr}
             </h3>
           </Link>
 
-          <p className="font-body-compact text-body-compact text-text-muted line-clamp-2">
+          <p className="font-body-compact text-body-compact text-[#64748B] line-clamp-2">
             {facility.publicDescriptionAr || facility.scheduleSummaryAr || facility.addressAr}
           </p>
 
@@ -190,9 +190,9 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             {facility.specialtiesAr.slice(0, 3).map((spec, idx) => (
               <span
                 key={spec}
-                className="text-deep-olive font-bold text-[11px] flex items-center gap-1.5"
+                className="text-[#1D6E7D] font-bold text-[11px] flex items-center gap-1.5"
               >
-                {idx > 0 && <span className="text-surface-variant">•</span>}
+                {idx > 0 && <span className="text-[#CBD5E1]">•</span>}
                 <span>{spec}</span>
               </span>
             ))}
@@ -200,25 +200,25 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
         </div>
       </div>
 
-      <div className="px-space-md pb-space-md flex flex-col gap-2.5">
-        <div className="bg-surface-snow p-space-sm rounded-xl flex items-center justify-between gap-2">
+      <div className="px-4 pb-4 flex flex-col gap-2.5">
+        <div className="bg-[#F7F9FA] border border-[#0F172A]/5 p-3 rounded-xl flex items-center justify-between gap-2">
           {!isUnclaimed ? (
             <div className="flex flex-col">
-              <span className="font-micro-caption text-micro-caption text-text-muted">
+              <span className="font-micro-caption text-[11px] text-[#64748B]">
                 الاشتراك الشهري الموثق
               </span>
               <div className="flex items-baseline gap-1">
                 {monthlyPrice ? (
                   <>
-                    <span className="font-price-tag text-price-tag text-deep-olive">
+                    <span className="font-price-tag text-price-tag text-[#1D6E7D]">
                       {monthlyPrice.toLocaleString("en-US")}
                     </span>
-                    <span className="font-badge-label text-badge-label text-deep-olive">
+                    <span className="font-badge-label text-[11px] text-[#1D6E7D]">
                       ج.م {basePackage ? `/ ${basePackage.sessionsCount} حصة` : ""}
                     </span>
                   </>
                 ) : (
-                  <span className="font-badge-label text-xs text-text-muted">
+                  <span className="font-badge-label text-xs text-[#64748B]">
                     الأسعار والمواعيد داخل الصفحة
                   </span>
                 )}
@@ -226,10 +226,10 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
             </div>
           ) : (
             <div className="flex flex-col">
-              <span className="font-micro-caption text-micro-caption text-text-muted">
+              <span className="font-micro-caption text-[11px] text-[#64748B]">
                 دليل المواقع والسباحة
               </span>
-              <span className="font-badge-label text-xs text-dark-slate">
+              <span className="font-badge-label text-xs text-[#0F172A]">
                 {facility.district} • {facility.city}
               </span>
             </div>
@@ -241,7 +241,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
               onClick={handleShareWhatsapp}
               title="مشاركة الصفحة"
               aria-label="مشاركة الصفحة"
-              className="w-9 h-9 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate flex items-center justify-center transition-colors shadow-sm"
+              className="w-9 h-9 rounded-full bg-white border border-[#0F172A]/8 hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors shadow-xs"
             >
               <Icon name={shareCopied ? "check" : "share"} className="text-[16px]" />
             </button>
@@ -259,7 +259,7 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
         <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
           <Link
             href={`/academy/${facility.slug}`}
-            className="text-deep-olive font-badge-label text-[12px] hover:underline flex items-center gap-1.5"
+            className="text-[#1D6E7D] font-badge-label text-[12px] font-bold hover:underline flex items-center gap-1.5"
           >
             <span>{isUnclaimed ? "عرض الموقع والتفاصيل" : "تفاصيل الباقات والمواعيد"}</span>
             <Icon name="arrow_back" className="text-[14px]" />

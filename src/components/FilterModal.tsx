@@ -95,39 +95,38 @@ export function FilterModal() {
         </div>
 
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-border-hairline flex items-center justify-between bg-surface-snow">
-          <div className="flex items-center gap-2">
+        <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F7F9FA]">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setFilterModalOpen(false)}
-              className="w-9 h-9 rounded-full bg-surface-card flex items-center justify-center text-dark-slate hover:bg-surface-container transition-colors border border-border-hairline"
+              className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-[#0F172A] hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors border border-[#E2E8F0] shrink-0"
             >
               <Icon name="close" className="text-[18px]" />
             </button>
-            <div className="flex items-center gap-2">
-              <h2 className="font-card-title text-card-title text-dark-slate">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <h2 className="font-card-title text-card-title text-[#0F172A]">
                 تصفية النتائج والخيارات
               </h2>
               {activeFiltersCount > 0 && (
-                <span className="text-deep-olive font-bold text-micro-caption">
-                  ({activeFiltersCount} نشطة)
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] font-bold text-[11px] whitespace-nowrap shrink-0">
+                  {activeFiltersCount} نشطة
                 </span>
               )}
             </div>
           </div>
           <button
             onClick={resetFilters}
-            className="text-micro-caption font-bold text-text-muted hover:text-status-danger transition-colors"
+            className="text-micro-caption font-bold text-[#64748B] hover:text-status-danger transition-colors whitespace-nowrap shrink-0"
           >
             إعادة ضبط
           </button>
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-5 overflow-y-auto space-y-6">
-          {/* Section 1: Sports Tabs */}
+        <div className="p-5 overflow-y-auto space-y-6 bg-white">
           {/* Section 1: Swimming Scope */}
           <div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-bold text-badge-label">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#EAF4F8] text-[#1D6E7D] font-bold text-badge-label">
               <Icon name="pool" className="text-[16px]" />
               <span>فلاتر السباحة والأكاديميات المائية (9 تخصصات)</span>
             </div>
@@ -135,7 +134,7 @@ export function FilterModal() {
 
           {/* Section 2: Specialties Chips Grid */}
           <div>
-            <label className="block text-body-compact font-bold text-dark-slate mb-2">
+            <label className="block text-body-compact font-bold text-[#0F172A] mb-2">
               التخصص الدقيق المعتمد:
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -148,8 +147,8 @@ export function FilterModal() {
                     onClick={() => toggleSpecialty(spec)}
                     className={`flex items-center justify-between p-3 rounded-xl text-right text-micro-caption font-bold transition-all border ${
                       isSelected
-                        ? "bg-lime-tint text-deep-olive border-athletic-olive/40 shadow-xs"
-                        : "bg-surface-snow text-dark-slate border-border-hairline hover:bg-surface-container-low"
+                        ? "bg-[#EAF4F8] text-[#1D6E7D] border-[#1D6E7D] shadow-xs"
+                        : "bg-[#F7F9FA] text-[#0F172A] border-[#E2E8F0] hover:border-[#1D6E7D]/40"
                     }`}
                   >
                     <span className="truncate">{spec}</span>
@@ -162,18 +161,18 @@ export function FilterModal() {
 
           {/* Section 3: Essential Amenities Toggles */}
           <div className="space-y-3 pt-2">
-            <label className="block text-body-compact font-bold text-dark-slate">
+            <label className="block text-body-compact font-bold text-[#0F172A]">
               معايير الجودة والأمان:
             </label>
 
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0]">
               <div className="flex items-center gap-2.5">
-                <Icon name="thermostat" className="text-deep-olive text-[20px]" />
+                <Icon name="thermostat" className="text-[#1D6E7D] text-[20px]" />
                 <div>
-                  <span className="block font-bold text-body-compact text-dark-slate">
+                  <span className="block font-bold text-body-compact text-[#0F172A]">
                     مسبح مدفأ شتاءً (28°C–30°C)
                   </span>
-                  <span className="block text-[11px] text-text-muted">
+                  <span className="block text-[11px] text-[#64748B]">
                     حرارة مياه معتمدة لحماية الجهاز التنفسي للأطفال
                   </span>
                 </div>
@@ -182,18 +181,18 @@ export function FilterModal() {
                 type="checkbox"
                 checked={heatedPoolOnly}
                 onChange={(e) => setHeatedPoolOnly(e.target.checked)}
-                className="w-5 h-5 accent-deep-olive rounded cursor-pointer"
+                className="w-5 h-5 accent-[#1D6E7D] rounded cursor-pointer"
               />
             </div>
 
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0]">
               <div className="flex items-center gap-2.5">
-                <Icon name="female" className="text-deep-olive text-[20px]" />
+                <Icon name="female" className="text-[#1D6E7D] text-[20px]" />
                 <div>
-                  <span className="block font-bold text-body-compact text-dark-slate">
+                  <span className="block font-bold text-body-compact text-[#0F172A]">
                     مواعيد وفترات سيدات مغلقة
                   </span>
-                  <span className="block text-[11px] text-text-muted">
+                  <span className="block text-[11px] text-[#64748B]">
                     خصوصية تامة مع مدربات ومنقذات معتمدات
                   </span>
                 </div>
@@ -202,18 +201,18 @@ export function FilterModal() {
                 type="checkbox"
                 checked={ladiesHoursOnly}
                 onChange={(e) => setLadiesHoursOnly(e.target.checked)}
-                className="w-5 h-5 accent-deep-olive rounded cursor-pointer"
+                className="w-5 h-5 accent-[#1D6E7D] rounded cursor-pointer"
               />
             </div>
 
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-snow border border-border-hairline">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0]">
               <div className="flex items-center gap-2.5">
-                <Icon name="verified" className="text-deep-olive text-[20px]" />
+                <Icon name="verified" className="text-[#1D6E7D] text-[20px]" />
                 <div>
-                  <span className="block font-bold text-body-compact text-dark-slate">
+                  <span className="block font-bold text-body-compact text-[#0F172A]">
                     إشراف إنقاذ مائي معتمد (EDLF)
                   </span>
-                  <span className="block text-[11px] text-text-muted">
+                  <span className="block text-[11px] text-[#64748B]">
                     عرض المسابح التي يتوفر بها منقذ مائي معتمد على مدار الفترات
                   </span>
                 </div>
@@ -222,7 +221,7 @@ export function FilterModal() {
                 type="checkbox"
                 checked={lifeguardOnly}
                 onChange={(e) => setLifeguardOnly(e.target.checked)}
-                className="w-5 h-5 accent-deep-olive rounded cursor-pointer"
+                className="w-5 h-5 accent-[#1D6E7D] rounded cursor-pointer"
               />
             </div>
           </div>
@@ -230,10 +229,10 @@ export function FilterModal() {
           {/* Section 4: Price Slider */}
           <div className="space-y-2 pt-2">
             <div className="flex items-center justify-between">
-              <span className="text-body-compact font-bold text-dark-slate">
+              <span className="text-body-compact font-bold text-[#0F172A]">
                 الحد الأقصى للاشتراك الشهري:
               </span>
-              <span className="text-body-compact font-extrabold text-deep-olive">
+              <span className="text-body-compact font-extrabold text-[#1D6E7D]">
                 حتى {maxPriceEgp} ج.م / شهر
               </span>
             </div>
@@ -244,9 +243,9 @@ export function FilterModal() {
               step="50"
               value={maxPriceEgp}
               onChange={(e) => setMaxPriceEgp(Number(e.target.value))}
-              className="w-full accent-deep-olive cursor-pointer"
+              className="w-full accent-[#1D6E7D] cursor-pointer"
             />
-            <div className="flex justify-between text-[11px] text-text-muted">
+            <div className="flex justify-between text-[11px] text-[#64748B]">
               <span>400 ج.م</span>
               <span>1450 ج.م</span>
               <span>2500 ج.م</span>
@@ -255,18 +254,18 @@ export function FilterModal() {
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-border-hairline bg-surface-snow flex items-center justify-between">
+        <div className="p-4 border-t border-[#E2E8F0] bg-[#F7F9FA] flex items-center justify-between">
           <button
             type="button"
             onClick={resetFilters}
-            className="text-micro-caption font-bold text-text-muted hover:text-dark-slate underline"
+            className="text-micro-caption font-bold text-[#64748B] hover:text-[#0F172A] underline"
           >
             مسح الكل
           </button>
           <button
             type="button"
             onClick={applyFilters}
-            className="px-6 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm"
+            className="px-6 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-body-compact transition-all shadow-sm"
           >
             تطبيق الفلاتر ({activeFiltersCount})
           </button>

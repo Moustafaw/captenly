@@ -46,13 +46,13 @@ export function MobileHeader() {
           <button
             type="button"
             onClick={() => setLocationModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-surface-container-low text-dark-slate text-[11px] font-bold max-w-[135px] truncate"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] text-[11px] font-bold max-w-[135px] truncate hover:border-[#1D6E7D]/40 transition-colors"
           >
-            <Icon name="location_on" className="text-deep-olive text-[14px] shrink-0" />
+            <Icon name="location_on" className="text-[#1D6E7D] text-[14px] shrink-0" />
             <span className="truncate">
               {userLocation.isSpecified ? userLocation.city : "كل مصر"}
             </span>
-            <Icon name="arrow_drop_down" className="text-text-muted text-[14px] shrink-0" />
+            <Icon name="arrow_drop_down" className="text-[#64748B] text-[14px] shrink-0" />
           </button>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -61,7 +61,7 @@ export function MobileHeader() {
                 {activeStaffAssignment && (
                   <Link
                     href="/dashboard/facility"
-                    className="px-2 py-1 rounded-full bg-dark-slate text-electric-volt text-[10px] font-bold whitespace-nowrap"
+                    className="px-2 py-1 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold whitespace-nowrap"
                   >
                     وضع موظف ✓
                   </Link>
@@ -79,11 +79,11 @@ export function MobileHeader() {
                 <Link
                   href="/favorites"
                   aria-label="المفضلة"
-                  className="relative w-8 h-8 rounded-full bg-surface-container-low text-dark-slate flex items-center justify-center"
+                  className="relative w-8 h-8 rounded-full bg-[#F7F9FA] text-[#0F172A] hover:bg-[#EAF4F8] hover:text-[#1D6E7D] flex items-center justify-center transition-colors"
                 >
                   <Icon name="bookmark" className="text-[17px]" />
                   {savedFavoriteIds.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-dark-slate text-electric-volt text-[9px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center">
                       {savedFavoriteIds.length}
                     </span>
                   )}
@@ -92,11 +92,11 @@ export function MobileHeader() {
                 <Link
                   href="/notifications"
                   aria-label="الإشعارات"
-                  className="relative w-8 h-8 rounded-full bg-surface-container-low text-dark-slate flex items-center justify-center"
+                  className="relative w-8 h-8 rounded-full bg-[#F7F9FA] text-[#0F172A] hover:bg-[#EAF4F8] hover:text-[#1D6E7D] flex items-center justify-center transition-colors"
                 >
                   <Icon name="notifications" className="text-[17px]" />
                   {unreadNotificationsCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-deep-olive text-white text-[9px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center">
                       {unreadNotificationsCount}
                     </span>
                   )}
@@ -106,7 +106,7 @@ export function MobileHeader() {
                   type="button"
                   onClick={() => setSheetOpen(true)}
                   aria-label="قائمة الحساب والأقسام"
-                  className="w-8 h-8 rounded-full bg-primary overflow-hidden border border-deep-olive/30 flex items-center justify-center text-on-primary"
+                  className="w-8 h-8 rounded-full bg-[#1D6E7D] overflow-hidden border border-[#1D6E7D]/30 flex items-center justify-center text-white"
                 >
                   {currentPersona.avatarUrl ? (
                     <img
@@ -124,13 +124,13 @@ export function MobileHeader() {
               <>
                 <Link
                   href="/auth/login"
-                  className="px-2.5 py-1.5 rounded-full bg-surface-container-low text-dark-slate text-[11px] font-bold whitespace-nowrap"
+                  className="px-2.5 py-1.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] text-[11px] font-bold whitespace-nowrap"
                 >
                   دخول
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="px-2.5 py-1.5 rounded-full bg-dark-slate text-electric-volt text-[11px] font-extrabold whitespace-nowrap shadow-sm"
+                  className="px-3 py-1.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-[11px] font-extrabold whitespace-nowrap shadow-sm transition-colors"
                 >
                   حساب جديد
                 </Link>
@@ -138,7 +138,7 @@ export function MobileHeader() {
                   type="button"
                   onClick={() => setSheetOpen(true)}
                   aria-label="القائمة الجانبية"
-                  className="w-8 h-8 rounded-full bg-surface-snow border border-surface-container flex items-center justify-center text-dark-slate"
+                  className="w-8 h-8 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 flex items-center justify-center text-[#0F172A]"
                 >
                   <Icon name="menu" className="text-[18px]" />
                 </button>
@@ -175,8 +175,8 @@ export function MobileHeader() {
             </div>
 
             {isAuthenticated ? (
-              <div className="rounded-2xl bg-dark-slate text-surface-card p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full overflow-hidden bg-deep-carbon flex items-center justify-center shrink-0 border border-electric-volt/50">
+              <div className="rounded-2xl bg-[#EAF4F8] border border-[#1D6E7D]/15 text-[#0F172A] p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full overflow-hidden bg-white flex items-center justify-center shrink-0 border border-[#1D6E7D]/30">
                   {currentPersona.avatarUrl ? (
                     <img
                       src={currentPersona.avatarUrl}
@@ -185,42 +185,42 @@ export function MobileHeader() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Icon name="person" className="text-electric-volt text-[20px]" />
+                    <Icon name="person" className="text-[#1D6E7D] text-[20px]" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-card-title-sm truncate">{currentPersona.fullNameAr}</div>
                   {currentPersona.email && (
-                    <div className="flex items-center gap-1 text-[10px] font-mono text-surface-container-high truncate" dir="ltr">
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-[#64748B] truncate" dir="ltr">
                       <GoogleMark className="w-3 h-3 shrink-0" />
                       <span className="truncate">{currentPersona.email}</span>
                     </div>
                   )}
                   {currentPersona.memberCode && currentPersona.role !== "facility_manager" && (
-                    <div className="text-[11px] font-mono text-electric-volt mt-0.5">
+                    <div className="text-[11px] font-mono text-[#1D6E7D] font-bold mt-0.5">
                       {currentPersona.memberCode}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl bg-dark-slate text-surface-card p-4 flex flex-col gap-2.5">
-                <div className="font-card-title-sm text-electric-volt">مرحباً بك في كابتنلي</div>
-                <p className="text-[11px] text-surface-container-high leading-relaxed">
+              <div className="rounded-2xl bg-[#EAF4F8] border border-[#1D6E7D]/15 text-[#0F172A] p-4 flex flex-col gap-2.5">
+                <div className="font-card-title-sm text-[#1D6E7D] font-extrabold">مرحباً بك في كابتنلي</div>
+                <p className="text-[11px] text-[#475569] leading-relaxed">
                   أنشئ حسابك المجاني لحفظ المفضلة ومقارنة المنشآت والحصول على كود العضوية ودفتر الحصص الـ QR.
                 </p>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <Link
                     href="/auth/login"
                     onClick={() => setSheetOpen(false)}
-                    className="py-2 rounded-full bg-white/10 text-surface-card font-bold text-xs text-center"
+                    className="py-2 rounded-full bg-white border border-[#0F172A]/10 text-[#0F172A] font-bold text-xs text-center"
                   >
                     تسجيل دخول
                   </Link>
                   <Link
                     href="/auth/register"
                     onClick={() => setSheetOpen(false)}
-                    className="py-2 rounded-full bg-electric-volt text-dark-slate font-extrabold text-xs text-center"
+                    className="py-2 rounded-full bg-[#1D6E7D] text-white font-extrabold text-xs text-center shadow-sm"
                   >
                     إنشاء حساب
                   </Link>

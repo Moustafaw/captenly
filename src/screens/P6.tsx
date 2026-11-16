@@ -179,21 +179,21 @@ function Phone6Inner() {
   const activeMapFac = filtered.find((f) => f.id === selectedMapId) || filtered[0];
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-on-surface min-h-screen px-margin pt-4 pb-24 flex flex-col gap-4">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0F172A] min-h-screen px-margin pt-4 pb-24 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="font-section-title-mobile text-dark-slate">
+          <h1 className="font-section-title-mobile text-[#0F172A]">
             {isPoolsRoute ? "المسابح ومدارس السباحة" : "استكشف المسابح والأكاديميات"} ({filtered.length})
           </h1>
-          <p className="text-[11px] text-text-muted">مقارنة شفافة للمسابح والمدربين المعتمدين</p>
+          <p className="text-[11px] text-[#64748B]">مقارنة شفافة للمسابح والمدربين المعتمدين</p>
         </div>
 
-        <div className="flex items-center bg-surface-card p-1 rounded-full shadow-sm border border-surface-container shrink-0">
+        <div className="flex items-center bg-white p-1 rounded-full shadow-xs border border-[#0F172A]/8 shrink-0">
           <button
             type="button"
             onClick={() => setViewMode("list")}
-            className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-              viewMode === "list" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
+            className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors ${
+              viewMode === "list" ? "bg-[#1D6E7D] text-white" : "text-[#64748B]"
             }`}
           >
             القائمة
@@ -201,8 +201,8 @@ function Phone6Inner() {
           <button
             type="button"
             onClick={() => setViewMode("map")}
-            className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-              viewMode === "map" ? "bg-dark-slate text-electric-volt" : "text-text-muted"
+            className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors ${
+              viewMode === "map" ? "bg-[#1D6E7D] text-white" : "text-[#64748B]"
             }`}
           >
             الخريطة
@@ -212,19 +212,19 @@ function Phone6Inner() {
 
       {/* Search + Smart Filters */}
       <div className="flex items-center gap-2">
-        <div className="flex-1 flex items-center bg-surface-card rounded-full px-3.5 py-2 shadow-sm border border-surface-container">
-          <Icon name="search" className="text-text-muted ml-1.5 text-[16px]" />
+        <div className="flex-1 flex items-center bg-white rounded-full px-3.5 py-2 shadow-xs border border-[#0F172A]/8 focus-within:border-[#1D6E7D]">
+          <Icon name="search" className="text-[#64748B] ml-1.5 text-[16px]" />
           <input
             value={smartFilters.searchQuery}
             onChange={(e) => updateSmartFilters({ searchQuery: e.target.value })}
             placeholder="ابحث بالاسم أو المنطقة..."
-            className="w-full bg-transparent outline-none text-xs text-dark-slate"
+            className="w-full bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#64748B]"
           />
         </div>
         <button
           type="button"
           onClick={() => setFilterModalOpen(true)}
-          className="px-3.5 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold flex items-center gap-1 shrink-0"
+          className="px-3.5 py-2 rounded-full bg-[#1D6E7D] text-white text-xs font-bold flex items-center gap-1 shrink-0 shadow-xs"
         >
           <Icon name="tune" className="text-[15px]" />
           <span>فلاتر</span>
@@ -235,9 +235,10 @@ function Phone6Inner() {
         <div className="flex items-center justify-end pb-1">
           <Link
             href="/compare"
-            className="shrink-0 px-3 py-1.5 rounded-full bg-electric-volt text-dark-slate text-[11px] font-bold"
+            className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#EAF4F8] border border-[#1D6E7D]/15 text-[#1D6E7D] text-[11px] font-extrabold inline-flex items-center gap-1"
           >
-            قارن ({compareFacilityIds.length} من 4)
+            <Icon name="compare_arrows" className="text-[14px]" />
+            <span>قارن ({compareFacilityIds.length} من 4)</span>
           </Link>
         </div>
       )}
@@ -283,7 +284,7 @@ function Phone6Inner() {
           </div>
 
           {activeMapFac && (
-            <div className="bg-surface-card rounded-2xl p-4 shadow-sm border border-surface-container flex flex-col gap-3">
+            <div className="bg-white rounded-[20px] p-4 shadow-[0_6px_24px_rgba(15,23,42,0.05)] border border-[#0F172A]/8 flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <FacilityImageOrFallback
                   facility={activeMapFac}
@@ -292,15 +293,15 @@ function Phone6Inner() {
                   imgClassName="w-16 h-16 rounded-xl object-cover"
                 />
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-deep-olive">
+                  <div className="text-[11px] font-bold text-[#1D6E7D]">
                     {activeMapFac.city} • {activeMapFac.district}
                   </div>
-                  <div className="font-card-title-sm text-dark-slate truncate">{activeMapFac.nameAr}</div>
+                  <div className="font-card-title-sm text-[#0F172A] truncate">{activeMapFac.nameAr}</div>
                 </div>
               </div>
               <Link
                 href={`/academy/${activeMapFac.slug}`}
-                className="w-full py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center"
+                className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold text-center shadow-xs transition-colors"
               >
                 فتح تفاصيل المنشأة ←
               </Link>

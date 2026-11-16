@@ -117,34 +117,42 @@ export default function Desktop24() {
   };
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased selection:bg-lime-tint selection:text-primary">
-      <div className="w-full bg-canvas-alabaster min-h-screen pt-6">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased selection:bg-[#EAF4F8] selection:text-[#1D6E7D]">
+      <div className="w-full bg-[#F7F9FA] min-h-screen pt-6">
         <div className="flex flex-col w-full">
           <div className="max-w-[1280px] w-full mx-auto px-margin lg:px-margin-desktop py-space-lg flex flex-col gap-space-xl">
-            {/* Hero */}
-            <section className="relative w-full rounded-[20px] bg-dark-slate overflow-hidden shadow-xl">
-              <div className="absolute inset-0 bg-gradient-to-l from-dark-slate via-dark-slate/90 to-transparent z-10 pointer-events-none" />
-              <div className="relative z-20 grid grid-cols-12 min-h-[340px] items-center">
-                <div className="col-span-12 lg:col-span-7 p-space-xl flex flex-col justify-center gap-space-md">
-                  <h1 className="font-hero-headline text-hero-headline text-surface-card leading-tight max-w-xl">
+            {/* Hero — Option B Deep Ocean Teal & Ice Aqua Luxury Bright Architecture */}
+            <section className="relative w-full rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_12px_40px_rgba(15,23,42,0.05)] p-5 lg:p-7">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#EAF4F8]/80 blur-3xl"
+              />
+              <div className="relative z-10 grid grid-cols-12 gap-6 lg:gap-8 min-h-[340px] items-center">
+                <div className="col-span-12 lg:col-span-7 flex flex-col justify-center gap-5 p-2 lg:p-4">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-xs font-bold w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#1D6E7D]" />
+                    <span>منصة السباحة والرياضات المائية الأولى في مصر</span>
+                  </span>
+                  <h1 className="font-hero-headline text-hero-headline text-[#0F172A] leading-tight max-w-xl">
                     اكتشف أفضل الأندية والمدارس الرياضية الموثقة حولك في مصر
                   </h1>
-                  <div className="flex flex-wrap items-center gap-x-space-md gap-y-2 text-surface-container-high font-body-compact text-body-compact">
-                    <span className="flex items-center gap-1.5">
-                      <Icon name="check_circle" className="text-[16px] text-electric-volt" /> أسعار واضحة دون عمولات وساطة
+                  <div className="flex flex-wrap items-center gap-2.5 text-[#0F172A] font-body-compact text-[12.5px]">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                      <Icon name="check_circle" className="text-[16px] text-[#1D6E7D]" />
+                      <span>أسعار واضحة دون عمولات وساطة</span>
                     </span>
-                    <span className="text-secondary">•</span>
-                    <span className="flex items-center gap-1.5">
-                      <Icon name="workspace_premium" className="text-[16px] text-electric-volt" /> كباتن مسجلون وموثقون بالشارات
+                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                      <Icon name="workspace_premium" className="text-[16px] text-[#1D6E7D]" />
+                      <span>كباتن مسجلون وموثقون بالشارات</span>
                     </span>
-                    <span className="text-secondary">•</span>
-                    <span className="flex items-center gap-1.5">
-                      <Icon name="qr_code_2" className="text-[16px] text-electric-volt" /> دفتر حصص QR أوفلاين
+                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                      <Icon name="qr_code_2" className="text-[16px] text-[#1D6E7D]" />
+                      <span>دفتر حصص QR أوفلاين</span>
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-space-md pt-space-xs">
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
                     <Link
-                      className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-electric-volt text-dark-slate font-card-title text-card-title hover:brightness-105 transition-all shadow-md"
+                      className="inline-flex items-center justify-center gap-2 px-7 h-12 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title text-card-title transition-all shadow-[0_8px_20px_rgba(29,110,125,0.22)]"
                       href="/explore"
                     >
                       <span>استكشف المنشآت القريبة منك</span>
@@ -160,7 +168,7 @@ export default function Desktop24() {
                           ? "/dashboard/athlete"
                           : "/claim"
                       }
-                      className="inline-flex items-center justify-center gap-2 px-5 h-12 rounded-full bg-white/10 text-surface-card font-card-title-sm hover:bg-white/20 transition-all"
+                      className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] hover:border-[#1D6E7D] hover:text-[#1D6E7D] font-card-title-sm transition-all"
                     >
                       <span>
                         {isFacilityManager
@@ -174,20 +182,24 @@ export default function Desktop24() {
                     </Link>
                   </div>
                 </div>
-                <div className="col-span-12 lg:col-span-5 h-[340px] relative overflow-hidden hidden lg:block">
+                <div className="col-span-12 lg:col-span-5 h-[340px] rounded-[20px] relative overflow-hidden hidden lg:block border border-[#0F172A]/6">
                   <div
                     className="w-full h-full bg-cover bg-center"
                     style={{ backgroundImage: "url('/screens/2c0d763d9374.jpg')" }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-dark-slate/80 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/45 via-transparent to-transparent" />
                   </div>
-                  <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-slate/90 backdrop-blur-md shadow-lg">
-                    <Icon name="thermostat" className="text-[18px] text-electric-volt" />
+                  <div className="absolute top-3.5 right-3.5 z-20 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md shadow-sm text-[11px] font-bold text-[#1D6E7D] flex items-center gap-1.5">
+                    <Icon name="pool" className="text-[14px]" />
+                    <span>حوض أولمبي معتمد</span>
+                  </div>
+                  <div className="absolute bottom-3.5 left-3.5 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md shadow-md border border-[#0F172A]/5">
+                    <Icon name="thermostat" className="text-[18px] text-[#1D6E7D]" />
                     <div className="flex flex-col">
-                      <span className="font-micro-caption text-micro-caption text-surface-variant">
+                      <span className="font-micro-caption text-[10px] text-[#64748B]">
                         معايير التدفئة والأمان
                       </span>
-                      <span className="font-badge-label text-badge-label text-surface-card">
+                      <span className="font-badge-label text-xs font-extrabold text-[#0F172A]">
                         فحص 28.5°C شتاءً
                       </span>
                     </div>
@@ -199,13 +211,13 @@ export default function Desktop24() {
             {/* Category Filters */}
             <section className="flex flex-col gap-space-sm">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h2 className="font-section-title text-section-title text-dark-slate">
+                <h2 className="font-section-title text-section-title text-[#0F172A]">
                   التصنيفات الرياضية المتاحة
                 </h2>
                 <button
                   type="button"
                   onClick={() => setLocationModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 font-body-compact text-body-compact text-deep-olive hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1.5 font-body-compact text-body-compact text-[#1D6E7D] font-bold hover:underline cursor-pointer"
                 >
                   <Icon name="location_on" className="text-[16px]" />
                   <span>
@@ -223,10 +235,10 @@ export default function Desktop24() {
                       key={cat.key}
                       type="button"
                       onClick={() => setSelectedCat(cat.key)}
-                      className={`px-4 py-2.5 rounded-full font-badge-label text-badge-label transition-all shrink-0 flex items-center gap-1.5 shadow-sm ${
+                      className={`px-4 py-2.5 rounded-full font-badge-label text-badge-label transition-all shrink-0 flex items-center gap-1.5 border ${
                         active
-                          ? "bg-primary text-on-primary"
-                          : "bg-surface-card text-on-surface hover:bg-lime-tint hover:text-primary"
+                          ? "bg-[#1D6E7D] border-[#1D6E7D] text-white shadow-sm"
+                          : "bg-white border-[#0F172A]/8 text-[#475569] hover:bg-[#EAF4F8] hover:text-[#1D6E7D]"
                       }`}
                     >
                       {cat.icon && <Icon name={cat.icon} className="text-[15px]" />}
@@ -256,7 +268,7 @@ export default function Desktop24() {
                   <button
                     type="button"
                     onClick={() => setRotationSeed((prev) => prev + 1)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-card border border-surface-container text-dark-slate hover:border-deep-olive text-xs font-bold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-[#0F172A]/10 text-[#0F172A] hover:border-[#1D6E7D] hover:text-[#1D6E7D] text-xs font-bold transition-colors"
                   >
                     <Icon name="refresh" className="text-[15px]" />
                     <span>تحديث الترشيحات</span>
@@ -264,7 +276,7 @@ export default function Desktop24() {
                   {compareFacilityIds.length > 0 && (
                     <Link
                       href="/compare"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-slate text-electric-volt font-badge-label text-xs"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#1D6E7D] text-white font-badge-label text-xs font-bold"
                     >
                       <Icon name="compare_arrows" className="text-[15px]" />
                       <span>جدول المقارنة ({compareFacilityIds.length} من 4)</span>
@@ -424,7 +436,7 @@ export default function Desktop24() {
                     </div>
                     <Link
                       href={isFacilityManager ? "/dashboard/facility" : "/claim?mode=coach"}
-                      className="px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-card-title-sm shrink-0 hover:opacity-95 shadow-sm"
+                      className="px-6 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm shrink-0 transition-colors shadow-sm"
                     >
                       {isFacilityManager ? "أضف كباتن المنشأة الآن" : "وثّق ملفك ككابتن الآن"}
                     </Link>
@@ -527,7 +539,7 @@ export default function Desktop24() {
                     >
                       <div>
                         {art.imageUrl ? (
-                          <div className="relative w-full h-44 overflow-hidden bg-surface-container">
+                          <div className="relative w-full h-44 overflow-hidden bg-[#EAF4F8]">
                             <Link href={`/magazine/${art.slug}`}>
                               <img
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -535,7 +547,7 @@ export default function Desktop24() {
                                 src={art.imageUrl}
                               />
                             </Link>
-                            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label">
+                            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-[#1D6E7D] font-badge-label text-[11px] font-bold shadow-sm">
                               {art.categoryAr}
                             </div>
                             <button
@@ -544,8 +556,8 @@ export default function Desktop24() {
                               aria-label="حفظ المقال"
                               className={`absolute top-3 left-3 w-8 h-8 rounded-full backdrop-blur flex items-center justify-center transition-colors shadow-sm ${
                                 saved
-                                  ? "bg-electric-volt text-dark-slate"
-                                  : "bg-surface-card/90 text-dark-slate hover:text-deep-olive"
+                                  ? "bg-[#1D6E7D] text-white"
+                                  : "bg-white/90 text-[#0F172A] hover:text-[#1D6E7D]"
                               }`}
                             >
                               <Icon name={saved ? "bookmark" : "bookmark_border"} className="text-[18px]" />
@@ -553,17 +565,17 @@ export default function Desktop24() {
                           </div>
                         ) : (
                           <div className="px-space-md pt-space-md flex items-center justify-between gap-2">
-                            <div className="px-2.5 py-1 rounded-full bg-dark-slate text-electric-volt font-badge-label text-badge-label">
+                            <div className="px-2.5 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] font-badge-label text-[11px] font-bold">
                               {art.categoryAr}
                             </div>
                             <button
                               type="button"
                               onClick={() => toggleFavorite(art.id)}
                               aria-label="حفظ المقال"
-                              className={`w-8 h-8 rounded-full border border-surface-container flex items-center justify-center transition-colors ${
+                              className={`w-8 h-8 rounded-full border border-[#0F172A]/8 flex items-center justify-center transition-colors ${
                                 saved
-                                  ? "bg-electric-volt text-dark-slate"
-                                  : "bg-surface-snow text-dark-slate hover:text-deep-olive"
+                                  ? "bg-[#1D6E7D] text-white"
+                                  : "bg-[#F7F9FA] text-[#0F172A] hover:text-[#1D6E7D]"
                               }`}
                             >
                               <Icon name={saved ? "bookmark" : "bookmark_border"} className="text-[18px]" />
@@ -602,18 +614,18 @@ export default function Desktop24() {
 
             {/* Bottom Claim CTA (hidden for logged-in athletes/parents; they can upgrade quietly from Settings) */}
             {!isAthleteOrParent && (
-              <section className="rounded-[20px] bg-surface-snow p-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md">
+              <section className="rounded-[24px] bg-gradient-to-br from-[#EAF4F8] via-[#F7F9FA] to-white border border-[#1D6E7D]/15 p-space-xl flex flex-col md:flex-row items-center justify-between gap-space-md shadow-[0_8px_30px_rgba(29,110,125,0.06)]">
                 <div className="flex items-center gap-space-md">
-                  <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[#1D6E7D] text-white flex items-center justify-center shrink-0 shadow-sm">
                     <Icon name={isFacilityManager ? "stadium" : "sports_score"} className="text-[24px]" />
                   </div>
-                  <div className="flex flex-col">
-                    <h3 className="font-card-title text-card-title text-dark-slate">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="font-card-title text-card-title text-[#0F172A]">
                       {isFacilityManager
                         ? "أدر منشأتك ومواعيد مدارس السباحة والمشتركين"
                         : "هل أنت كابتن أو صاحب نادي / أكاديمية رياضية؟"}
                     </h3>
-                    <p className="font-body-compact text-body-compact text-text-muted">
+                    <p className="font-body-compact text-body-compact text-[#475569]">
                       {isFacilityManager
                         ? "حدّث كروت المواعيد، أضف طاقم الكباتن وموظفي الاشتراكات، وامسح رموز QR الحصص بـ 0% عمولة."
                         : "طالب بإدارة صفحتك أو سجّل ككابتن معتمد مجاناً، واربط السباحين بكود العضوية لتفعيل دفاتر الـ QR بدون عمولة."}
@@ -622,7 +634,7 @@ export default function Desktop24() {
                 </div>
                 <div className="flex items-center gap-space-sm shrink-0">
                   <Link
-                    className="px-6 py-2.5 rounded-full bg-dark-slate text-electric-volt font-card-title-sm text-card-title-sm hover:opacity-90 transition-opacity"
+                    className="px-7 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm text-card-title-sm transition-colors shadow-sm"
                     href={isFacilityManager ? "/dashboard/facility" : isCoachRole ? "/dashboard/coach" : "/claim"}
                   >
                     {isFacilityManager

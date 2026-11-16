@@ -212,35 +212,40 @@ function Desktop23Inner() {
   }
 
   return (
-    <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased min-h-screen pt-6 pb-16">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-16">
       <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-space-md">
-        {/* Top Search & Controls */}
-        <section className="bg-surface-card rounded-[20px] p-5 shadow-sm flex flex-col gap-4">
+        {/* Top Search & Controls — Option B Luxury Bright Card */}
+        <section className="bg-white rounded-[24px] p-6 shadow-[0_8px_28px_rgba(15,23,42,0.04)] border border-[#0F172A]/6 flex flex-col gap-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <h1 className="font-section-title text-[24px] text-dark-slate">
-                استكشف المسابح وأكاديميات السباحة ({filtered.length} منشأة)
-              </h1>
-              <p className="font-body-compact text-text-muted mt-0.5">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="font-section-title text-[24px] text-[#0F172A]">
+                  استكشف المسابح وأكاديميات السباحة
+                </h1>
+                <span className="px-3 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-xs font-extrabold">
+                  {filtered.length} منشأة
+                </span>
+              </div>
+              <p className="font-body-compact text-[#64748B] mt-0.5">
                 ابحث في مسابح وأكاديميات كابتنلي المسجلة بالإضافة إلى دليل الأماكن من خرائط Google
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center bg-surface-snow rounded-full px-4 py-2 border border-surface-container">
-                <Icon name="search" className="text-text-muted ml-2 text-[17px]" />
+              <div className="flex items-center bg-[#F7F9FA] rounded-full px-4 py-2 border border-[#0F172A]/10 focus-within:border-[#1D6E7D] focus-within:bg-white transition-colors">
+                <Icon name="search" className="text-[#64748B] ml-2 text-[17px]" />
                 <input
                   value={smartFilters.searchQuery}
                   onChange={(e) => updateSmartFilters({ searchQuery: e.target.value })}
                   placeholder="ابحث بالاسم أو المنطقة..."
-                  className="bg-transparent outline-none text-sm w-48 text-dark-slate"
+                  className="bg-transparent outline-none text-sm w-48 text-[#0F172A] placeholder:text-[#64748B]"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
-                className="px-4 py-2 rounded-full bg-surface-snow hover:bg-lime-tint text-dark-slate font-badge-label text-xs flex items-center gap-1.5 border border-surface-container"
+                className="px-4 py-2 rounded-full bg-[#EAF4F8] hover:bg-[#1D6E7D] text-[#1D6E7D] hover:text-white font-badge-label text-xs font-bold flex items-center gap-1.5 border border-[#1D6E7D]/15 transition-colors"
               >
                 <Icon name="tune" className="text-[16px]" />
                 <span>الفلاتر الذكية</span>
@@ -253,36 +258,34 @@ function Desktop23Inner() {
                     sortBy: e.target.value as "rating" | "price_asc" | "nearest",
                   })
                 }
-                className="rounded-full bg-surface-snow px-4 py-2 text-xs font-bold text-dark-slate outline-none border border-surface-container"
+                className="rounded-full bg-[#F7F9FA] px-4 py-2 text-xs font-bold text-[#0F172A] outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
               >
                 <option value="nearest">الأقرب لموقعك</option>
                 <option value="rating">الأعلى تقييماً</option>
                 <option value="price_asc">الأقل سعراً</option>
               </select>
+
+              {compareFacilityIds.length > 0 && (
+                <Link
+                  href="/compare"
+                  className="px-4 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <Icon name="compare_arrows" className="text-[15px]" />
+                  <span>جدول المقارنة ({compareFacilityIds.length} من 4)</span>
+                </Link>
+              )}
             </div>
           </div>
 
-          {compareFacilityIds.length > 0 && (
-            <div className="flex items-center justify-end pt-1">
-              <Link
-                href="/compare"
-                className="px-4 py-1.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold flex items-center gap-1.5"
-              >
-                <Icon name="compare_arrows" className="text-[15px]" />
-                <span>جدول المقارنة ({compareFacilityIds.length} من 4)</span>
-              </Link>
-            </div>
-          )}
-
           {/* Removable Chips + Price Slider */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-container pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#0F172A]/6 pt-3.5">
             <div className="flex flex-wrap items-center gap-2">
               {activeFilterChips.map((chip) => (
                 <button
                   key={chip.label}
                   type="button"
                   onClick={chip.clear}
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-lime-tint text-deep-olive text-xs font-bold"
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-xs font-bold border border-[#1D6E7D]/15 hover:bg-[#1D6E7D] hover:text-white transition-colors"
                 >
                   <span>{chip.label}</span>
                   <Icon name="close" className="text-[13px]" />
@@ -292,14 +295,14 @@ function Desktop23Inner() {
                 <button
                   type="button"
                   onClick={resetSmartFilters}
-                  className="text-xs font-bold text-text-muted hover:text-dark-slate underline"
+                  className="text-xs font-bold text-[#64748B] hover:text-[#1D6E7D] underline"
                 >
                   مسح الكل
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-text-muted">
+            <div className="flex items-center gap-3 text-xs text-[#64748B]">
               <span>الحد الأقصى للسعر الشهري:</span>
               <input
                 type="range"
@@ -308,9 +311,9 @@ function Desktop23Inner() {
                 step={50}
                 value={smartFilters.maxPriceEgp}
                 onChange={(e) => updateSmartFilters({ maxPriceEgp: Number(e.target.value) })}
-                className="accent-deep-olive cursor-pointer"
+                className="accent-[#1D6E7D] cursor-pointer"
               />
-              <span className="font-bold text-deep-olive">{smartFilters.maxPriceEgp} ج.م</span>
+              <span className="font-extrabold text-[#1D6E7D]">{smartFilters.maxPriceEgp} ج.م</span>
             </div>
           </div>
         </section>
@@ -436,10 +439,10 @@ function Desktop23Inner() {
 
             {/* Interactive Sticky Map Column */}
             <aside className="lg:col-span-4 lg:sticky lg:top-[124px] flex flex-col gap-4">
-              <div className="bg-surface-card rounded-[20px] p-5 shadow-sm border border-surface-container flex flex-col gap-4">
+              <div className="bg-white rounded-[24px] p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)] border border-[#0F172A]/6 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-card-title text-dark-slate">خريطة التوزيع الميداني</h2>
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-lime-tint text-deep-olive">
+                  <h2 className="font-card-title text-[#0F172A]">خريطة التوزيع الميداني</h2>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D]">
                     {filtered.length} مواقع
                   </span>
                 </div>
@@ -454,7 +457,7 @@ function Desktop23Inner() {
                 />
 
                 {activeMapFacility && (
-                  <div className="rounded-2xl bg-surface-snow p-4 flex flex-col gap-2.5">
+                  <div className="rounded-2xl bg-[#F7F9FA] border border-[#0F172A]/6 p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-3">
                       <FacilityImageOrFallback
                         facility={activeMapFacility}
@@ -463,13 +466,13 @@ function Desktop23Inner() {
                         imgClassName="w-16 h-16 rounded-xl object-cover"
                       />
                       <div className="min-w-0">
-                        <div className="text-[11px] font-bold text-deep-olive">
+                        <div className="text-[11px] font-bold text-[#1D6E7D]">
                           {activeMapFacility.city} • {activeMapFacility.district}
                         </div>
-                        <h3 className="font-card-title-sm text-dark-slate truncate">
+                        <h3 className="font-card-title-sm text-[#0F172A] truncate">
                           {activeMapFacility.nameAr}
                         </h3>
-                        <span className="text-[11px] font-bold text-deep-olive">
+                        <span className="text-[11px] font-bold text-[#1D6E7D]">
                           {activeMapFacility.supplyStatus === "seeded_unclaimed"
                             ? "بانتظار تفعيل الإدارة المباشر"
                             : "موثقة رسمياً ✓"}
@@ -479,9 +482,9 @@ function Desktop23Inner() {
                     <div className="flex items-center gap-2 pt-1">
                       <Link
                         href={`/academy/${activeMapFacility.slug}`}
-                        className="flex-1 py-2 rounded-full bg-dark-slate text-electric-volt text-xs font-bold text-center"
+                        className="flex-1 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold text-center transition-colors shadow-xs"
                       >
-                        فتح صفحة المنشأة
+                        فتح صفحة المنشأة ←
                       </Link>
                     </div>
                   </div>

@@ -31,12 +31,16 @@
 }
 
 :root {
-  --captenly-slate: #2c3437;
-  --captenly-carbon: #1a1f21;
+  --captenly-slate: #0f172a;
+  --captenly-carbon: #0b1220;
+  --captenly-teal: #1d6e7d;
+  --captenly-teal-dark: #155460;
+  --captenly-aqua: #eaf4f8;
+  --captenly-mist: #f7f9fa;
   --captenly-volt: #b0fe09;
-  --captenly-olive: #3f6212;
-  --captenly-tint: #ecfccb;
-  --captenly-surface: #f4f5f2;
+  --captenly-olive: #1d6e7d;
+  --captenly-tint: #eaf4f8;
+  --captenly-surface: #f7f9fa;
 }
 
 html {
@@ -45,8 +49,8 @@ html {
 }
 
 body {
-  background-color: #f4f5f2;
-  color: #191c1b;
+  background-color: #f7f9fa;
+  color: #0f172a;
   font-family: var(--font-cairo), system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
