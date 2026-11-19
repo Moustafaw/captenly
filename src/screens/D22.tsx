@@ -32,6 +32,7 @@ export default function Desktop22() {
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
+    myStaffAssignments,
   } = useCaptenly();
 
   const facility = useMemo(
@@ -99,6 +100,15 @@ export default function Desktop22() {
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const isVerifiedOfficial = facility.supplyStatus === "verified_active";
+  const canManageThisFacility =
+    isAuthenticated &&
+    (currentPersona.role === "super_admin" ||
+      currentPersona.linkedFacilityId === facility.id ||
+      myStaffAssignments.some(
+        (st) =>
+          st.facilityId === facility.id &&
+          (!st.invitationStatus || st.invitationStatus === "accepted")
+      ));
   const branchLocations =
     Array.isArray(facility.locations) && facility.locations.length > 0
       ? facility.locations
@@ -151,8 +161,8 @@ export default function Desktop22() {
   return (
     <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-16">
       <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-6">
-        {/* Verified Notice — Option B Soft Ice-Aqua Strip */}
-        {!isUnclaimed && (
+        {/* Verified Notice — Visible only to authorized facility owner/staff */}
+        {!isUnclaimed && canManageThisFacility && (
           <div className="rounded-2xl bg-[#EAF4F8]/85 border border-[#1D6E7D]/15 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-bold text-xs md:text-sm text-[#0F172A]">
               <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[19px] text-[#1D6E7D] shrink-0" />

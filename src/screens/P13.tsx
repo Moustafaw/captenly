@@ -31,6 +31,7 @@ export default function Phone13() {
     userLocation,
     placesHydrating,
     mergeExternalPlacesFacilities,
+    myStaffAssignments,
   } = useCaptenly();
 
   const facility = useMemo(
@@ -98,6 +99,15 @@ export default function Phone13() {
 
   const isUnclaimed = facility.supplyStatus === "seeded_unclaimed";
   const isVerifiedOfficial = facility.supplyStatus === "verified_active";
+  const canManageThisFacility =
+    isAuthenticated &&
+    (currentPersona.role === "super_admin" ||
+      currentPersona.linkedFacilityId === facility.id ||
+      myStaffAssignments.some(
+        (st) =>
+          st.facilityId === facility.id &&
+          (!st.invitationStatus || st.invitationStatus === "accepted")
+      ));
   const branchLocations =
     Array.isArray(facility.locations) && facility.locations.length > 0
       ? facility.locations
@@ -149,15 +159,20 @@ export default function Phone13() {
 
   return (
     <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0B1C2E] min-h-screen px-4 py-4 flex flex-col gap-4 pb-24">
-      {/* Verified text status only (zero unclaimed amber banner) */}
-      {!isUnclaimed && (
-        <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#EAF4F8] border border-[#00ACC1]/25 px-3 py-1.5 text-[11px] font-black text-[#1D6E7D]">
-          <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[16px] text-[#00ACC1]" />
-          <span>
-            {isVerifiedOfficial
-              ? "صفحة منشأة موثقة وتُدار رسمياً"
-              : "صفحة مُسجَّلة وتُدار عبر مسؤوليها على كابتنلي"}
-          </span>
+      {/* Verified status banner — Visible only to authorized facility owner/staff */}
+      {!isUnclaimed && canManageThisFacility && (
+        <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#EAF4F8] border border-[#00ACC1]/25 px-3.5 py-2 text-[11px] font-black text-[#1D6E7D]">
+          <div className="inline-flex items-center gap-1.5 min-w-0">
+            <Icon name={isVerifiedOfficial ? "verified" : "pool"} className="text-[16px] text-[#00ACC1] shrink-0" />
+            <span className="truncate">
+              {isVerifiedOfficial
+                ? "صفحة منشأة موثقة وتُدار رسمياً"
+                : `صفحة مُسجَّلة وتُدار عبر مسؤولي ${facility.nameAr} على كابتنلي`}
+            </span>
+          </div>
+          <Link href="/dashboard/facility" className="text-[11px] font-extrabold text-[#1D6E7D] hover:underline shrink-0">
+            لوحة الإدارة ←
+          </Link>
         </div>
       )}
 
