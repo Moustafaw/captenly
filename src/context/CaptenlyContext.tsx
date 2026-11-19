@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { signOut as nextAuthSignOut } from "next-auth/react";
 import {
   AccountIntent,
@@ -91,7 +91,13 @@ interface CaptenlyContextType {
   openAuthGateModal: (featureNameAr?: string) => void;
   closeAuthGateModal: () => void;
   switchPersona: (personaId: string) => void;
-  updateCurrentPersonaAvatar: (avatarDataUrl: string) => void;
+  updateCurrentPersonaAvatar: (
+    avatarDataUrl: string
+  ) => Promise<{ ok: boolean; persisted?: boolean; messageAr?: string }>;
+  updateFacilityHeroImage: (
+    facilityId: string,
+    heroImageDataUrl: string
+  ) => Promise<{ ok: boolean; persisted?: boolean; messageAr?: string }>;
   updateCurrentPersonaProfile: (patch: {
     fullNameAr?: string;
     phone?: string;
@@ -692,6 +698,9 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     Record<string, AccountActivitySnapshot>
   >({});
   const [userSettings, setUserSettings] = useState(DEFAULT_USER_SETTINGS);
+  const [storageHydrated, setStorageHydrated] = useState(false);
+  const avatarSaveSeqRef = useRef(0);
+  const pendingFacilityHeroRef = useRef<Set<string>>(new Set());
 
   const isAuthenticated =
     currentPersona.role !== "guest" && currentPersona.id !== "persona-guest";
@@ -760,7 +769,6 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
               (f) =>
                 f &&
                 f.sportSector !== "fitness" &&
-                !f.id.startsWith("fac-") &&
                 f.supplyStatus !== "seeded_unclaimed"
             )
           );
@@ -917,13 +925,15 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       // Ignore storage errors
+    } finally {
+      setStorageHydrated(true);
     }
   }, []);
 
   // Hydrate real registered Captenly academies/coaches from Supabase on mount
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/supabase/public-supply")
+    fetch("/api/supabase/public-supply", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data?.ok) return;
@@ -941,7 +951,14 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
                     (remote.coachRoster?.length || 0) >= (local.coachRoster?.length || 0) ||
                     (remote.staffMembers?.length || 0) >= (local.staffMembers?.length || 0)))
               ) {
-                byId.set(local.id, { ...local, ...remote, id: remote.id });
+                const keepLocalHero =
+                  pendingFacilityHeroRef.current.has(remote.id) && Boolean(local.heroImage);
+                byId.set(local.id, {
+                  ...local,
+                  ...remote,
+                  id: remote.id,
+                  heroImage: keepLocalHero ? local.heroImage : remote.heroImage,
+                });
               }
             }
             return Array.from(byId.values());
@@ -1066,37 +1083,50 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
 
   // Persist changes back to localStorage
   useEffect(() => {
+    if (!storageHydrated) return;
+    const persistedFacilities = facilities.filter(
+      (f) => f && f.supplyStatus !== "seeded_unclaimed"
+    );
+    const buildPayload = (slim = false) =>
+      JSON.stringify({
+        personaId: currentPersona.id,
+        allPersonas,
+        memberRegistry,
+        facilities: persistedFacilities,
+        coaches,
+        minorAthletes,
+        pbRecords,
+        skillEvaluationsByAthlete,
+        sessionLedgers,
+        verifiedLeads,
+        demandRadar,
+        demandSubmissions,
+        offlineQueue,
+        savedFavoriteIds,
+        compareFacilityIds,
+        notifications: slim ? notifications.slice(0, 15) : notifications,
+        articles: slim
+          ? articles.map((a) =>
+              a.imageUrl && a.imageUrl.startsWith("data:") ? { ...a, imageUrl: "" } : a
+            )
+          : articles,
+        activeStaffAssignmentId,
+        activeWorkspaceContext,
+        accountSnapshots: slim ? {} : accountSnapshots,
+        userSettings,
+        newsletterEmails,
+        userLocation,
+      });
+
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          personaId: currentPersona.id,
-          allPersonas,
-          memberRegistry,
-          facilities,
-          coaches,
-          minorAthletes,
-          pbRecords,
-          skillEvaluationsByAthlete,
-          sessionLedgers,
-          verifiedLeads,
-          demandRadar,
-          demandSubmissions,
-          offlineQueue,
-          savedFavoriteIds,
-          compareFacilityIds,
-          notifications,
-          articles,
-          activeStaffAssignmentId,
-          activeWorkspaceContext,
-          accountSnapshots,
-          userSettings,
-          newsletterEmails,
-          userLocation,
-        })
-      );
+      localStorage.setItem(STORAGE_KEY, buildPayload(false));
     } catch {
-      // Ignore quota errors
+      // Retry slim payload on QuotaExceededError so currentPersona avatars and registered facilities always persist
+      try {
+        localStorage.setItem(STORAGE_KEY, buildPayload(true));
+      } catch {
+        // Ignore storage errors if browser storage is completely disabled
+      }
     }
   }, [
     currentPersona,
@@ -1122,6 +1152,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     userSettings,
     newsletterEmails,
     userLocation,
+    storageHydrated,
   ]);
 
   // Real PWA Service Worker registration (in production) + online/offline network listener
@@ -1236,6 +1267,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     let cancelled = false;
+    const reqSeq = avatarSaveSeqRef.current;
     refreshRoleClaims(false).catch(() => undefined);
 
     const profileKey = getProfileSyncKey(currentPersona);
@@ -1253,41 +1285,85 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
             linkedCoachId?: string;
             accountIntent?: AccountIntent;
             memberCode?: string;
+            fullNameAr?: string;
+            phone?: string;
+            city?: string;
+            avatarUrl?: string;
+            bioAr?: string;
+            socialLinks?: UserSocialLinks;
             hasParentSupervision?: boolean;
             needsOnboarding?: boolean;
           };
-          setCurrentPersona((prev) => {
-            if (prev.role === "guest" || prev.id === "persona-guest") return prev;
+          const canApplyAvatar = reqSeq === avatarSaveSeqRef.current && Boolean(remote.avatarUrl);
+          const mergeRemoteIntoPersona = (prev: PersonaAccount): PersonaAccount => {
             const nextRole = remote.role || prev.role;
             const nextFacId = remote.linkedFacilityId ?? prev.linkedFacilityId;
             const nextCoachId = remote.linkedCoachId ?? prev.linkedCoachId;
             const nextIntent = remote.accountIntent ?? prev.accountIntent;
             const nextCode = remote.memberCode || prev.memberCode;
             const nextOnboarding = remote.needsOnboarding ?? prev.needsOnboarding;
-            if (
-              nextRole === prev.role &&
-              nextFacId === prev.linkedFacilityId &&
-              nextCoachId === prev.linkedCoachId &&
-              nextIntent === prev.accountIntent &&
-              nextCode === prev.memberCode &&
-              nextOnboarding === prev.needsOnboarding
-            ) {
-              return prev;
-            }
-            const nextPersona: PersonaAccount = {
+            const nextAvatar = canApplyAvatar ? remote.avatarUrl : prev.avatarUrl;
+            const nextBio = remote.bioAr !== undefined ? remote.bioAr : prev.bioAr;
+            const nextSocial =
+              remote.socialLinks && Object.keys(remote.socialLinks).length > 0
+                ? { ...(prev.socialLinks || {}), ...remote.socialLinks }
+                : prev.socialLinks;
+            const nextName =
+              remote.fullNameAr && remote.fullNameAr.trim() ? remote.fullNameAr : prev.fullNameAr;
+            const nextPhone = remote.phone && remote.phone.trim() ? remote.phone : prev.phone;
+            const nextCity = remote.city && remote.city.trim() ? remote.city : prev.city;
+            return {
               ...prev,
               role: nextRole,
               linkedFacilityId: nextFacId,
               linkedCoachId: nextCoachId,
               accountIntent: nextIntent,
               memberCode: nextCode,
+              avatarUrl: nextAvatar,
+              bioAr: nextBio,
+              socialLinks: nextSocial,
+              fullNameAr: nextName,
+              phone: nextPhone,
+              city: nextCity,
               hasParentSupervision:
                 remote.hasParentSupervision ?? prev.hasParentSupervision,
               needsOnboarding: Boolean(nextOnboarding),
             };
-            setAllPersonas((list) => list.map((p) => (p.id === nextPersona.id ? nextPersona : p)));
+          };
+
+          setCurrentPersona((prev) => {
+            if (prev.role === "guest" || prev.id === "persona-guest") return prev;
+            const nextPersona = mergeRemoteIntoPersona(prev);
+            if (
+              nextPersona.role === prev.role &&
+              nextPersona.linkedFacilityId === prev.linkedFacilityId &&
+              nextPersona.linkedCoachId === prev.linkedCoachId &&
+              nextPersona.accountIntent === prev.accountIntent &&
+              nextPersona.memberCode === prev.memberCode &&
+              nextPersona.avatarUrl === prev.avatarUrl &&
+              nextPersona.bioAr === prev.bioAr &&
+              nextPersona.fullNameAr === prev.fullNameAr &&
+              nextPersona.phone === prev.phone &&
+              nextPersona.city === prev.city &&
+              nextPersona.needsOnboarding === prev.needsOnboarding &&
+              JSON.stringify(nextPersona.socialLinks || null) ===
+                JSON.stringify(prev.socialLinks || null)
+            ) {
+              return prev;
+            }
             return nextPersona;
           });
+          setAllPersonas((list) =>
+            list.map((p) => {
+              const matchesId = p.id === currentPersona.id;
+              const matchesCode =
+                remote.memberCode && p.memberCode?.toUpperCase() === remote.memberCode.toUpperCase();
+              const matchesEmail =
+                currentPersona.email && p.email?.toLowerCase() === currentPersona.email.toLowerCase();
+              if (!matchesId && !matchesCode && !matchesEmail) return p;
+              return mergeRemoteIntoPersona(p);
+            })
+          );
         })
         .catch(() => undefined);
     }
@@ -2908,38 +2984,207 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateCurrentPersonaAvatar = (avatarDataUrl: string) => {
-    setCurrentPersona((prev) => ({ ...prev, avatarUrl: avatarDataUrl }));
-    setAllPersonas((prev) =>
-      prev.map((p) => (p.id === currentPersona.id ? { ...p, avatarUrl: avatarDataUrl } : p))
-    );
-    if (currentPersona.linkedCoachId) {
-      setCoaches((prev) =>
-        prev.map((c) => {
-          if (c.id !== currentPersona.linkedCoachId) return c;
-          const nextCoach = { ...c, avatarUrl: avatarDataUrl };
-          syncCoachToSupabase(nextCoach);
-          return nextCoach;
-        })
+  const updateCurrentPersonaAvatar: CaptenlyContextType["updateCurrentPersonaAvatar"] = async (
+    avatarDataUrl
+  ) => {
+    avatarSaveSeqRef.current += 1;
+    const targetPersona = currentPersona;
+    const prevAvatar = targetPersona.avatarUrl;
+    const targetCoachId =
+      targetPersona.linkedCoachId ||
+      (targetPersona.role === "coach" && targetPersona.memberCode
+        ? getDeterministicCoachId(targetPersona.memberCode)
+        : undefined);
+
+    const matchesTargetPersona = (p: PersonaAccount) =>
+      p.id === targetPersona.id ||
+      Boolean(
+        targetPersona.memberCode &&
+          p.memberCode?.toUpperCase() === targetPersona.memberCode.toUpperCase()
+      ) ||
+      Boolean(
+        targetPersona.email &&
+          p.email?.toLowerCase() === targetPersona.email.toLowerCase()
       );
+
+    setCurrentPersona((prev) =>
+      prev.id === targetPersona.id ? { ...prev, avatarUrl: avatarDataUrl } : prev
+    );
+    setAllPersonas((prev) =>
+      prev.map((p) => (matchesTargetPersona(p) ? { ...p, avatarUrl: avatarDataUrl } : p))
+    );
+
+    const existingCoach = targetCoachId
+      ? coaches.find((c) => c.id === targetCoachId)
+      : undefined;
+    const prevCoachAvatar = existingCoach?.avatarUrl;
+    const updatedCoach = existingCoach ? { ...existingCoach, avatarUrl: avatarDataUrl } : undefined;
+    if (updatedCoach) {
+      setCoaches((prev) => prev.map((c) => (c.id === updatedCoach.id ? updatedCoach : c)));
     }
-    if (currentPersona.role !== "guest") {
-      const profileKey = getProfileSyncKey(currentPersona);
-      postSupabaseSync("/api/supabase/sync-profile", {
-        memberCode: profileKey,
-        email: currentPersona.email,
-        fullNameAr: currentPersona.fullNameAr,
-        role: currentPersona.role,
-        accountIntent: currentPersona.accountIntent,
-        phone: currentPersona.phone,
-        city: currentPersona.city,
-        avatarUrl: avatarDataUrl,
-        authProvider: currentPersona.authProvider || "captenly",
-        hasParentSupervision: currentPersona.hasParentSupervision,
-        needsOnboarding: false,
-        linkedFacilityId: currentPersona.linkedFacilityId,
-        linkedCoachId: currentPersona.linkedCoachId,
+
+    if (targetPersona.role === "guest" || targetPersona.id === "persona-guest") {
+      return { ok: true, persisted: false };
+    }
+
+    if (isBrowserOffline) {
+      return {
+        ok: true,
+        persisted: false,
+        messageAr: "تم حفظ الصورة محلياً (أوفلاين) — أعد الحفظ عند عودة الإنترنت للمزامنة السحابية.",
+      };
+    }
+
+    const revertLocalAvatar = () => {
+      setCurrentPersona((prev) =>
+        prev.id === targetPersona.id && prev.avatarUrl === avatarDataUrl
+          ? { ...prev, avatarUrl: prevAvatar }
+          : prev
+      );
+      setAllPersonas((prev) =>
+        prev.map((p) =>
+          matchesTargetPersona(p) && p.avatarUrl === avatarDataUrl
+            ? { ...p, avatarUrl: prevAvatar }
+            : p
+        )
+      );
+      if (updatedCoach) {
+        setCoaches((prev) =>
+          prev.map((c) =>
+            c.id === updatedCoach.id && c.avatarUrl === avatarDataUrl
+              ? { ...c, avatarUrl: prevCoachAvatar || "" }
+              : c
+          )
+        );
+      }
+    };
+
+    try {
+      const profileKey = getProfileSyncKey(targetPersona);
+      const res = await fetch("/api/supabase/sync-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberCode: profileKey,
+          email: targetPersona.email,
+          fullNameAr: targetPersona.fullNameAr,
+          role: targetPersona.role,
+          accountIntent: targetPersona.accountIntent,
+          phone: targetPersona.phone,
+          city: targetPersona.city,
+          avatarUrl: avatarDataUrl,
+          bioAr: targetPersona.bioAr,
+          socialLinks: targetPersona.socialLinks,
+          authProvider: targetPersona.authProvider || "captenly",
+          hasParentSupervision: targetPersona.hasParentSupervision,
+          needsOnboarding: false,
+          linkedFacilityId: targetPersona.linkedFacilityId,
+          linkedCoachId: targetCoachId,
+        }),
       });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.persisted) {
+        revertLocalAvatar();
+        return {
+          ok: false,
+          persisted: false,
+          messageAr:
+            res.status === 401
+              ? "انتهت جلسة تسجيل الدخول — سجّل الدخول مجدداً ثم أعد تغيير الصورة."
+              : res.status === 403
+                ? "تعذر التحقق من صلاحية الحساب — سجّل الخروج وأعد الدخول ثم جرّب مجدداً."
+                : data?.messageAr ||
+                  "تعذر حفظ الصورة الشخصية في قاعدة البيانات، يرجى المحاولة مرة أخرى.",
+        };
+      }
+
+      if (updatedCoach) {
+        await fetch("/api/supabase/public-supply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coach: updatedCoach }),
+        }).catch(() => null);
+      }
+
+      return { ok: true, persisted: true, messageAr: "تم حفظ الصورة الشخصية بنجاح ✓" };
+    } catch {
+      revertLocalAvatar();
+      return {
+        ok: false,
+        persisted: false,
+        messageAr: "تعذر الاتصال بالخادم لحفظ الصورة الشخصية، يرجى المحاولة مرة أخرى.",
+      };
+    }
+  };
+
+  const updateFacilityHeroImage: CaptenlyContextType["updateFacilityHeroImage"] = async (
+    facilityId,
+    heroImageDataUrl
+  ) => {
+    const target = facilities.find((f) => f.id === facilityId);
+    if (!target) {
+      return {
+        ok: false,
+        persisted: false,
+        messageAr: "لم يتم العثور على المنشأة لتحديث صورتها.",
+      };
+    }
+
+    const prevHero = target.heroImage;
+    pendingFacilityHeroRef.current.add(facilityId);
+    const nextFacility: Facility = { ...target, heroImage: heroImageDataUrl };
+    setFacilities((prev) => prev.map((f) => (f.id === facilityId ? nextFacility : f)));
+
+    if (isBrowserOffline) {
+      pendingFacilityHeroRef.current.delete(facilityId);
+      return {
+        ok: true,
+        persisted: false,
+        messageAr: "تم حفظ صورة المنشأة محلياً (أوفلاين).",
+      };
+    }
+
+    const revertFacilityHero = () => {
+      setFacilities((prev) =>
+        prev.map((f) =>
+          f.id === facilityId && f.heroImage === heroImageDataUrl
+            ? { ...f, heroImage: prevHero }
+            : f
+        )
+      );
+    };
+
+    try {
+      const res = await fetch("/api/supabase/public-supply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facility: nextFacility }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.persisted) {
+        revertFacilityHero();
+        return {
+          ok: false,
+          persisted: false,
+          messageAr:
+            res.status === 401
+              ? "انتهت جلسة تسجيل الدخول — أعد تسجيل الدخول ثم غيّر صورة المنشأة."
+              : res.status === 403
+                ? "لا تملك صلاحية تعديل صورة هذه المنشأة."
+                : data?.messageAr ||
+                  "تعذر حفظ صورة المنشأة في قاعدة البيانات، يرجى المحاولة مجدداً.",
+        };
+      }
+      return { ok: true, persisted: true, messageAr: "تم حفظ صورة المنشأة بنجاح ✓" };
+    } catch {
+      revertFacilityHero();
+      return {
+        ok: false,
+        persisted: false,
+        messageAr: "تعذر الاتصال بالخادم لحفظ صورة المنشأة، حاول مرة أخرى.",
+      };
+    } finally {
+      pendingFacilityHeroRef.current.delete(facilityId);
     }
   };
 
@@ -5194,6 +5439,7 @@ export function CaptenlyProvider({ children }: { children: React.ReactNode }) {
         closeAuthGateModal,
         switchPersona,
         updateCurrentPersonaAvatar,
+        updateFacilityHeroImage,
         updateCurrentPersonaProfile,
         allPersonas,
         isOfflineSimulated,

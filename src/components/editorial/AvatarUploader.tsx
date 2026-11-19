@@ -7,8 +7,12 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 interface AvatarUploaderProps {
   size?: "md" | "lg";
   initialUrl?: string;
-  onLocalSelect?: (dataUrl: string) => void;
+  onLocalSelect?: (
+    dataUrl: string
+  ) => void | Promise<{ ok: boolean; messageAr?: string } | void>;
   labelAr?: string;
+  titleAr?: string;
+  shape?: "circle" | "rounded";
   darkSurface?: boolean;
 }
 
@@ -49,7 +53,7 @@ async function renderCroppedAvatarDataUrl(
       ctx.fillStyle = "#141A1C";
       ctx.fillRect(0, 0, canvasSize, canvasSize);
       ctx.drawImage(img, centerX - drawW / 2, centerY - drawH / 2, drawW, drawH);
-      resolve(canvas.toDataURL("image/jpeg", 0.88));
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
     };
     img.src = imgSrc;
   });
@@ -60,6 +64,8 @@ export function AvatarUploader({
   initialUrl,
   onLocalSelect,
   labelAr = "رفع أو تغيير الصورة",
+  titleAr = "ضبط وتكبير الصورة الشخصية",
+  shape = "circle",
   darkSurface = false,
 }: AvatarUploaderProps) {
   const { currentPersona, updateCurrentPersonaAvatar } = useCaptenly();
@@ -87,6 +93,7 @@ export function AvatarUploader({
 
   const activeUrl = initialUrl !== undefined ? initialUrl : currentPersona.avatarUrl;
   const boxClass = size === "lg" ? "w-20 h-20" : "w-14 h-14";
+  const frameRadiusClass = shape === "rounded" ? "rounded-2xl" : "rounded-full";
 
   useEffect(() => {
     if (!rawImageSrc) return;
@@ -135,33 +142,33 @@ export function AvatarUploader({
   const handleApplyCrop = async () => {
     if (!rawImageSrc || busy) return;
     setBusy(true);
-    setUploadProgress(18);
-    setUploadStatusText("جاري معالجة الأبعاد (400×400 بكسل)...");
-    const startedAt = Date.now();
+    setErrorMsg(null);
+    setUploadProgress(25);
+    setUploadStatusText("جاري معالجة وقص الصورة (400×400 بكسل)...");
 
     try {
       const dataUrl = await renderCroppedAvatarDataUrl(rawImageSrc, zoom, offset.x, offset.y);
-      setUploadProgress(56);
-      setUploadStatusText("جاري رفع الصورة وتحديث الملف الشخصي...");
+      setUploadProgress(60);
+      setUploadStatusText("جاري رفع وحفظ الصورة في قاعدة البيانات...");
 
-      // Ensure smooth, visible 1.2s–1.6s upload progress indicator as requested
-      await new Promise((r) => setTimeout(r, 480));
-      setUploadProgress(86);
+      const saveResult = onLocalSelect
+        ? await onLocalSelect(dataUrl)
+        : await updateCurrentPersonaAvatar(dataUrl);
 
-      if (onLocalSelect) {
-        onLocalSelect(dataUrl);
-      } else {
-        updateCurrentPersonaAvatar(dataUrl);
+      if (saveResult && typeof saveResult === "object" && saveResult.ok === false) {
+        setErrorMsg(saveResult.messageAr || "تعذر حفظ الصورة، يرجى المحاولة مرة أخرى.");
+        setUploadProgress(0);
+        setUploadStatusText("");
+        return;
       }
 
-      const elapsed = Date.now() - startedAt;
-      const remainingMs = Math.max(250, 1450 - elapsed);
-      await new Promise((r) => setTimeout(r, remainingMs));
-
       setUploadProgress(100);
-      setUploadStatusText("تم رفع وحفظ الصورة بنجاح ✓");
+      setUploadStatusText(
+        (saveResult && typeof saveResult === "object" && saveResult.messageAr) ||
+          "تم رفع وحفظ الصورة بنجاح ✓"
+      );
 
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 450));
       setRawImageSrc(null);
       setUploadProgress(0);
       setUploadStatusText("");
@@ -185,17 +192,20 @@ export function AvatarUploader({
       <div className="inline-flex flex-col items-center gap-1.5 shrink-0">
         <div className="relative group">
           <div
-            className={`${boxClass} rounded-full overflow-hidden bg-[#EAF4F8] border-2 border-[#1D6E7D] flex items-center justify-center shadow-sm`}
+            className={`${boxClass} ${frameRadiusClass} overflow-hidden bg-[#EAF4F8] border-2 border-[#1D6E7D] flex items-center justify-center shadow-sm`}
           >
             {activeUrl ? (
               <img
                 src={activeUrl}
-                alt={currentPersona.fullNameAr}
+                alt={labelAr || currentPersona.fullNameAr}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Icon name="person" className="text-[#1D6E7D] text-[32px]" />
+              <Icon
+                name={shape === "rounded" ? "pool" : "person"}
+                className="text-[#1D6E7D] text-[32px]"
+              />
             )}
           </div>
 
@@ -249,7 +259,7 @@ export function AvatarUploader({
           <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-[#0F172A]/10 flex flex-col gap-4 text-[#0F172A]">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <h3 className="font-card-title text-[#0F172A]">ضبط وتكبير الصورة الشخصية</h3>
+                <h3 className="font-card-title text-[#0F172A]">{titleAr}</h3>
                 <p className="text-[11px] text-[#64748B] mt-0.5">
                   المقاس الموصى به: <strong className="text-[#0F172A]">400×400 بكسل</strong> (مربعة 1:1 — حد أقصى 5 ميجابايت)
                 </p>
@@ -257,13 +267,23 @@ export function AvatarUploader({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setRawImageSrc(null)}
+                onClick={() => {
+                  setErrorMsg(null);
+                  setRawImageSrc(null);
+                }}
                 className="w-8 h-8 rounded-full bg-[#F7F9FA] text-[#64748B] hover:text-[#0F172A] flex items-center justify-center disabled:opacity-40"
                 aria-label="إغلاق"
               >
                 <Icon name="close" className="text-[18px]" />
               </button>
             </div>
+
+            {errorMsg && (
+              <div className="rounded-xl px-3.5 py-2.5 text-xs font-bold bg-red-50 text-[#DC2626] border border-red-200 flex items-center gap-2">
+                <Icon name="warning" className="text-[17px] shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
             <div
               className={`rounded-xl px-3 py-2 text-[11px] font-bold flex items-center justify-between ${
@@ -325,8 +345,10 @@ export function AvatarUploader({
                     top: previewSize / 2 + offset.y - previewH / 2,
                   }}
                 />
-                {/* Circular avatar guide */}
-                <div className="pointer-events-none absolute inset-0 rounded-full border-2 border-[#38BDF8]/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]" />
+                {/* Avatar / Facility frame guide */}
+                <div
+                  className={`pointer-events-none absolute inset-0 ${frameRadiusClass} border-2 border-[#38BDF8]/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]`}
+                />
 
                 {busy && (
                   <div className="absolute inset-0 bg-[#0F172A]/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 text-white p-4">

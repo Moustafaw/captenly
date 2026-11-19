@@ -342,14 +342,28 @@ export async function POST(request: Request) {
       caller.role === "super_admin" ? "super_admin" : "facility_manager";
 
     if (admin) {
-      const { data: profRows } = await admin
+      let { data: profRows } = await admin
         .from("captenly_profiles")
-        .select("role, social_links")
-        .eq("member_code", caller.memberCode)
+        .select("member_code, role, social_links")
+        .eq("member_code", callerMemberCode)
         .limit(1);
+      if ((!Array.isArray(profRows) || profRows.length === 0) && caller.email) {
+        const emailLookup = await admin
+          .from("captenly_profiles")
+          .select("member_code, role, social_links")
+          .ilike("email", caller.email)
+          .limit(1);
+        if (Array.isArray(emailLookup.data) && emailLookup.data.length > 0) {
+          profRows = emailLookup.data;
+        }
+      }
       const existingProf = Array.isArray(profRows)
         ? (profRows[0] as Record<string, unknown> | undefined)
         : undefined;
+      const targetCode =
+        typeof existingProf?.member_code === "string" && existingProf.member_code.trim()
+          ? existingProf.member_code.trim().toUpperCase()
+          : callerMemberCode;
       const existingLinks =
         existingProf?.social_links && typeof existingProf.social_links === "object"
           ? (existingProf.social_links as Record<string, unknown>)
@@ -357,12 +371,12 @@ export async function POST(request: Request) {
       await admin
         .from("captenly_profiles")
         .update({
-          role: existingProf?.role === "super_admin" ? "super_admin" : "facility_manager",
+          role: "facility_manager",
           needs_onboarding: false,
           social_links: { ...existingLinks, _linkedFacilityId: facility.id },
           updated_at: new Date().toISOString(),
         })
-        .eq("member_code", callerMemberCode);
+        .eq("member_code", targetCode);
     } else {
       await withPgClient(async (client) => {
         await client.query(
@@ -414,6 +428,7 @@ export async function POST(request: Request) {
           facebookUrl: facility.facebookUrl,
           instagramUrl: facility.instagramUrl,
           instapayHandle: facility.instapayHandle,
+          heroImage: facility.heroImage,
           commercialRegRef,
         },
         status: "pending_review" as const,
@@ -469,6 +484,17 @@ export async function POST(request: Request) {
           return true;
         });
       }
+    }
+
+    if (!facilityPersisted) {
+      return NextResponse.json(
+        {
+          ok: false,
+          persisted: false,
+          messageAr: "تعذر حفظ بيانات المنشأة في قاعدة البيانات حالياً، يرجى المحاولة مجدداً.",
+        },
+        { status: 500 }
+      );
     }
 
     const response = NextResponse.json({

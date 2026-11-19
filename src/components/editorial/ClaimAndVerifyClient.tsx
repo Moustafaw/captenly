@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
@@ -30,6 +30,8 @@ export function ClaimAndVerifyClient({
     submitRoleClaimApplication,
     reviewRoleClaim,
     registerAndPublishFacility,
+    updateFacilityHeroImage,
+    updateCurrentPersonaAvatar,
   } = useCaptenly();
 
   const [mode, setMode] = useState<"facility" | "coach">(initialMode);
@@ -145,6 +147,81 @@ export function ClaimAndVerifyClient({
   );
   const [affiliatedFacId, setAffiliatedFacId] = useState<string>(claimedFacilityFallback?.id || "");
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+
+  const syncedFacilityIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!linkedExistingFacility) return;
+    if (syncedFacilityIdRef.current !== linkedExistingFacility.id) {
+      syncedFacilityIdRef.current = linkedExistingFacility.id;
+      setFacilityNameAr((prev) => prev || linkedExistingFacility.nameAr || "");
+      setFacilityDescAr((prev) => prev || linkedExistingFacility.publicDescriptionAr || "");
+      setFacilityHeroImage(linkedExistingFacility.heroImage || "");
+      setIsAcademyMode(Boolean(linkedExistingFacility.isAcademyInHostClubs));
+      setFacilityLocations((prev) => {
+        if (prev.length > 0) return prev;
+        if (linkedExistingFacility.locations && linkedExistingFacility.locations.length > 0) {
+          return linkedExistingFacility.locations;
+        }
+        if (linkedExistingFacility.coordinates) {
+          return [
+            {
+              id: "loc-existing",
+              governorate: linkedExistingFacility.governorate,
+              city: linkedExistingFacility.city,
+              district: linkedExistingFacility.district,
+              addressAr: linkedExistingFacility.addressAr,
+              coordinates: linkedExistingFacility.coordinates,
+              googlePlaceId: linkedExistingFacility.googlePlaceId,
+            },
+          ];
+        }
+        return prev;
+      });
+      setFacWhatsapp((prev) => prev || linkedExistingFacility.whatsappNumber || "");
+      setFacFacebook((prev) => prev || linkedExistingFacility.facebookUrl || "");
+      setFacInstagram((prev) => prev || linkedExistingFacility.instagramUrl || "");
+      setInstapayHandle((prev) => prev || linkedExistingFacility.instapayHandle || "");
+      setUpdatedPrice((prev) =>
+        prev ||
+        (linkedExistingFacility.pricePackages[0]?.baseMonthlyEgp
+          ? String(linkedExistingFacility.pricePackages[0].baseMonthlyEgp)
+          : "")
+      );
+      setPublishedFacilitySlug((prev) => prev || linkedExistingFacility.slug || "");
+      const ownerStaffRole = linkedExistingFacility.staffMembers?.find(
+        (st) =>
+          currentPersona.memberCode &&
+          st.linkedMemberCode?.toUpperCase() === currentPersona.memberCode.toUpperCase()
+      )?.roleTitleAr;
+      setRoleTitleAr((prev) => prev || ownerStaffRole || "إدارة المنشأة");
+    } else if (linkedExistingFacility.heroImage) {
+      setFacilityHeroImage(linkedExistingFacility.heroImage);
+    }
+  }, [linkedExistingFacility, currentPersona.memberCode]);
+
+  useEffect(() => {
+    if (currentPersona.fullNameAr) {
+      setManagerName((prev) => prev || currentPersona.fullNameAr);
+      setCoachName((prev) => prev || currentPersona.fullNameAr);
+    }
+    if (currentPersona.phone) {
+      setFacPhone((prev) => prev || currentPersona.phone);
+      setCoachPhone((prev) => prev || currentPersona.phone);
+    }
+    if (currentPersona.avatarUrl) {
+      setCoachAvatarUrl((prev) => prev || currentPersona.avatarUrl || "");
+    }
+    if (currentPersona.city && currentPersona.city !== "كل مصر") {
+      setCoachCity((prev) => prev || currentPersona.city);
+    }
+  }, [
+    currentPersona.id,
+    currentPersona.fullNameAr,
+    currentPersona.phone,
+    currentPersona.avatarUrl,
+    currentPersona.city,
+  ]);
 
   if (!isAuthenticated) {
     return (
@@ -463,9 +540,26 @@ export function ClaimAndVerifyClient({
                 </div>
                 <AvatarUploader
                   size="lg"
+                  shape="rounded"
                   initialUrl={facilityHeroImage}
-                  onLocalSelect={setFacilityHeroImage}
-                  labelAr="شعار أو صورة المنشأة (اختياري)"
+                  titleAr="ضبط وتكبير شعار / صورة المنشأة"
+                  labelAr={
+                    linkedExistingFacility ? "تغيير صورة المنشأة" : "شعار أو صورة المنشأة (اختياري)"
+                  }
+                  onLocalSelect={async (dataUrl) => {
+                    if (linkedExistingFacility) {
+                      const res = await updateFacilityHeroImage(linkedExistingFacility.id, dataUrl);
+                      if (res.ok) {
+                        setFacilityHeroImage(dataUrl);
+                      }
+                      return res;
+                    }
+                    setFacilityHeroImage(dataUrl);
+                    return {
+                      ok: true,
+                      messageAr: "تم اختيار الصورة ✓ اضغط حفظ ونشر المنشأة بالأسفل لاعتمادها",
+                    };
+                  }}
                 />
               </div>
 
@@ -710,8 +804,15 @@ export function ClaimAndVerifyClient({
                 <AvatarUploader
                   size="lg"
                   initialUrl={coachAvatarUrl}
-                  onLocalSelect={setCoachAvatarUrl}
+                  titleAr="ضبط وتكبير الصورة الشخصية للكابتن"
                   labelAr="صورة الكابتن الشخصية"
+                  onLocalSelect={async (dataUrl) => {
+                    const res = await updateCurrentPersonaAvatar(dataUrl);
+                    if (res.ok) {
+                      setCoachAvatarUrl(dataUrl);
+                    }
+                    return res;
+                  }}
                 />
               </div>
 

@@ -12,6 +12,7 @@ import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 import type { Coach, Facility } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
 let supplyTablesBootstrapped = false;
 
@@ -193,7 +194,10 @@ export async function GET() {
         const articles = !articleRes.error && Array.isArray(articleRes.data)
           ? articleRes.data.map((r) => (r as { payload: Record<string, unknown> }).payload).filter(Boolean)
           : [];
-        return NextResponse.json({ ok: true, facilities, coaches, articles });
+        return NextResponse.json(
+          { ok: true, facilities, coaches, articles },
+          { headers: NO_STORE_HEADERS }
+        );
       }
     } catch {
       // Fall through to pg fallback
@@ -223,16 +227,22 @@ export async function GET() {
     const articles = pgRes.value.articleRows
       .map((r) => r.payload as Record<string, unknown>)
       .filter(Boolean);
-    return NextResponse.json({ ok: true, facilities, coaches, articles });
+    return NextResponse.json(
+      { ok: true, facilities, coaches, articles },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
-  return NextResponse.json({
-    ok: false,
-    facilities: [],
-    coaches: [],
-    articles: [],
-    reason: pgRes.errorCode || (admin ? "db_query_failed" : "supabase_not_configured"),
-  });
+  return NextResponse.json(
+    {
+      ok: false,
+      facilities: [],
+      coaches: [],
+      articles: [],
+      reason: pgRes.errorCode || (admin ? "db_query_failed" : "supabase_not_configured"),
+    },
+    { headers: NO_STORE_HEADERS }
+  );
 }
 
 const PROHIBITED_MEDICAL_TERMS = [
@@ -456,15 +466,29 @@ export async function POST(request: Request) {
         }
       }
 
+      let existingFacSlug = "";
+      if (admin) {
+        const { data: slugRows } = await admin
+          .from("captenly_facilities")
+          .select("slug")
+          .eq("id", safeFacility.id)
+          .limit(1);
+        if (Array.isArray(slugRows) && slugRows[0] && typeof (slugRows[0] as { slug?: unknown }).slug === "string") {
+          existingFacSlug = (slugRows[0] as { slug: string }).slug;
+        }
+      }
+
       const sportSector =
         safeFacility.sportSector === "fitness" || safeFacility.sportSector === "both"
           ? safeFacility.sportSector
           : "swimming";
       const supplyStatus =
         safeFacility.supplyStatus === "seeded_unclaimed" ? "seeded_unclaimed" : "verified_claimed";
+      const resolvedSlug = existingFacSlug || safeFacility.slug || safeFacility.id;
+      const payloadWithStableSlug: Facility = { ...safeFacility, slug: resolvedSlug };
       const row = {
         id: safeFacility.id,
-        slug: safeFacility.slug || safeFacility.id,
+        slug: resolvedSlug,
         name_ar: safeFacility.nameAr || "منشأة سباحة",
         name_en: safeFacility.nameEn || safeFacility.nameAr || "Swimming Facility",
         sport_sector: sportSector,
@@ -478,13 +502,15 @@ export async function POST(request: Request) {
         rating: Number(safeFacility.rating ?? 4.8),
         reviews_count: Number(safeFacility.reviewsCount ?? 0),
         whatsapp_phone: safeFacility.whatsappNumber || null,
-        payload: safeFacility,
+        payload: payloadWithStableSlug,
         updated_at: new Date().toISOString(),
       };
 
+      let lastError: string | undefined;
       if (admin) {
         const { error } = await admin.from("captenly_facilities").upsert(row, { onConflict: "id" });
         if (!error) return NextResponse.json({ persisted: true, type: "facility" });
+        lastError = error.message || error.code || "supabase_error";
       }
 
       await ensureSupplyTablesViaPg();
@@ -494,7 +520,7 @@ export async function POST(request: Request) {
             (id, slug, name_ar, name_en, sport_sector, supply_status, city, district, governorate, address_ar, lat, lng, rating, reviews_count, whatsapp_phone, payload, updated_at)
            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,now())
            on conflict (id) do update set
-            slug = excluded.slug,
+            slug = coalesce(nullif(public.captenly_facilities.slug, ''), excluded.slug),
             name_ar = excluded.name_ar,
             name_en = excluded.name_en,
             sport_sector = excluded.sport_sector,
@@ -526,12 +552,23 @@ export async function POST(request: Request) {
             row.rating,
             row.reviews_count,
             row.whatsapp_phone,
-            JSON.stringify(safeFacility),
+            JSON.stringify(payloadWithStableSlug),
           ]
         );
         return true;
       });
-      return NextResponse.json({ persisted: pgRes.ok, type: "facility" });
+      if (pgRes.ok) {
+        return NextResponse.json({ persisted: true, type: "facility" });
+      }
+      return NextResponse.json(
+        {
+          persisted: false,
+          type: "facility",
+          error: pgRes.errorCode || lastError || "db_error",
+          messageAr: "تعذر حفظ بيانات أو صورة المنشأة على الخادم حالياً.",
+        },
+        { status: !admin && pgRes.errorCode === "db_not_configured" ? 503 : 500 }
+      );
     }
 
     if (coach?.id) {
@@ -547,16 +584,19 @@ export async function POST(request: Request) {
         );
       }
       let safeCoach: Coach = coach;
+      const existingCoach = await findExistingCoachById(coach.id);
       if (!caller.isAdmin) {
-        const existingCoach = await findExistingCoachById(coach.id);
         safeCoach = {
           ...coach,
+          slug: existingCoach?.slug || coach.slug || coach.id,
           isVerifiedCoach: Boolean(existingCoach?.isVerifiedCoach),
           badges: existingCoach?.badges || [],
           rating: existingCoach ? existingCoach.rating : 0,
           verifiedReviewsCount: existingCoach ? existingCoach.verifiedReviewsCount : 0,
           activeAthletesCount: existingCoach ? existingCoach.activeAthletesCount : 0,
         };
+      } else if (existingCoach?.slug) {
+        safeCoach = { ...coach, slug: existingCoach.slug };
       }
       const sportSector =
         safeCoach.sportSector === "fitness" || safeCoach.sportSector === "both"
@@ -576,9 +616,11 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       };
 
+      let lastCoachError: string | undefined;
       if (admin) {
         const { error } = await admin.from("captenly_coaches").upsert(row, { onConflict: "id" });
         if (!error) return NextResponse.json({ persisted: true, type: "coach" });
+        lastCoachError = error.message || error.code || "supabase_error";
       }
 
       await ensureSupplyTablesViaPg();
@@ -588,7 +630,7 @@ export async function POST(request: Request) {
             (id, slug, full_name_ar, city, sport_sector, trust_tier, rating, reviews_count, payload, updated_at)
            values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,now())
            on conflict (id) do update set
-            slug = excluded.slug,
+            slug = coalesce(nullif(public.captenly_coaches.slug, ''), excluded.slug),
             full_name_ar = excluded.full_name_ar,
             city = excluded.city,
             sport_sector = excluded.sport_sector,
@@ -611,7 +653,18 @@ export async function POST(request: Request) {
         );
         return true;
       });
-      return NextResponse.json({ persisted: pgRes.ok, type: "coach" });
+      if (pgRes.ok) {
+        return NextResponse.json({ persisted: true, type: "coach" });
+      }
+      return NextResponse.json(
+        {
+          persisted: false,
+          type: "coach",
+          error: pgRes.errorCode || lastCoachError || "db_error",
+          messageAr: "تعذر حفظ بيانات أو صورة الكابتن على الخادم حالياً.",
+        },
+        { status: !admin && pgRes.errorCode === "db_not_configured" ? 503 : 500 }
+      );
     }
 
     if (deleteArticleId) {

@@ -14,6 +14,8 @@ export default function SettingsHubPage() {
   const router = useRouter();
   const {
     currentPersona,
+    facilities,
+    updateFacilityHeroImage,
     userLocation,
     userSettings,
     setLocationModalOpen,
@@ -115,6 +117,9 @@ export default function SettingsHubPage() {
   const isIdentityVerified = Boolean(
     currentPersona.phone || currentPersona.linkedFacilityId || currentPersona.linkedCoachId
   );
+  const linkedFacility = currentPersona.linkedFacilityId
+    ? facilities.find((f) => f.id === currentPersona.linkedFacilityId)
+    : undefined;
 
   return (
     <div className="min-h-screen bg-[#F7F9FA]">
@@ -137,7 +142,7 @@ export default function SettingsHubPage() {
         {/* 2. Identity Snapshot Card */}
         <div className="w-full bg-white rounded-[24px] p-5 md:p-6 border border-[#0F172A]/8 shadow-[0_4px_24px_rgba(15,23,42,0.03)] relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <AvatarUploader size="lg" labelAr="تغيير الصورة" />
+            <AvatarUploader size="lg" labelAr="تغيير الصورة الشخصية" />
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-cairo font-bold text-card-title text-[#0F172A]">
@@ -186,6 +191,42 @@ export default function SettingsHubPage() {
             </Link>
           </div>
         </div>
+
+        {/* Linked Facility Cover/Logo Card (for facility owners/admins) */}
+        {linkedFacility && (
+          <div className="w-full bg-white rounded-[24px] p-5 md:p-6 border border-[#1D6E7D]/20 shadow-[0_4px_24px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <AvatarUploader
+                size="lg"
+                shape="rounded"
+                initialUrl={linkedFacility.heroImage}
+                titleAr="ضبط وتكبير شعار أو صورة المنشأة"
+                labelAr="تغيير صورة المنشأة"
+                onLocalSelect={(dataUrl) =>
+                  updateFacilityHeroImage(linkedFacility.id, dataUrl)
+                }
+              />
+              <div className="space-y-1">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-extrabold">
+                  <Icon name="pool" className="text-[13px]" />
+                  <span>شعار وصورة المنشأة العامة</span>
+                </span>
+                <h3 className="font-cairo font-bold text-base text-[#0F172A]">
+                  {linkedFacility.nameAr}
+                </h3>
+                <p className="text-xs text-[#64748B]">
+                  تظهر هذه الصورة في كروت البحث والصفحة العامة للمنشأة، بينما الصورة بالأعلى تخص حسابك الشخصي.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/academy/${linkedFacility.slug}`}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#D7ECF4] text-[#1D6E7D] font-bold text-xs text-center transition-colors shrink-0"
+            >
+              معاينة صفحة المنشأة ←
+            </Link>
+          </div>
+        )}
 
         {/* Staff Role Account Switcher inside Settings */}
         {(myStaffAssignments.length > 0 || activeStaffAssignment) && (

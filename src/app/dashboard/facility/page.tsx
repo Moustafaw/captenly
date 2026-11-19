@@ -10,6 +10,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { DynamicScheduleCardsBuilder } from "@/components/editorial/DynamicScheduleCardsBuilder";
 import { AuthorArticlesManager } from "@/components/editorial/AuthorArticlesManager";
+import { AvatarUploader } from "@/components/editorial/AvatarUploader";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
 import { FacilityStaffRole } from "@/types/captenly";
 
@@ -59,6 +60,7 @@ export default function FacilityDashboardPage() {
     removeFacilityStaffMember,
     addFacilityCoachRosterEntry,
     removeFacilityCoachRosterEntry,
+    updateFacilityHeroImage,
   } = useCaptenly();
 
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -468,51 +470,77 @@ export default function FacilityDashboardPage() {
 
         {/* Header Bar (No personal QR or CAP-F code — Facility is a scanner) */}
         <section className="rounded-[24px] bg-dark-slate text-surface-card p-6 md:p-8 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className={`text-xs font-bold px-3 py-1 rounded-full ${
-                  isUnclaimed
-                    ? "bg-amber-400/20 text-amber-300"
-                    : facility.supplyStatus === "verified_active"
-                    ? "bg-electric-volt/15 text-electric-volt"
-                    : "bg-white/15 text-white"
-                }`}
-              >
-                {isUnclaimed
-                  ? "منشأة بانتظار التفعيل الرسمي"
-                  : facility.supplyStatus === "verified_active"
-                  ? "✓ منشأة موثقة رسمياً بالشارة الخضراء"
-                  : "✓ منشأة منشورة وتُدار عبر حسابك"}
-              </span>
-              <span className="text-xs text-surface-variant">
-                {facility.city}
-                {facility.district ? ` • ${facility.district}` : ""}
-                {facility.locations && facility.locations.length > 1
-                  ? ` (+${facility.locations.length - 1} مواقع أخرى)`
-                  : ""}
-              </span>
-              <span
-                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                  effectiveOffline
-                    ? "bg-amber-400 text-dark-slate"
-                    : "bg-white/10 text-surface-container-high"
-                }`}
-              >
-                {effectiveOffline
-                  ? "وضع الأوفلاين نشط (حفظ محلي ومزامنة تلقائية)"
-                  : "متصل ومزامن سحابياً ✓"}
-              </span>
-            </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            {!isStaffMode || staffRole === "general_staff" ? (
+              <AvatarUploader
+                size="lg"
+                shape="rounded"
+                darkSurface
+                initialUrl={facility.heroImage}
+                titleAr="ضبط وتكبير صورة أو شعار المنشأة"
+                labelAr="تغيير صورة المنشأة"
+                onLocalSelect={(dataUrl) => updateFacilityHeroImage(facility.id, dataUrl)}
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/10 border-2 border-white/25 flex items-center justify-center shrink-0">
+                {facility.heroImage ? (
+                  <img
+                    src={facility.heroImage}
+                    alt={facility.nameAr}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Icon name="pool" className="text-white/80 text-[30px]" />
+                )}
+              </div>
+            )}
 
-            <h1 className="font-hero-headline text-[24px] md:text-[32px]">
-              {isStaffMode && activeStaffAssignment
-                ? `${facility.nameAr} — (${activeStaffAssignment.roleTitleAr})`
-                : `لوحة إدارة المنشأة: ${facility.nameAr}`}
-            </h1>
-            <p className="font-body-compact text-surface-container-high max-w-2xl">
-              مسح باركود الحضور أو إدخال كود الاشتراك يدوياً، تنظيم قوائم المشتركين والفرق، إدارة الكباتن وشهاداتهم، وتعيين الموظفين بصلاحيات مخصصة.
-            </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`text-xs font-bold px-3 py-1 rounded-full ${
+                    isUnclaimed
+                      ? "bg-amber-400/20 text-amber-300"
+                      : facility.supplyStatus === "verified_active"
+                      ? "bg-electric-volt/15 text-electric-volt"
+                      : "bg-white/15 text-white"
+                  }`}
+                >
+                  {isUnclaimed
+                    ? "منشأة بانتظار التفعيل الرسمي"
+                    : facility.supplyStatus === "verified_active"
+                    ? "✓ منشأة موثقة رسمياً بالشارة الخضراء"
+                    : "✓ منشأة منشورة وتُدار عبر حسابك"}
+                </span>
+                <span className="text-xs text-surface-variant">
+                  {facility.city}
+                  {facility.district ? ` • ${facility.district}` : ""}
+                  {facility.locations && facility.locations.length > 1
+                    ? ` (+${facility.locations.length - 1} مواقع أخرى)`
+                    : ""}
+                </span>
+                <span
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                    effectiveOffline
+                      ? "bg-amber-400 text-dark-slate"
+                      : "bg-white/10 text-surface-container-high"
+                  }`}
+                >
+                  {effectiveOffline
+                    ? "وضع الأوفلاين نشط (حفظ محلي ومزامنة تلقائية)"
+                    : "متصل ومزامن سحابياً ✓"}
+                </span>
+              </div>
+
+              <h1 className="font-hero-headline text-[24px] md:text-[32px]">
+                {isStaffMode && activeStaffAssignment
+                  ? `${facility.nameAr} — (${activeStaffAssignment.roleTitleAr})`
+                  : `لوحة إدارة المنشأة: ${facility.nameAr}`}
+              </h1>
+              <p className="font-body-compact text-surface-container-high max-w-2xl">
+                مسح باركود الحضور أو إدخال كود الاشتراك يدوياً، تنظيم قوائم المشتركين والفرق، إدارة الكباتن وشهاداتهم، وتعيين الموظفين بصلاحيات مخصصة.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">

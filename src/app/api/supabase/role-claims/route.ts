@@ -599,7 +599,7 @@ async function applyApprovedClaimSideEffects(claim: MemberRoleClaim): Promise<{
     completenessScore: Math.max(85, prevPayload.completenessScore ?? 85),
     rating: Number(existingFacRow?.rating ?? prevPayload.rating ?? 0),
     reviewsCount: Number(existingFacRow?.reviews_count ?? prevPayload.reviewsCount ?? 0),
-    heroImage: prevPayload.heroImage || "",
+    heroImage: String(p.heroImage || prevPayload.heroImage || ""),
     verifiedClaimDateAr: new Date().toLocaleDateString("ar-EG"),
     badges: Array.isArray(prevPayload.badges) && prevPayload.badges.length > 0
       ? prevPayload.badges

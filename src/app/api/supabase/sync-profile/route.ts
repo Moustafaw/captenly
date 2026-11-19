@@ -10,6 +10,14 @@ import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_ROLES = new Set(["adult_athlete", "parent", "coach", "facility_manager"]);
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
+function toDbSafeRole(candidate: unknown, fallback = "adult_athlete"): string {
+  const clean = typeof candidate === "string" ? candidate.trim() : "";
+  if (ALLOWED_ROLES.has(clean)) return clean;
+  if (ALLOWED_ROLES.has(fallback)) return fallback;
+  return "adult_athlete";
+}
 
 let profileSchemaBootstrapped = false;
 
@@ -131,21 +139,46 @@ export async function GET(request: Request) {
   const admin = getSupabaseAdminClient();
   if (admin) {
     try {
-      let query = admin.from("captenly_profiles").select("*").limit(1);
+      let row: Record<string, unknown> | undefined;
       if (emailParam) {
-        query = query.eq("email", emailParam);
-      } else if (memberCodeParam) {
-        query = query.eq("member_code", memberCodeParam);
-      } else if (phoneTail10) {
-        query = query.ilike("phone", `%${phoneTail10}`);
+        const { data, error } = await admin
+          .from("captenly_profiles")
+          .select("*")
+          .ilike("email", emailParam)
+          .limit(1);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          row = data[0] as Record<string, unknown>;
+        }
       }
-      const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return NextResponse.json({
-          ok: true,
-          found: true,
-          profile: normalizeRowToProfile(data[0] as Record<string, unknown>),
-        });
+      if (!row && memberCodeParam) {
+        const { data, error } = await admin
+          .from("captenly_profiles")
+          .select("*")
+          .eq("member_code", memberCodeParam)
+          .limit(1);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          row = data[0] as Record<string, unknown>;
+        }
+      }
+      if (!row && phoneTail10) {
+        const { data, error } = await admin
+          .from("captenly_profiles")
+          .select("*")
+          .ilike("phone", `%${phoneTail10}`)
+          .limit(1);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          row = data[0] as Record<string, unknown>;
+        }
+      }
+      if (row) {
+        return NextResponse.json(
+          {
+            ok: true,
+            found: true,
+            profile: normalizeRowToProfile(row),
+          },
+          { headers: NO_STORE_HEADERS }
+        );
       }
     } catch {
       // Fall through to pg fallback
@@ -159,38 +192,44 @@ export async function GET(request: Request) {
         `select * from public.captenly_profiles where lower(email) = $1 limit 1`,
         [emailParam]
       );
-      return rows[0] || null;
+      if (rows[0]) return rows[0];
     }
     if (memberCodeParam) {
       const { rows } = await client.query(
         `select * from public.captenly_profiles where upper(member_code) = $1 limit 1`,
         [memberCodeParam]
       );
-      return rows[0] || null;
+      if (rows[0]) return rows[0];
     }
     if (phoneTail10) {
       const { rows } = await client.query(
         `select * from public.captenly_profiles where regexp_replace(coalesce(phone, ''), '\\D', '', 'g') like $1 order by updated_at desc limit 1`,
         [`%${phoneTail10}`]
       );
-      return rows[0] || null;
+      if (rows[0]) return rows[0];
     }
     return null;
   });
 
   if (pgRes.ok && pgRes.value) {
-    return NextResponse.json({
-      ok: true,
-      found: true,
-      profile: normalizeRowToProfile(pgRes.value as Record<string, unknown>),
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        found: true,
+        profile: normalizeRowToProfile(pgRes.value as Record<string, unknown>),
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
-  return NextResponse.json({
-    ok: pgRes.ok || Boolean(admin),
-    found: false,
-    profile: null,
-  });
+  return NextResponse.json(
+    {
+      ok: pgRes.ok || Boolean(admin),
+      found: false,
+      profile: null,
+    },
+    { headers: NO_STORE_HEADERS }
+  );
 }
 
 export async function POST(request: Request) {
@@ -202,53 +241,101 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const memberCode = typeof body.memberCode === "string" ? body.memberCode.trim().toUpperCase() : "";
+    const rawMemberCode = typeof body.memberCode === "string" ? body.memberCode.trim().toUpperCase() : "";
+    const callerCode = typeof caller.memberCode === "string" ? caller.memberCode.trim().toUpperCase() : "";
+    const lookupMemberCode =
+      (!rawMemberCode || rawMemberCode.startsWith("FAC-")) && callerCode ? callerCode : rawMemberCode;
     const fullNameAr = typeof body.fullNameAr === "string" ? body.fullNameAr.trim() : "";
-    const requestedRole =
-      typeof body.role === "string" && ALLOWED_ROLES.has(body.role) ? body.role : "adult_athlete";
+    const rawRequestedRole = typeof body.role === "string" ? body.role.trim() : "adult_athlete";
+    const requestedRole = ALLOWED_ROLES.has(rawRequestedRole) ? rawRequestedRole : "adult_athlete";
 
-    if (!memberCode || !fullNameAr) {
-      return NextResponse.json({ persisted: false, error: "missing_required_fields" }, { status: 400 });
-    }
-
-    const email =
+    const bodyEmail =
       typeof body.email === "string" && body.email.includes("@")
         ? body.email.trim().toLowerCase()
         : null;
+    const effectiveLookupEmail =
+      bodyEmail || (!caller.isAdmin && caller.email ? caller.email.trim().toLowerCase() : null);
+
+    if ((!lookupMemberCode && !effectiveLookupEmail) || !fullNameAr) {
+      return NextResponse.json(
+        { persisted: false, error: "missing_required_fields", messageAr: "بيانات الحساب المطلوبة غير مكتملة." },
+        { status: 400 }
+      );
+    }
 
     if (!caller.isAdmin) {
-      const codeMatches = Boolean(caller.memberCode && caller.memberCode.toUpperCase() === memberCode);
-      const emailMatches = Boolean(email && caller.email && caller.email.toLowerCase() === email);
+      const codeMatches = Boolean(
+        callerCode &&
+          ((lookupMemberCode && callerCode === lookupMemberCode) ||
+            (rawMemberCode && callerCode === rawMemberCode))
+      );
+      const emailMatches = Boolean(
+        effectiveLookupEmail && caller.email && caller.email.toLowerCase() === effectiveLookupEmail
+      );
       if (!codeMatches && !emailMatches) {
-        return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+        return NextResponse.json(
+          { persisted: false, error: "forbidden", messageAr: "لا تملك صلاحية تعديل هذا الحساب." },
+          { status: 403 }
+        );
       }
     }
 
     const admin = getSupabaseAdminClient();
+    const selectCols =
+      "id, member_code, email, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar";
     let existingRow: Record<string, unknown> | undefined;
+
     if (admin) {
-      const lookup = email
-        ? await admin
-            .from("captenly_profiles")
-            .select("member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar")
-            .eq("email", email)
-            .limit(1)
-        : await admin
-            .from("captenly_profiles")
-            .select("member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar")
-            .eq("member_code", memberCode)
-            .limit(1);
-      if (!lookup.error && Array.isArray(lookup.data) && lookup.data[0]) {
-        existingRow = lookup.data[0] as Record<string, unknown>;
+      if (effectiveLookupEmail) {
+        const lookupByEmail = await admin
+          .from("captenly_profiles")
+          .select(selectCols)
+          .ilike("email", effectiveLookupEmail)
+          .limit(1);
+        if (!lookupByEmail.error && Array.isArray(lookupByEmail.data) && lookupByEmail.data[0]) {
+          existingRow = lookupByEmail.data[0] as Record<string, unknown>;
+        }
+      }
+      if (!existingRow && lookupMemberCode) {
+        const lookupByCode = await admin
+          .from("captenly_profiles")
+          .select(selectCols)
+          .eq("member_code", lookupMemberCode)
+          .limit(1);
+        if (!lookupByCode.error && Array.isArray(lookupByCode.data) && lookupByCode.data[0]) {
+          existingRow = lookupByCode.data[0] as Record<string, unknown>;
+        }
+      }
+      if (!existingRow && callerCode && callerCode !== lookupMemberCode) {
+        const lookupByCallerCode = await admin
+          .from("captenly_profiles")
+          .select(selectCols)
+          .eq("member_code", callerCode)
+          .limit(1);
+        if (!lookupByCallerCode.error && Array.isArray(lookupByCallerCode.data) && lookupByCallerCode.data[0]) {
+          existingRow = lookupByCallerCode.data[0] as Record<string, unknown>;
+        }
       }
     }
+
     if (!existingRow) {
       const pgExisting = await withPgClient(async (client) => {
-        const sql = email
-          ? `select member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar from public.captenly_profiles where lower(email) = lower($1) limit 1`
-          : `select member_code, role, needs_onboarding, social_links, phone, city, governorate, avatar_url, bio_ar from public.captenly_profiles where upper(member_code) = upper($1) limit 1`;
-        const { rows } = await client.query(sql, [email || memberCode]);
-        return rows[0] as Record<string, unknown> | undefined;
+        if (effectiveLookupEmail) {
+          const { rows } = await client.query(
+            `select ${selectCols} from public.captenly_profiles where lower(email) = lower($1) limit 1`,
+            [effectiveLookupEmail]
+          );
+          if (rows[0]) return rows[0] as Record<string, unknown>;
+        }
+        const codeCandidates = [lookupMemberCode, callerCode].filter(Boolean);
+        for (const cand of codeCandidates) {
+          const { rows } = await client.query(
+            `select ${selectCols} from public.captenly_profiles where upper(member_code) = upper($1) limit 1`,
+            [cand]
+          );
+          if (rows[0]) return rows[0] as Record<string, unknown>;
+        }
+        return undefined;
       });
       if (pgExisting.ok && pgExisting.value) existingRow = pgExisting.value;
     }
@@ -257,7 +344,13 @@ export async function POST(request: Request) {
     const effectiveMemberCode =
       typeof existingRow?.member_code === "string" && existingRow.member_code.trim()
         ? existingRow.member_code.trim().toUpperCase()
-        : memberCode;
+        : lookupMemberCode || callerCode || `CAP-M-${Math.floor(1000 + Math.random() * 8999)}`;
+
+    const existingEmail =
+      typeof existingRow?.email === "string" && existingRow.email.trim()
+        ? existingRow.email.trim().toLowerCase()
+        : null;
+    const effectiveEmail = bodyEmail || existingEmail || effectiveLookupEmail || null;
 
     const existingSocial =
       existingRow?.social_links && typeof existingRow.social_links === "object"
@@ -271,7 +364,9 @@ export async function POST(request: Request) {
     let effectiveLinkedCoachId: string | undefined;
 
     if (caller.isAdmin) {
-      effectiveRole = requestedRole;
+      effectiveRole = ALLOWED_ROLES.has(rawRequestedRole)
+        ? rawRequestedRole
+        : toDbSafeRole(existingRole, "adult_athlete");
       effectiveLinkedFacilityId =
         typeof body.linkedFacilityId === "string" && body.linkedFacilityId.trim()
           ? body.linkedFacilityId.trim()
@@ -309,6 +404,18 @@ export async function POST(request: Request) {
             (effectiveRole === "coach" ? getDeterministicCoachId(effectiveMemberCode) : undefined);
     }
 
+    const dbRole = toDbSafeRole(
+      effectiveRole,
+      toDbSafeRole(
+        existingRole,
+        effectiveLinkedFacilityId
+          ? "facility_manager"
+          : effectiveLinkedCoachId
+            ? "coach"
+            : "adult_athlete"
+      )
+    );
+
     const incomingPhone = typeof body.phone === "string" ? body.phone.trim() : "";
     const existingPhone = typeof existingRow?.phone === "string" ? existingRow.phone : "";
     const effectivePhone = incomingPhone || existingPhone || null;
@@ -323,8 +430,8 @@ export async function POST(request: Request) {
 
     const sessionCookieInput = {
       memberCode: effectiveMemberCode,
-      role: effectiveRole as AccountRole,
-      email: email || caller.email,
+      role: (effectiveRole === "super_admin" ? "super_admin" : dbRole) as AccountRole,
+      email: effectiveEmail || caller.email,
       phone: effectivePhone || caller.phone,
       linkedFacilityId: effectiveLinkedFacilityId,
       linkedCoachId: effectiveLinkedCoachId,
@@ -369,9 +476,9 @@ export async function POST(request: Request) {
 
     const baseRecord: Record<string, unknown> = {
       member_code: effectiveMemberCode,
-      email,
+      email: effectiveEmail,
       full_name_ar: fullNameAr,
-      role: effectiveRole,
+      role: dbRole,
       phone: effectivePhone,
       city: effectiveCity,
       governorate: effectiveGov,
@@ -397,25 +504,69 @@ export async function POST(request: Request) {
       social_links: mergedSocialLinks,
     };
 
-    if (admin) {
-      const onConflict = email ? "email" : "member_code";
-      let { error } = await admin.from("captenly_profiles").upsert(extendedRecord, { onConflict });
+    let lastAdminError: string | undefined;
 
-      // Graceful fallback if migration 000002 hasn't been executed yet in Supabase
-      if (error && (error.code === "42703" || error.code === "PGRST204")) {
-        const retry = await admin.from("captenly_profiles").upsert(baseRecord, { onConflict });
-        error = retry.error;
+    if (admin) {
+      let error: { code?: string; message?: string } | null = null;
+
+      if (existingRow) {
+        const updateBase: Record<string, unknown> = { ...baseRecord };
+        delete updateBase.member_code;
+        if (!bodyEmail || existingEmail === effectiveEmail) {
+          delete updateBase.email;
+        }
+        const updateExtended: Record<string, unknown> = { ...extendedRecord };
+        delete updateExtended.member_code;
+        if (!bodyEmail || existingEmail === effectiveEmail) {
+          delete updateExtended.email;
+        }
+
+        const existingKeyCode = String(existingRow.member_code || effectiveMemberCode);
+        const updRes = await admin
+          .from("captenly_profiles")
+          .update(updateExtended)
+          .eq("member_code", existingKeyCode);
+        error = updRes.error;
+
+        if (error && (error.code === "42703" || error.code === "PGRST204")) {
+          const retry = await admin
+            .from("captenly_profiles")
+            .update(updateBase)
+            .eq("member_code", existingKeyCode);
+          error = retry.error;
+        }
+      } else {
+        const onConflict = effectiveEmail ? "email" : "member_code";
+        const upsRes = await admin.from("captenly_profiles").upsert(extendedRecord, { onConflict });
+        error = upsRes.error;
+
+        if (error && (error.code === "42703" || error.code === "PGRST204")) {
+          const retry = await admin.from("captenly_profiles").upsert(baseRecord, { onConflict });
+          error = retry.error;
+        }
+
+        // Cross-column unique collision fallback (e.g. email matched/changed on existing member_code)
+        if (error?.code === "23505") {
+          const fallbackUpdate: Record<string, unknown> = { ...extendedRecord };
+          delete fallbackUpdate.member_code;
+          delete fallbackUpdate.email;
+          const retryByCode = await admin
+            .from("captenly_profiles")
+            .update(fallbackUpdate)
+            .eq("member_code", effectiveMemberCode);
+          error = retryByCode.error;
+        }
       }
 
       if (!error) {
-        if (effectiveRole === "coach") {
+        if (dbRole === "coach") {
           await ensureSelfRegisteredCoachInDb({
             memberCode: effectiveMemberCode,
             fullNameAr,
             city: effectiveCity || undefined,
             governorate: effectiveGov || undefined,
             phone: effectivePhone || undefined,
-            email: email || caller.email || undefined,
+            email: effectiveEmail || caller.email || undefined,
             avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
             bioAr: typeof extendedRecord.bio_ar === "string" ? extendedRecord.bio_ar : undefined,
             socialLinks: cleanIncomingSocial as UserSocialLinks,
@@ -426,13 +577,15 @@ export async function POST(request: Request) {
           NextResponse.json({
             persisted: true,
             memberCode: effectiveMemberCode,
-            role: effectiveRole,
+            role: sessionCookieInput.role,
+            avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
             linkedCoachId: effectiveLinkedCoachId,
             linkedFacilityId: effectiveLinkedFacilityId,
           }),
           sessionCookieInput
         );
       }
+      lastAdminError = error.message || error.code || "supabase_error";
     }
 
     await ensureProfileTableViaPg();
@@ -446,7 +599,38 @@ export async function POST(request: Request) {
             : null;
       const socialVal = JSON.stringify(mergedSocialLinks);
 
-      if (email) {
+      if (existingRow?.member_code) {
+        await client.query(
+          `update public.captenly_profiles set
+            full_name_ar = $2,
+            role = $3,
+            phone = coalesce($4, public.captenly_profiles.phone),
+            city = coalesce($5, public.captenly_profiles.city),
+            governorate = coalesce($6, public.captenly_profiles.governorate),
+            avatar_url = coalesce($7, public.captenly_profiles.avatar_url),
+            auth_provider = $8,
+            has_parent_supervision = $9,
+            needs_onboarding = $10,
+            bio_ar = coalesce($11, public.captenly_profiles.bio_ar),
+            social_links = $12::jsonb,
+            updated_at = now()
+           where upper(member_code) = upper($1)`,
+          [
+            String(existingRow.member_code),
+            fullNameAr,
+            dbRole,
+            baseRecord.phone,
+            baseRecord.city,
+            baseRecord.governorate,
+            avatarVal,
+            baseRecord.auth_provider,
+            baseRecord.has_parent_supervision,
+            effectiveNeedsOnboarding,
+            bioVal,
+            socialVal,
+          ]
+        );
+      } else if (effectiveEmail) {
         await client.query(
           `insert into public.captenly_profiles
             (member_code, email, full_name_ar, role, phone, city, governorate, avatar_url, auth_provider, has_parent_supervision, needs_onboarding, bio_ar, social_links, updated_at)
@@ -467,9 +651,9 @@ export async function POST(request: Request) {
             updated_at = now()`,
           [
             effectiveMemberCode,
-            email,
+            effectiveEmail,
             fullNameAr,
-            effectiveRole,
+            dbRole,
             baseRecord.phone,
             baseRecord.city,
             baseRecord.governorate,
@@ -502,7 +686,7 @@ export async function POST(request: Request) {
           [
             effectiveMemberCode,
             fullNameAr,
-            effectiveRole,
+            dbRole,
             baseRecord.phone,
             baseRecord.city,
             baseRecord.governorate,
@@ -519,14 +703,14 @@ export async function POST(request: Request) {
     });
 
     if (pgRes.ok) {
-      if (effectiveRole === "coach") {
+      if (dbRole === "coach") {
         await ensureSelfRegisteredCoachInDb({
           memberCode: effectiveMemberCode,
           fullNameAr,
           city: effectiveCity || undefined,
           governorate: effectiveGov || undefined,
           phone: effectivePhone || undefined,
-          email: email || caller.email || undefined,
+          email: effectiveEmail || caller.email || undefined,
           avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
           bioAr: typeof extendedRecord.bio_ar === "string" ? extendedRecord.bio_ar : undefined,
           socialLinks: cleanIncomingSocial as UserSocialLinks,
@@ -537,7 +721,8 @@ export async function POST(request: Request) {
         NextResponse.json({
           persisted: true,
           memberCode: effectiveMemberCode,
-          role: effectiveRole,
+          role: sessionCookieInput.role,
+          avatarUrl: typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : undefined,
           linkedCoachId: effectiveLinkedCoachId,
           linkedFacilityId: effectiveLinkedFacilityId,
         }),
@@ -545,11 +730,19 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      persisted: false,
-      reason: pgRes.errorCode || (admin ? "db_error" : "supabase_not_configured"),
-    });
+    const isUnconfigured = !admin && pgRes.errorCode === "db_not_configured";
+    return NextResponse.json(
+      {
+        persisted: false,
+        error: pgRes.errorCode || lastAdminError || "db_error",
+        messageAr: "تعذر حفظ بيانات وصورة الحساب على الخادم حالياً.",
+      },
+      { status: isUnconfigured ? 503 : 500 }
+    );
   } catch {
-    return NextResponse.json({ persisted: false, reason: "invalid_payload" }, { status: 400 });
+    return NextResponse.json(
+      { persisted: false, reason: "invalid_payload", messageAr: "بيانات الطلب غير صالحة." },
+      { status: 400 }
+    );
   }
 }
