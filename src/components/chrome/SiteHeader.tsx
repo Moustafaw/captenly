@@ -8,11 +8,12 @@ import { isChromeless } from "./chromeRoutes";
 import { Icon } from "@/components/Icon";
 import { signOut } from "next-auth/react";
 import { GoogleMark } from "@/components/auth/GoogleSignInButton";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 const ACTIVE_TAB =
   "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#1D6E7D] font-extrabold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 const IDLE_TAB =
-  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#64748B] hover:text-[#1D6E7D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
+  "relative z-10 px-2.5 xl:px-3 py-1.5 rounded-full text-[#475569] hover:text-[#1D6E7D] font-bold text-[12px] xl:text-[12.5px] whitespace-nowrap transition-colors duration-300";
 
 export function SiteHeader() {
   const pathname = usePathname() || "/";
@@ -32,6 +33,7 @@ export function SiteHeader() {
     activeStaffAssignment,
     switchToStaffMode,
     respondToStaffInvitation,
+    storageHydrated,
   } = useCaptenly();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -56,7 +58,13 @@ export function SiteHeader() {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  const staticNavStart = [
+  const staticNavStart: Array<{
+    href: string;
+    label: string;
+    title?: string;
+    match: (p: string) => boolean;
+    gated?: boolean;
+  }> = [
     { href: "/", label: "الرئيسية", match: (p: string) => p === "/" },
     {
       href: "/explore",
@@ -64,13 +72,29 @@ export function SiteHeader() {
       match: (p: string) =>
         p.startsWith("/explore") ||
         p.startsWith("/pools") ||
-        p.startsWith("/compare") ||
         p.startsWith("/academy") ||
         (isAuthenticated && (p.startsWith("/coaches") || p.startsWith("/c/"))),
     },
+    {
+      href: "/compare",
+      label: "قارن",
+      match: (p: string) => p.startsWith("/compare"),
+    },
   ];
 
-  const staticNavEnd = [
+  const staticNavEnd: Array<{
+    href: string;
+    label: string;
+    title?: string;
+    match: (p: string) => boolean;
+    gated?: boolean;
+  }> = [
+    {
+      href: "/dashboard/ledger",
+      label: "دفتر الحصص QR",
+      match: (p: string) => p.startsWith("/dashboard/ledger"),
+      gated: true,
+    },
     {
       href: "/magazine",
       label: "المجلة الرياضية",
@@ -88,7 +112,13 @@ export function SiteHeader() {
     (s) => !s.invitationStatus || s.invitationStatus === "accepted"
   );
 
-  const roleNavItems = !isAuthenticated
+  const roleNavItems: Array<{
+    href: string;
+    label: string;
+    title?: string;
+    match: (p: string) => boolean;
+    gated?: boolean;
+  }> = !storageHydrated || !isAuthenticated
     ? [
         {
           href: "/coaches",
@@ -100,7 +130,8 @@ export function SiteHeader() {
     ? [
         {
           href: "/dashboard/facility",
-          label: `لوحة ${verifiedStaffAssignment.facilityNameAr} (${verifiedStaffAssignment.roleTitleAr})`,
+          label: "لوحة المنشأة",
+          title: `لوحة ${verifiedStaffAssignment.facilityNameAr} (${verifiedStaffAssignment.roleTitleAr})`,
           match: (p: string) => p.startsWith("/dashboard/facility") || p.startsWith("/dashboard/ledger"),
         },
       ]
@@ -154,7 +185,7 @@ export function SiteHeader() {
       window.removeEventListener("resize", updateIndicator);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, currentPersona.role, isAuthenticated, activeStaffAssignment?.id]);
+  }, [pathname, currentPersona.role, isAuthenticated, activeStaffAssignment?.id, storageHydrated]);
 
   if (isChromeless(pathname)) return null;
 
@@ -168,8 +199,11 @@ export function SiteHeader() {
       {/* Row 1: Brand + Location + Spacious Search + User Controls */}
       <div className="h-[64px] max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex items-center justify-between gap-4">
         <Link href="/" className="relative z-10 flex items-center gap-2.5 shrink-0 cursor-pointer">
-          <img
+          <CaptenlyImage
             alt="كابتنلي"
+            width={176}
+            height={44}
+            priority
             className="h-11 w-auto object-contain"
             src="/images/logo/captenly-logo-horizontal-dark.png"
           />
@@ -196,17 +230,20 @@ export function SiteHeader() {
           >
             <Icon name="search" className="text-[#64748B] ml-2 text-[17px] shrink-0" />
             <input
+              aria-label="ابحث عن أكاديمية، مسبح، أو كابتن سباحة"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-[#0F172A] placeholder:text-[#64748B] px-1"
+              className="w-full min-w-0 bg-transparent border-0 outline-none font-body-compact text-[13px] text-[#0F172A] placeholder:text-[#475569] px-1"
               placeholder="ابحث عن أكاديمية، مسبح، أو كابتن سباحة..."
               type="text"
             />
             <Link
               href="/explore?filters=1"
-              className="px-2.5 py-1 bg-white border border-[#0F172A]/10 text-[#475569] rounded-full font-micro-caption text-[11px] font-bold shrink-0 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors"
+              aria-label="فتح الفلاتر المتقدمة"
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-[#0F172A]/10 text-[#475569] rounded-full font-micro-caption text-[11px] font-bold shrink-0 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors"
             >
-              فلاتر ▾
+              <Icon name="tune" className="text-[13px]" />
+              <span>الفلاتر</span>
             </Link>
           </form>
         </div>
@@ -223,17 +260,26 @@ export function SiteHeader() {
             </Link>
           )}
 
-          {isAuthenticated ? (
+          {!storageHydrated ? (
+            <div aria-hidden="true" className="flex items-center gap-2">
+              <span className="w-9 h-9 rounded-full bg-[#F7F9FA] animate-pulse" />
+              <span className="w-24 h-9 rounded-full bg-[#F7F9FA] animate-pulse" />
+              <span className="w-24 h-9 rounded-full bg-[#EAF4F8] animate-pulse" />
+            </div>
+          ) : isAuthenticated ? (
             <>
               <Link
                 href="/favorites"
-                aria-label="المفضلة"
+                aria-label={savedFavoriteIds.length > 0 ? `المفضلة (${savedFavoriteIds.length})` : "المفضلة"}
                 title="المفضلة"
                 className="relative w-9 h-9 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors border border-[#0F172A]/6"
               >
                 <Icon name="bookmark" className="text-[18px]" />
                 {savedFavoriteIds.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center"
+                  >
                     {savedFavoriteIds.length}
                   </span>
                 )}
@@ -241,12 +287,15 @@ export function SiteHeader() {
 
               <Link
                 href="/notifications"
-                aria-label="الإشعارات"
+                aria-label={unreadNotificationsCount > 0 ? `الإشعارات (${unreadNotificationsCount})` : "الإشعارات"}
                 className="relative w-9 h-9 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] flex items-center justify-center transition-colors border border-[#0F172A]/6"
               >
                 <Icon name="notifications" className="text-[18px]" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[10px] font-bold flex items-center justify-center"
+                  >
                     {unreadNotificationsCount}
                   </span>
                 )}
@@ -540,6 +589,13 @@ export function SiteHeader() {
                   tabRefs.current[idx] = el;
                 }}
                 href={n.href}
+                title={n.title}
+                onClick={(e) => {
+                  if ("gated" in n && n.gated && !isAuthenticated) {
+                    e.preventDefault();
+                    openAuthGateModal(n.label);
+                  }
+                }}
                 className={n.match(pathname) ? ACTIVE_TAB : IDLE_TAB}
                 aria-current={n.match(pathname) ? "page" : undefined}
               >
@@ -548,23 +604,38 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          {currentPersona.role === "guest" ? (
-            <Link
-              href="/auth/register"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-bold shrink-0 hover:bg-[#1D6E7D] hover:text-white transition-colors"
-            >
-              <span>سجّل للحصول على كود عضويتك</span>
-            </Link>
+          {!storageHydrated ? (
+            <span
+              aria-hidden="true"
+              className="hidden xl:inline-flex w-44 h-6 rounded-full bg-[#EAF4F8]/70 animate-pulse shrink-0"
+            />
+          ) : currentPersona.role === "guest" ? (
+            <span className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-bold shrink-0">
+              <Icon name="verified" className="text-[13px]" />
+              <span>0% عمولة — حجز وتقييم مباشر</span>
+            </span>
           ) : activeStaffAssignment ? (
-            <Link
-              href="/dashboard/facility"
-              className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-bold shrink-0"
-            >
-              <Icon name="badge" className="text-[14px]" />
-              <span>
-                وضع موظف: {activeStaffAssignment.roleTitleAr} ({activeStaffAssignment.facilityNameAr})
-              </span>
-            </Link>
+            (() => {
+              const staffRoleLabel = activeStaffAssignment.roleTitleAr?.trim() || "موظف المنشأة";
+              const staffFacilityLabel = activeStaffAssignment.facilityNameAr?.trim();
+              const staffSummary = staffFacilityLabel
+                ? `${staffRoleLabel} • ${staffFacilityLabel}`
+                : staffRoleLabel;
+              const staffFullTitle = staffFacilityLabel
+                ? `وضع موظف: ${staffRoleLabel} — ${staffFacilityLabel}`
+                : `وضع موظف: ${staffRoleLabel}`;
+              return (
+                <Link
+                  href="/dashboard/facility"
+                  title={staffFullTitle}
+                  aria-label={staffFullTitle}
+                  className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-bold shrink-0 max-w-[260px]"
+                >
+                  <Icon name="badge" className="text-[14px] shrink-0" />
+                  <span className="truncate">{staffSummary}</span>
+                </Link>
+              );
+            })()
           ) : currentPersona.role === "coach" ? (
             <Link
               href="/dashboard/coach"

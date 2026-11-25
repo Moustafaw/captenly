@@ -2,12 +2,15 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getDeterministicCoachId } from "@/lib/coachProvisioning";
 
-export const OWNER_EMAIL = "moustafadesign.12@gmail.com";
+export const OWNER_EMAIL = (process.env.CAPTENLY_OWNER_EMAIL || "").trim().toLowerCase();
 export const PURGE_CUTOFF_ISO = "2026-11-15T17:35:00.000Z";
 
-let baselinePromise: Promise<void> | null = null;
+function isManualPurgeAuthorized(): boolean {
+  return process.env.CAPTENLY_ENABLE_OWNER_PURGE === "true" && OWNER_EMAIL.includes("@");
+}
 
 function isEligibleForPurge(createdAtRaw: unknown, forceAll: boolean): boolean {
+  if (!isManualPurgeAuthorized()) return false;
   if (forceAll) return true;
   if (typeof createdAtRaw !== "string" && !(createdAtRaw instanceof Date)) {
     return true;
@@ -21,6 +24,10 @@ function isEligibleForPurge(createdAtRaw: unknown, forceAll: boolean): boolean {
 export async function purgeNonOwnerAccountsInDb(options?: {
   forceAll?: boolean;
 }): Promise<{ ok: boolean; purgedProfiles: number }> {
+  // Security remediation (F-002): fail closed unless explicit admin purge env guard is enabled.
+  if (!isManualPurgeAuthorized()) {
+    return { ok: false, purgedProfiles: 0 };
+  }
   const forceAll = Boolean(options?.forceAll);
   let purgedCount = 0;
   let ranAny = false;
@@ -289,16 +296,6 @@ export async function purgeNonOwnerAccountsInDb(options?: {
 }
 
 export async function ensureSingleOwnerAccountBaseline(): Promise<void> {
-  if (!baselinePromise) {
-    baselinePromise = purgeNonOwnerAccountsInDb({ forceAll: false })
-      .then((res) => {
-        if (!res.ok) {
-          baselinePromise = null;
-        }
-      })
-      .catch(() => {
-        baselinePromise = null;
-      });
-  }
-  await baselinePromise;
+  // Security remediation (F-002): automatic purge on requests is permanently disabled.
+  return;
 }

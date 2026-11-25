@@ -7,6 +7,8 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { PrintableSwimmerCardModal } from "@/components/qr/PrintableSwimmerCardModal";
+import { LedgerPricingAuditBox } from "@/components/qr/LedgerPricingAuditBox";
 import { buildCaptenlyQrUrl } from "@/lib/qrPayload";
 import { useLedgerUrlScan } from "@/lib/useLedgerUrlScan";
 import { isMemberAccountRole } from "@/types/captenly";
@@ -57,6 +59,7 @@ export default function Phone5() {
   const [newFacilityId, setNewFacilityId] = useState(linkedFacilityId);
   const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
   const [newFeeEgp, setNewFeeEgp] = useState("");
+  const [bagCardModalOpen, setBagCardModalOpen] = useState(false);
 
   const roleLedgers = useMemo(() => {
     if (isFacility) {
@@ -172,13 +175,13 @@ export default function Phone5() {
                 className="text-[18px]"
               />
             </div>
-            <span className="font-card-title-sm text-sm text-[#0F172A] truncate">
+            <h1 className="font-card-title-sm text-sm text-[#0F172A] truncate">
               {isCoach
                 ? "دفاتر المتدربين (QR)"
                 : isFacility
                 ? "دفاتر مشتركين المنشأة"
                 : "دفتر الحصص الـ QR أوفلاين"}
-            </span>
+            </h1>
           </div>
           <span
             className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -228,9 +231,9 @@ export default function Phone5() {
           <span className="text-[#1D6E7D] text-[11px] font-extrabold">
             جاهز للتفعيل مع كابتنك أو أكاديميتك
           </span>
-          <h1 className="font-section-title-mobile text-[#0F172A] leading-snug">
+          <h2 className="font-section-title-mobile text-[#0F172A] leading-snug">
             دفتر الحصص الرقمي يُفعّل تلقائياً لكل اشتراك مع كابتن أو أكاديمية موثقة
-          </h1>
+          </h2>
           <p className="text-xs text-[#64748B] leading-relaxed">
             أنت الآن بحساب <strong className="text-[#0F172A]">{currentPersona.fullNameAr}</strong> ولا توجد باقات نشطة بعد. شارك كود عضويتك مع الكابتن لتفعيل الـ QR أو استعرض حسابات متعددة الدفاتر أدناه:
           </p>
@@ -371,6 +374,7 @@ export default function Phone5() {
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <select
+                    aria-label="عدد الحصص"
                     value={newSessionsCount}
                     onChange={(e) => setNewSessionsCount(Number(e.target.value) as 8 | 12 | 24)}
                     className="rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-[#0F172A]/10"
@@ -380,6 +384,7 @@ export default function Phone5() {
                     <option value={24}>24 حصة</option>
                   </select>
                   <input
+                    aria-label="الرسوم بالجنيه المصري"
                     type="number"
                     value={newFeeEgp}
                     onChange={(e) => setNewFeeEgp(e.target.value)}
@@ -388,6 +393,7 @@ export default function Phone5() {
                   />
                 </div>
                 <select
+                  aria-label="المنشأة"
                   value={newFacilityId}
                   onChange={(e) => setNewFacilityId(e.target.value)}
                   className="rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-[#0F172A]/10"
@@ -523,14 +529,14 @@ export default function Phone5() {
                           l.status === "completed" || l.isCodeExpired
                             ? "text-[#DC2626]"
                             : l.status === "renewal_due"
-                            ? "text-amber-700"
+                            ? "text-amber-800"
                             : "text-[#1D6E7D]"
                         }`}
                       >
-                        {l.completedSessions}/{l.totalSessions} حصص
+                        {l.completedSessions} من {l.totalSessions} حصص
                       </span>
                     </div>
-                    <div className="text-[11px] text-[#64748B] truncate">{l.facilityNameAr}</div>
+                    <div className="text-[11px] text-[#475569] truncate">{l.facilityNameAr}</div>
                     <div className="h-1.5 w-full rounded-full bg-[#E2E8F0] overflow-hidden">
                       <div
                         className={`h-full rounded-full ${
@@ -567,7 +573,7 @@ export default function Phone5() {
                       ? "باقة مكتملة"
                       : activeLedger.status === "renewal_due"
                       ? `متبقي ${activeLedger.totalSessions - activeLedger.completedSessions} حصص`
-                      : `باقة نشطة (${activeLedger.completedSessions}/${activeLedger.totalSessions})`}
+                      : `باقة نشطة (${activeLedger.completedSessions} من ${activeLedger.totalSessions})`}
                   </span>
                   <span className="font-mono text-[11px] text-[#64748B]">{activeLedger.ledgerCode}</span>
                 </div>
@@ -612,6 +618,11 @@ export default function Phone5() {
                         ? "انتهت صلاحية كود هذا الاشتراك بعد اكتمال الحصص. اضغط تجديد لتوليد كود جديد."
                         : "امسح باركود السباح بالكاميرا أو أدخل كود الاشتراك يدوياً لخصم الحصة."}
                     </p>
+                    <LedgerPricingAuditBox
+                      compact
+                      ledger={activeLedger}
+                      onPrintBagCard={() => setBagCardModalOpen(true)}
+                    />
                   </div>
                 ) : (
                   <>
@@ -626,6 +637,11 @@ export default function Phone5() {
                     <p className="text-[11px] text-[#64748B] max-w-xs">
                       أظهر هذا الباركود للمسؤول — يدعم المسح من كاميرا وسكانر نظام الموبايل أو كاميرا المنصة أوفلاين.
                     </p>
+                    <LedgerPricingAuditBox
+                      compact
+                      ledger={activeLedger}
+                      onPrintBagCard={() => setBagCardModalOpen(true)}
+                    />
                   </>
                 )}
 
@@ -708,9 +724,34 @@ export default function Phone5() {
                   <p className="text-xs text-[#64748B]">لم تُسجّل حصص في هذه الباقة بعد.</p>
                 ) : (
                   activeLedger.checkins.map((c) => (
-                    <div key={c.sessionNumber} className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 p-3 text-xs flex justify-between gap-2">
-                      <span className="font-bold text-[#0F172A]">حصة #{c.sessionNumber}</span>
-                      <span className="text-[#1D6E7D] font-bold">{c.dateAr}</span>
+                    <div
+                      key={c.sessionNumber}
+                      className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 p-3 text-xs flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-[#0F172A]">حصة #{c.sessionNumber}</span>
+                        {c.scannedByNameAr && (
+                          <div className="text-[10px] text-[#64748B] flex items-center gap-1.5">
+                            <span>{c.scannedByNameAr}</span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded-full font-bold ${
+                                c.scannedByRole === "delegated_coach"
+                                  ? "bg-indigo-50 text-indigo-700"
+                                  : "bg-[#EAF4F8] text-[#0F4C5C]"
+                              }`}
+                            >
+                              {c.scannedByRole === "delegated_coach" ? "كابتن مفوّض" : "بوابة"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <span
+                        className={`font-bold text-[11px] px-2 py-0.5 rounded-full ${
+                          c.wasOffline ? "bg-amber-50 text-amber-800" : "bg-[#EAF4F8] text-[#1D6E7D]"
+                        }`}
+                      >
+                        {c.dateAr}
+                      </span>
                     </div>
                   ))
                 )}
@@ -785,6 +826,7 @@ export default function Phone5() {
                     className="flex-1 min-w-0 rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
                   />
                   <input
+                    aria-label="المبلغ بالجنيه المصري"
                     type="number"
                     value={amountEgp}
                     onChange={(e) => setAmountEgp(e.target.value)}
@@ -819,6 +861,14 @@ export default function Phone5() {
           });
         }}
       />
+
+      {activeLedger && (
+        <PrintableSwimmerCardModal
+          open={bagCardModalOpen}
+          onClose={() => setBagCardModalOpen(false)}
+          ledger={activeLedger}
+        />
+      )}
     </div>
   );
 }

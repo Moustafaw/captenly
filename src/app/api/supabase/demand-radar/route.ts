@@ -2,32 +2,21 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getServerCaller } from "@/lib/memberSession";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
 const ALLOWED_SPORTS = new Set(["swimming", "fitness", "both", "other"]);
 
-async function ensureDemandRadarTableViaPg() {
-  await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_demand_radar (
-        id uuid default gen_random_uuid() primary key,
-        full_name_ar text not null,
-        phone text not null,
-        city text not null,
-        governorate text not null default 'مصر',
-        target_sport text not null default 'swimming',
-        target_facility_id text,
-        target_facility_name_ar text,
-        created_at timestamptz not null default now()
-      );
-      alter table public.captenly_demand_radar enable row level security;
-      alter table public.captenly_demand_radar add column if not exists target_facility_id text;
-      alter table public.captenly_demand_radar add column if not exists target_facility_name_ar text;
-    `);
-    return true;
-  });
-}
-
 export async function POST(request: Request) {
+  const rl = await enforceRateLimit({
+    bucket: "supabase:demand-radar",
+    identifier: getClientIp(request),
+    limit: 20,
+    windowSec: 60,
+  });
+  if (!rl.allowed) {
+    return rateLimitExceededResponse(rl.retryAfterSec);
+  }
+
   const caller = await getServerCaller();
 
   try {
@@ -83,7 +72,6 @@ export async function POST(request: Request) {
       if (!error) return NextResponse.json({ persisted: true });
     }
 
-    await ensureDemandRadarTableViaPg();
     const pgRes = await withPgClient(async (client) => {
       await client.query(
         `insert into public.captenly_demand_radar

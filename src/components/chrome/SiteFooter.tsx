@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isChromeless } from "./chromeRoutes";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export function SiteFooter() {
   const pathname = usePathname() || "/";
@@ -22,8 +23,11 @@ export function SiteFooter() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-space-lg">
           <div className="md:col-span-4 flex flex-col gap-space-sm">
             <div className="flex items-center gap-space-sm">
-              <img
+              <CaptenlyImage
                 alt="شعار كابتنلي"
+                width={176}
+                height={44}
+                loading="lazy"
                 className="h-11 w-auto object-contain"
                 src="/images/logo/captenly-logo-horizontal-dark.png"
               />
@@ -47,7 +51,7 @@ export function SiteFooter() {
           </div>
 
           <div className="md:col-span-3">
-            <h4 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">السباحة والمجالات</h4>
+            <h2 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">السباحة والمجالات</h2>
             <ul className="flex flex-col gap-space-xs font-body-compact text-body-compact text-[#475569]">
               <li>
                 <Link className="hover:text-[#1D6E7D] transition-colors" href="/pools">
@@ -78,7 +82,7 @@ export function SiteFooter() {
           </div>
 
           <div className="md:col-span-3">
-            <h4 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">المنصة والتوثيق</h4>
+            <h2 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">المنصة والتوثيق</h2>
             <ul className="flex flex-col gap-space-xs font-body-compact text-body-compact text-[#475569]">
               <li>
                 <Link className="hover:text-[#1D6E7D] transition-colors" href="/about">
@@ -130,12 +134,12 @@ export function SiteFooter() {
           </div>
 
           <div className="md:col-span-2">
-            <h4 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">نطاق التغطية</h4>
+            <h2 className="font-card-title text-card-title text-[#0F172A] mb-space-sm">نطاق التغطية</h2>
             <p className="font-body-compact text-body-compact text-[#475569] mb-space-sm">
               جميع محافظات مصر • القاهرة والجيزة • الإسكندرية • الدلتا والقناة والصعيد
             </p>
             <div className="p-3 rounded-xl bg-[#EAF4F8] border border-[#1D6E7D]/15 flex flex-col gap-1">
-              <span className="font-micro-caption text-micro-caption text-[#64748B]">مركز الدعم والوثائق</span>
+              <span className="font-micro-caption text-micro-caption text-[#475569]">مركز الدعم والوثائق</span>
               <span className="font-card-title-sm text-card-title-sm text-[#1D6E7D] font-extrabold">0% عمولة على الاشتراكات</span>
               <span className="font-micro-caption text-micro-caption text-[#475569]">
                 دفتر حصص QR أوفلاين مدمج
@@ -144,7 +148,7 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-space-xl pt-space-md border-t border-[#0F172A]/10 py-4 flex flex-col md:flex-row items-center justify-between gap-space-sm text-[#64748B] font-micro-caption text-micro-caption">
+        <div className="mt-space-xl pt-space-md border-t border-[#0F172A]/10 py-4 flex flex-col md:flex-row items-center justify-between gap-space-sm text-[#475569] font-micro-caption text-micro-caption">
           <span>© 2026 منصة كابتنلي (Captenly) — جميع الحقوق محفوظة لخدمة الرياضة والسباحة في مصر.</span>
           <span className="text-[#1D6E7D] font-bold">تصفح واستعلم مجاناً دون تسجيل مسبق — ادفع للمكان مباشرة.</span>
         </div>

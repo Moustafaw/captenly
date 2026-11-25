@@ -6,72 +6,111 @@ import {
   getCallerFacilityAccessRole,
   getServerCaller,
   hasFacilityStaffAccess,
+  type ServerCallerContext,
 } from "@/lib/memberSession";
 import { findExistingCoachById } from "@/lib/server/coachDb";
-import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 import type { Coach, Facility } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
-let supplyTablesBootstrapped = false;
-
-const SUPPLY_BOOTSTRAP_STATEMENTS = [
-  `create table if not exists public.captenly_facilities (
-    id text primary key,
-    slug text not null unique,
-    name_ar text not null,
-    name_en text,
-    sport_sector text not null check (sport_sector in ('swimming', 'fitness', 'both')),
-    supply_status text not null check (supply_status in ('verified_claimed', 'seeded_unclaimed')),
-    city text not null,
-    district text not null,
-    governorate text not null,
-    address_ar text,
-    lat double precision not null,
-    lng double precision not null,
-    rating numeric(3, 2) not null default 0,
-    reviews_count integer not null default 0,
-    whatsapp_phone text,
-    payload jsonb not null default '{}'::jsonb,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-  )`,
-  `create table if not exists public.captenly_coaches (
-    id text primary key,
-    slug text not null unique,
-    full_name_ar text not null,
-    city text not null,
-    sport_sector text not null check (sport_sector in ('swimming', 'fitness', 'both')),
-    trust_tier text not null,
-    rating numeric(3, 2) not null default 0,
-    reviews_count integer not null default 0,
-    payload jsonb not null default '{}'::jsonb,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-  )`,
-  `alter table public.captenly_facilities enable row level security`,
-  `alter table public.captenly_coaches enable row level security`,
-];
-
-async function ensureSupplyTablesViaPg() {
-  if (supplyTablesBootstrapped) return;
-  const res = await withPgClient(async (client) => {
-    for (const stmt of SUPPLY_BOOTSTRAP_STATEMENTS) {
-      await client.query(stmt);
-    }
-    return true;
-  });
-  if (res.ok) supplyTablesBootstrapped = true;
+function externalizeLargeDataUrl(
+  rawUrl: unknown,
+  kind: "facility" | "coach" | "article",
+  entityId: string,
+  slot: "hero" | "avatar" | "image" | "gallery",
+  index?: number
+): string | undefined {
+  if (typeof rawUrl !== "string") return undefined;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("data:image/") && trimmed.length > 256 && entityId) {
+    const idxPart = typeof index === "number" ? `&index=${index}` : "";
+    return `/api/supabase/media?kind=${kind}&id=${encodeURIComponent(entityId)}&slot=${slot}${idxPart}`;
+  }
+  return trimmed;
 }
 
-function mapFacilityRow(row: Record<string, unknown>): Facility | null {
-  const payload = (row.payload || {}) as Partial<Facility>;
+function sanitizeArticlePayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const id = typeof raw.id === "string" ? raw.id : "";
+  const safeImageUrl = externalizeLargeDataUrl(raw.imageUrl, "article", id, "image");
+  return safeImageUrl ? { ...raw, imageUrl: safeImageUrl } : raw;
+}
+
+function sanitizeFacilityAccessFields(
+  facilityId: string,
+  payload: Partial<Facility> & Record<string, unknown>,
+  caller?: ServerCallerContext
+): {
+  staffMembers?: Facility["staffMembers"];
+  ownerMemberCode?: string;
+} {
+  const rawStaff = Array.isArray(payload.staffMembers) ? payload.staffMembers : undefined;
+  const rawOwnerCode =
+    typeof payload.ownerMemberCode === "string" ? payload.ownerMemberCode : undefined;
+
+  if (!caller || !caller.authenticated) {
+    return { staffMembers: undefined, ownerMemberCode: undefined };
+  }
+
+  const callerCode = (caller.memberCode || "").trim().toUpperCase();
+  const callerEmail = (caller.email || "").trim().toLowerCase();
+  const isOwner =
+    caller.isAdmin ||
+    (caller.linkedFacilityId && caller.linkedFacilityId === facilityId) ||
+    Boolean(callerCode && rawOwnerCode && rawOwnerCode.trim().toUpperCase() === callerCode);
+
+  const isGeneralManager = Boolean(
+    callerCode &&
+      rawStaff?.some(
+        (st) =>
+          (!st.invitationStatus || st.invitationStatus === "accepted") &&
+          st.linkedMemberCode?.trim().toUpperCase() === callerCode &&
+          st.role === "general_staff"
+      )
+  );
+
+  if (isOwner || isGeneralManager) {
+    return {
+      staffMembers: rawStaff,
+      ownerMemberCode: rawOwnerCode,
+    };
+  }
+
+  // Invited / accepted staff members receive ONLY their own staff record (for workspace switching),
+  // never other staff members' PII (emails/phones/memberCodes).
+  if (rawStaff && (callerCode || callerEmail)) {
+    const selfStaffOnly = rawStaff.filter((st) => {
+      const codeMatch = Boolean(
+        callerCode && st.linkedMemberCode && st.linkedMemberCode.trim().toUpperCase() === callerCode
+      );
+      const emailMatch = Boolean(
+        callerEmail && st.email && st.email.trim().toLowerCase() === callerEmail
+      );
+      return codeMatch || emailMatch;
+    });
+    if (selfStaffOnly.length > 0) {
+      return { staffMembers: selfStaffOnly, ownerMemberCode: undefined };
+    }
+  }
+
+  return { staffMembers: undefined, ownerMemberCode: undefined };
+}
+
+function mapFacilityRow(row: Record<string, unknown>, caller?: ServerCallerContext): Facility | null {
+  const payload = (row.payload || {}) as Partial<Facility> & Record<string, unknown>;
   const sector = (payload.sportSector || row.sport_sector || "swimming") as Facility["sportSector"];
   if (sector === "fitness") return null;
+  const facilityId = String(row.id || payload.id || "");
+  const safePayload = { ...payload } as Partial<Facility> & Record<string, unknown>;
+  delete safePayload.staffMembers;
+  delete safePayload.ownerMemberCode;
+  const scopedAccess = sanitizeFacilityAccessFields(facilityId, payload, caller);
   return {
-    ...payload,
-    id: String(row.id || payload.id || ""),
+    ...safePayload,
+    id: facilityId,
+    ...(scopedAccess.staffMembers ? { staffMembers: scopedAccess.staffMembers } : {}),
+    ...(scopedAccess.ownerMemberCode ? { ownerMemberCode: scopedAccess.ownerMemberCode } : {}),
     slug: String(row.slug || payload.slug || row.id || ""),
     googlePlaceId: (row.google_place_id as string) || payload.googlePlaceId,
     nameAr: String(row.name_ar || payload.nameAr || "أكاديمية سباحة"),
@@ -106,7 +145,16 @@ function mapFacilityRow(row: Record<string, unknown>): Facility | null {
     completenessScore: payload.completenessScore ?? 85,
     rating: Number(row.rating ?? payload.rating ?? 0),
     reviewsCount: Number(row.reviews_count ?? payload.reviewsCount ?? 0),
-    heroImage: payload.heroImage || "/screens/20b781f698f9.jpg",
+    heroImage:
+      externalizeLargeDataUrl(payload.heroImage, "facility", facilityId, "hero") ||
+      "/screens/20b781f698f9.jpg",
+    ...(Array.isArray(payload.gallery)
+      ? {
+          gallery: payload.gallery
+            .map((g, idx) => externalizeLargeDataUrl(g, "facility", facilityId, "gallery", idx))
+            .filter((g): g is string => Boolean(g)),
+        }
+      : {}),
     badges: Array.isArray(payload.badges) ? payload.badges : [],
     specialtiesAr: Array.isArray(payload.specialtiesAr) ? payload.specialtiesAr : ["تعليم السباحة"],
     pricePackages: Array.isArray(payload.pricePackages) ? payload.pricePackages : [],
@@ -124,9 +172,12 @@ function mapCoachRow(row: Record<string, unknown>): Coach | null {
   const payload = (row.payload || {}) as Partial<Coach>;
   if ((payload.sportSector || row.sport_sector) === "fitness") return null;
   if (!payload.fullNameAr && !row.full_name_ar) return null;
+  const coachId = String(row.id || payload.id || "");
+  const avatarUrl = externalizeLargeDataUrl(payload.avatarUrl, "coach", coachId, "avatar");
   return {
     ...(payload as Coach),
-    id: String(row.id || payload.id || ""),
+    ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+    id: coachId,
     slug: String(row.slug || payload.slug || row.id || ""),
     fullNameAr: String(row.full_name_ar || payload.fullNameAr || ""),
     city: String(row.city || payload.city || "كل مصر"),
@@ -135,29 +186,35 @@ function mapCoachRow(row: Record<string, unknown>): Coach | null {
   };
 }
 
-async function ensureArticlesTableViaPg() {
+const ARTICLES_BOOTSTRAP_SQL = `
+  create table if not exists public.captenly_articles (
+    id text primary key,
+    slug text unique,
+    title_ar text not null,
+    category_ar text,
+    author_entity_id text,
+    payload jsonb not null,
+    updated_at timestamptz default now()
+  );
+  alter table public.captenly_articles enable row level security;
+  drop policy if exists "captenly_articles_public_read" on public.captenly_articles;
+  create policy "captenly_articles_public_read"
+    on public.captenly_articles for select using (true);
+`;
+
+async function ensureArticlesTableViaPg(existingClient?: import("pg").Client) {
+  if (existingClient) {
+    await existingClient.query(ARTICLES_BOOTSTRAP_SQL);
+    return;
+  }
   await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_articles (
-        id text primary key,
-        slug text unique,
-        title_ar text not null,
-        category_ar text,
-        author_entity_id text,
-        payload jsonb not null,
-        updated_at timestamptz default now()
-      );
-      alter table public.captenly_articles enable row level security;
-      drop policy if exists "captenly_articles_public_read" on public.captenly_articles;
-      create policy "captenly_articles_public_read"
-        on public.captenly_articles for select using (true);
-    `);
+    await client.query(ARTICLES_BOOTSTRAP_SQL);
     return true;
   });
 }
 
 export async function GET() {
-  await ensureSingleOwnerAccountBaseline();
+  const caller = await getServerCaller();
   const admin = getSupabaseAdminClient();
   if (admin) {
     try {
@@ -186,13 +243,16 @@ export async function GET() {
 
       if (!facErr && !coachErr) {
         const facilities = (facRows || [])
-          .map((r) => mapFacilityRow(r as Record<string, unknown>))
+          .map((r) => mapFacilityRow(r as Record<string, unknown>, caller))
           .filter((f): f is Facility => Boolean(f));
         const coaches = (coachRows || [])
           .map((r) => mapCoachRow(r as Record<string, unknown>))
           .filter((c): c is Coach => Boolean(c));
         const articles = !articleRes.error && Array.isArray(articleRes.data)
-          ? articleRes.data.map((r) => (r as { payload: Record<string, unknown> }).payload).filter(Boolean)
+          ? articleRes.data
+              .map((r) => (r as { payload: Record<string, unknown> }).payload)
+              .filter(Boolean)
+              .map(sanitizeArticlePayload)
           : [];
         return NextResponse.json(
           { ok: true, facilities, coaches, articles },
@@ -204,29 +264,40 @@ export async function GET() {
     }
   }
 
-  await ensureSupplyTablesViaPg();
-  await ensureArticlesTableViaPg();
   const pgRes = await withPgClient(async (client) => {
-    const [facRes, coachRes, articleRes] = await Promise.all([
-      client.query(
-        `select * from public.captenly_facilities where supply_status <> 'seeded_unclaimed' order by updated_at desc limit 80`
-      ),
-      client.query(`select * from public.captenly_coaches order by updated_at desc limit 80`),
-      client.query(`select payload from public.captenly_articles order by updated_at desc limit 60`),
-    ]);
-    return { facRows: facRes.rows, coachRows: coachRes.rows, articleRows: articleRes.rows };
+    const facRes = await client.query(
+      `select * from public.captenly_facilities where supply_status <> 'seeded_unclaimed' order by updated_at desc limit 80`
+    );
+    const coachRes = await client.query(
+      `select * from public.captenly_coaches order by updated_at desc limit 80`
+    );
+    let articleRows: Record<string, unknown>[] = [];
+    try {
+      const artRes = await client.query(`select payload from public.captenly_articles order by updated_at desc limit 60`);
+      articleRows = artRes.rows;
+    } catch (err) {
+      if ((err as { code?: string })?.code === "42P01") {
+        await ensureArticlesTableViaPg(client);
+        const retryArt = await client.query(`select payload from public.captenly_articles order by updated_at desc limit 60`);
+        articleRows = retryArt.rows;
+      } else {
+        throw err;
+      }
+    }
+    return { facRows: facRes.rows, coachRows: coachRes.rows, articleRows };
   });
 
   if (pgRes.ok) {
     const facilities = pgRes.value.facRows
-      .map((r) => mapFacilityRow(r as Record<string, unknown>))
+      .map((r) => mapFacilityRow(r as Record<string, unknown>, caller))
       .filter((f): f is Facility => Boolean(f));
     const coaches = pgRes.value.coachRows
       .map((r) => mapCoachRow(r as Record<string, unknown>))
       .filter((c): c is Coach => Boolean(c));
     const articles = pgRes.value.articleRows
       .map((r) => r.payload as Record<string, unknown>)
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(sanitizeArticlePayload);
     return NextResponse.json(
       { ok: true, facilities, coaches, articles },
       { headers: NO_STORE_HEADERS }
@@ -265,6 +336,20 @@ function hasProhibitedMedicalClaims(coach: Coach): boolean {
   const hay = `${coach.bioAr || ""} ${coach.titleAr || ""} ${(coach.specialties || [])
     .map((s) => s.nameAr)
     .join(" ")}`.toLowerCase();
+  return PROHIBITED_MEDICAL_TERMS.some((term) => hay.includes(term.toLowerCase()));
+}
+
+function hasFacilityMedicalRosterViolation(facility: Facility): boolean {
+  const hasMedicalPtBadge = Array.isArray(facility.badges)
+    ? facility.badges.some((b) => b.code === "BADGE_06_MEDICAL_PT" && b.status === "active")
+    : false;
+  if (hasMedicalPtBadge) return false;
+  const rosterText = Array.isArray(facility.coachRoster)
+    ? facility.coachRoster
+        .map((r) => `${r.roleTitleAr || ""} ${r.specialtyAr || ""} ${(r.certificatesAr || []).join(" ")}`)
+        .join(" ")
+    : "";
+  const hay = `${facility.publicDescriptionAr || ""} ${rosterText}`.toLowerCase();
   return PROHIBITED_MEDICAL_TERMS.some((term) => hay.includes(term.toLowerCase()));
 }
 
@@ -394,6 +479,61 @@ async function authorizePublicSupplyPost(params: {
   }
 
   if (article?.id) {
+    const id = String(article.id);
+    let existingArticleFound = false;
+    let existingAuthorEntityId: string | null = null;
+    if (admin) {
+      const { data } = await admin
+        .from("captenly_articles")
+        .select("author_entity_id")
+        .eq("id", id)
+        .limit(1);
+      if (Array.isArray(data) && data[0]) {
+        existingArticleFound = true;
+        existingAuthorEntityId =
+          (data[0] as { author_entity_id?: string | null }).author_entity_id || null;
+      }
+    }
+    if (!existingArticleFound) {
+      const pg = await withPgClient(async (client) => {
+        const { rows } = await client.query(
+          `select author_entity_id from public.captenly_articles where id = $1 limit 1`,
+          [id]
+        );
+        return rows[0] as { author_entity_id?: string | null } | undefined;
+      });
+      if (pg.ok && pg.value) {
+        existingArticleFound = true;
+        existingAuthorEntityId = pg.value.author_entity_id || null;
+      }
+    }
+
+    if (existingArticleFound) {
+      const ownsExisting = Boolean(
+        existingAuthorEntityId &&
+          (existingAuthorEntityId === caller.linkedCoachId ||
+            existingAuthorEntityId === caller.linkedFacilityId ||
+            (await hasFacilityStaffAccess(existingAuthorEntityId, caller, ["general_staff"])))
+      );
+      if (!ownsExisting) {
+        return { allowed: false };
+      }
+    }
+
+    const requestedAuthorId =
+      typeof article.authorEntityId === "string" && article.authorEntityId.trim()
+        ? article.authorEntityId.trim()
+        : undefined;
+    if (requestedAuthorId) {
+      const ownsTarget =
+        requestedAuthorId === caller.linkedCoachId ||
+        requestedAuthorId === caller.linkedFacilityId ||
+        (await hasFacilityStaffAccess(requestedAuthorId, caller, ["general_staff"]));
+      if (!ownsTarget) {
+        return { allowed: false };
+      }
+    }
+
     const canPublish =
       Boolean(caller.linkedCoachId) ||
       Boolean(caller.linkedFacilityId) ||
@@ -435,33 +575,58 @@ export async function POST(request: Request) {
     const admin = getSupabaseAdminClient();
 
     if (facility?.id) {
+      if (hasFacilityMedicalRosterViolation(facility)) {
+        return NextResponse.json(
+          {
+            persisted: false,
+            error: "law_3_1985_prohibited_medical_claims",
+            messageAr:
+              "مخالف لقانون 3 لسنة 1985: لا يُسمح بعبارات العلاج أو التأهيل الطبي في بيانات المنشأة أو قائمة المدربين بدون ترخيص علاج طبيعي موثق.",
+          },
+          { status: 400 }
+        );
+      }
+
       let safeFacility: Facility = facility;
-      // Non-owners cannot self-elevate badges, staff roster, or core ownership metadata
-      if (!caller.isAdmin && authz.facilityAccessRole === "accounts_manager") {
+      // Non-admins can never self-elevate badges, verification status, or subscription tier
+      if (!caller.isAdmin) {
         const existing = await fetchExistingFacilityPayload(facility.id);
-        if (!existing) {
-          return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
-        }
-        safeFacility = {
-          ...(existing as Facility),
-          pricePackages: Array.isArray(facility.pricePackages)
-            ? facility.pricePackages
-            : (existing.pricePackages || []),
-          schoolPrograms: facility.schoolPrograms ?? existing.schoolPrograms,
-          instapayHandle: facility.instapayHandle ?? existing.instapayHandle ?? "",
-          vodafoneCashNumber: facility.vodafoneCashNumber ?? existing.vodafoneCashNumber ?? "",
-          priceLastVerifiedDaysAgo: 0,
-        };
-      } else if (!caller.isAdmin && authz.facilityAccessRole === "general_staff") {
-        const existing = await fetchExistingFacilityPayload(facility.id);
-        if (existing) {
+        if (authz.facilityAccessRole === "accounts_manager") {
+          if (!existing) {
+            return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
+          }
+          safeFacility = {
+            ...(existing as Facility),
+            pricePackages: Array.isArray(facility.pricePackages)
+              ? facility.pricePackages
+              : (existing.pricePackages || []),
+            schoolPrograms: facility.schoolPrograms ?? existing.schoolPrograms,
+            poolDeskConfig: facility.poolDeskConfig
+              ? {
+                  ...facility.poolDeskConfig,
+                  linkedEntities:
+                    existing.poolDeskConfig?.linkedEntities ||
+                    facility.poolDeskConfig.linkedEntities ||
+                    [],
+                }
+              : existing.poolDeskConfig,
+            instapayHandle: facility.instapayHandle ?? existing.instapayHandle ?? "",
+            vodafoneCashNumber: facility.vodafoneCashNumber ?? existing.vodafoneCashNumber ?? "",
+            priceLastVerifiedDaysAgo: 0,
+          };
+        } else {
+          const fallbackStatus: Facility["supplyStatus"] =
+            existing?.supplyStatus === "verified_active" ? "verified_active" : "self_listed_pending";
           safeFacility = {
             ...facility,
-            badges: existing.badges || facility.badges,
-            supplyStatus: existing.supplyStatus || facility.supplyStatus,
-            subscriptionTier: existing.subscriptionTier || facility.subscriptionTier,
-            isSponsored: Boolean(existing.isSponsored),
-            staffMembers: existing.staffMembers || facility.staffMembers,
+            badges: existing?.badges || [],
+            supplyStatus: fallbackStatus,
+            subscriptionTier: existing?.subscriptionTier || "free_founding",
+            isSponsored: Boolean(existing?.isSponsored),
+            staffMembers:
+              authz.facilityAccessRole === "general_staff" && existing?.staffMembers
+                ? existing.staffMembers
+                : facility.staffMembers,
           };
         }
       }
@@ -513,7 +678,6 @@ export async function POST(request: Request) {
         lastError = error.message || error.code || "supabase_error";
       }
 
-      await ensureSupplyTablesViaPg();
       const pgRes = await withPgClient(async (client) => {
         await client.query(
           `insert into public.captenly_facilities
@@ -623,7 +787,6 @@ export async function POST(request: Request) {
         lastCoachError = error.message || error.code || "supabase_error";
       }
 
-      await ensureSupplyTablesViaPg();
       const pgRes = await withPgClient(async (client) => {
         await client.query(
           `insert into public.captenly_coaches
@@ -672,11 +835,16 @@ export async function POST(request: Request) {
         const { error } = await admin.from("captenly_articles").delete().eq("id", deleteArticleId);
         if (!error) return NextResponse.json({ persisted: true, type: "article_delete" });
       }
-      await ensureArticlesTableViaPg();
-      const pgRes = await withPgClient(async (client) => {
-        await client.query(`delete from public.captenly_articles where id = $1`, [deleteArticleId]);
-        return true;
-      });
+      const runDelete = () =>
+        withPgClient(async (client) => {
+          await client.query(`delete from public.captenly_articles where id = $1`, [deleteArticleId]);
+          return true;
+        });
+      let pgRes = await runDelete();
+      if (!pgRes.ok && pgRes.errorCode === "42P01") {
+        await ensureArticlesTableViaPg();
+        pgRes = await runDelete();
+      }
       return NextResponse.json({ persisted: pgRes.ok, type: "article_delete" });
     }
 
@@ -695,22 +863,27 @@ export async function POST(request: Request) {
         const { error } = await admin.from("captenly_articles").upsert(row, { onConflict: "id" });
         if (!error) return NextResponse.json({ persisted: true, type: "article" });
       }
-      await ensureArticlesTableViaPg();
-      const pgRes = await withPgClient(async (client) => {
-        await client.query(
-          `insert into public.captenly_articles (id, slug, title_ar, category_ar, author_entity_id, payload, updated_at)
-           values ($1,$2,$3,$4,$5,$6::jsonb,now())
-           on conflict (id) do update set
-             slug = excluded.slug,
-             title_ar = excluded.title_ar,
-             category_ar = excluded.category_ar,
-             author_entity_id = excluded.author_entity_id,
-             payload = excluded.payload,
-             updated_at = now()`,
-          [row.id, row.slug, row.title_ar, row.category_ar, row.author_entity_id, JSON.stringify(article)]
-        );
-        return true;
-      });
+      const runUpsert = () =>
+        withPgClient(async (client) => {
+          await client.query(
+            `insert into public.captenly_articles (id, slug, title_ar, category_ar, author_entity_id, payload, updated_at)
+             values ($1,$2,$3,$4,$5,$6::jsonb,now())
+             on conflict (id) do update set
+               slug = excluded.slug,
+               title_ar = excluded.title_ar,
+               category_ar = excluded.category_ar,
+               author_entity_id = excluded.author_entity_id,
+               payload = excluded.payload,
+               updated_at = now()`,
+            [row.id, row.slug, row.title_ar, row.category_ar, row.author_entity_id, JSON.stringify(article)]
+          );
+          return true;
+        });
+      let pgRes = await runUpsert();
+      if (!pgRes.ok && pgRes.errorCode === "42P01") {
+        await ensureArticlesTableViaPg();
+        pgRes = await runUpsert();
+      }
       return NextResponse.json({ persisted: pgRes.ok, type: "article" });
     }
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { Facility } from "@/types/captenly";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export function resolveFacilityImage(heroImage?: string): string {
   const trimmed = (heroImage || "").trim();
@@ -43,13 +44,13 @@ export function FacilityImageOrFallback({
   const [renderAsLogo, setRenderAsLogo] = useState(false);
 
   const evaluateLoadedImage = (naturalWidth: number, naturalHeight: number) => {
-    if (naturalWidth === 0 || naturalHeight === 0) {
+    if (naturalWidth < 24 || naturalHeight < 24) {
       setFailed(true);
       return;
     }
     const aspect = naturalWidth / Math.max(1, naturalHeight);
     const looksLikeLogo =
-      (isProxyPhoto && (aspect <= 1.32 || Math.max(naturalWidth, naturalHeight) <= 380)) ||
+      (isProxyPhoto && (aspect <= 1.32 || aspect >= 2.8 || Math.max(naturalWidth, naturalHeight) <= 380)) ||
       (Math.max(naturalWidth, naturalHeight) <= 220 && aspect <= 1.2);
     if (looksLikeLogo) {
       setRenderAsLogo(true);
@@ -139,10 +140,12 @@ export function FacilityImageOrFallback({
 
   return (
     <div className={`relative overflow-hidden bg-surface-container ${className}`}>
-      <img
+      <CaptenlyImage
         ref={imgRef}
         src={src}
         alt={facility.nameAr}
+        fill
+        sizes="(max-width: 768px) 100vw, 420px"
         loading="lazy"
         onLoad={(e) =>
           evaluateLoadedImage(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)

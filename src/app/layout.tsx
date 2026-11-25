@@ -1,19 +1,35 @@
 import type { Metadata, Viewport } from "next";
+import { Cairo, Inter } from "next/font/google";
 import "./globals.css";
 import { CaptenlyProvider } from "@/context/CaptenlyContext";
 import { SiteHeader } from "@/components/chrome/SiteHeader";
 import { SiteFooter } from "@/components/chrome/SiteFooter";
 import { MobileHeader } from "@/components/chrome/MobileHeader";
 import { SiteDock } from "@/components/chrome/SiteDock";
-import { LocationModal } from "@/components/LocationModal";
-import { FilterModal } from "@/components/FilterModal";
 import { AuthSessionWrapper } from "@/components/auth/AuthSessionWrapper";
-import { GoogleSessionBridge } from "@/components/auth/GoogleSessionBridge";
-import { AuthGateModal } from "@/components/auth/AuthGateModal";
-import { FloatingCompareDrawer } from "@/components/FloatingCompareDrawer";
+import { RootModalsPortal } from "@/components/RootModalsPortal";
+import { CAPTENLY_BASE_URL } from "@/lib/seo";
+
+const cairo = Cairo({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "600", "700", "800", "900"],
+  variable: "--font-cairo",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "كابتنلي | CAPTENLY",
+  metadataBase: new URL(CAPTENLY_BASE_URL),
+  title: {
+    default: "كابتنلي | CAPTENLY",
+    template: "%s | كابتنلي CAPTENLY",
+  },
   description:
     "المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة، توثيق الكباتن بـ 6 شارات مستقلة، جواز السفر الرياضي، ودفتر الحصص الأوفلاين.",
   manifest: "/manifest.json",
@@ -24,6 +40,20 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon-v2.png?v=2",
     apple: "/apple-touch-icon-v2.png?v=2",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ar_EG",
+    siteName: "كابتنلي | CAPTENLY",
+    title: "كابتنلي | CAPTENLY",
+    description:
+      "المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة في مصر مع دفتر حصص QR أوفلاين و0% عمولة وساطة.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "كابتنلي | CAPTENLY",
+    description:
+      "المنظومة الرقمية لاكتشاف المسابح وأكاديميات ومدارس السباحة في مصر مع دفتر حصص QR أوفلاين.",
   },
 };
 
@@ -39,28 +69,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap"
-        />
-      </head>
+    <html lang="ar" dir="rtl" className={`${cairo.variable} ${inter.variable}`}>
       <body className="min-h-screen flex flex-col bg-canvas-alabaster text-on-surface antialiased font-cairo">
         <AuthSessionWrapper>
           <CaptenlyProvider>
-            <GoogleSessionBridge />
             <SiteHeader />
             <MobileHeader />
-            <div className="flex-1 w-full">{children}</div>
+            <main id="main-content" className="flex-1 w-full">
+              {children}
+            </main>
             <SiteFooter />
             <SiteDock />
-            <FloatingCompareDrawer />
-            <LocationModal />
-            <FilterModal />
-            <AuthGateModal />
+            <RootModalsPortal />
           </CaptenlyProvider>
         </AuthSessionWrapper>
       </body>

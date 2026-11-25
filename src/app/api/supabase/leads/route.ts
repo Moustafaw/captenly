@@ -2,30 +2,9 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getServerCaller, hasFacilityStaffAccess } from "@/lib/memberSession";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
-
-async function ensureLeadsTableViaPg() {
-  await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_leads (
-        id uuid default gen_random_uuid() primary key,
-        facility_id text not null,
-        facility_name_ar text,
-        member_code text,
-        member_name_ar text,
-        phone text,
-        package_name_ar text,
-        estimated_total_egp integer,
-        status text default 'whatsapp_initiated',
-        notes text,
-        created_at timestamptz default now()
-      );
-      alter table public.captenly_leads enable row level security;
-    `);
-    return true;
-  });
-}
 
 function mapLeadRow(row: Record<string, unknown>) {
   return {
@@ -96,7 +75,6 @@ export async function GET(request: Request) {
     }
   }
 
-  await ensureLeadsTableViaPg();
   const pgRes = await withPgClient(async (client) => {
     if (targetId) {
       const { rows } = await client.query(
@@ -129,6 +107,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rl = await enforceRateLimit({
+    bucket: "supabase:leads",
+    identifier: getClientIp(request),
+    limit: 20,
+    windowSec: 60,
+  });
+  if (!rl.allowed) {
+    return rateLimitExceededResponse(rl.retryAfterSec);
+  }
+
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ persisted: false, reason: "unauthorized" }, { status: 401 });
@@ -162,7 +150,6 @@ export async function POST(request: Request) {
       if (!error) return NextResponse.json({ persisted: true });
     }
 
-    await ensureLeadsTableViaPg();
     const pgRes = await withPgClient(async (client) => {
       await client.query(
         `insert into public.captenly_leads

@@ -13,13 +13,30 @@ export function GuestFloatingAuthBar({
   contextLabelAr = "أنشئ حسابك المجاني لحفظ المفضلة، المقارنة، والتواصل مع المنشآت والكباتن",
 }: GuestFloatingAuthBarProps) {
   const { isAuthenticated } = useCaptenly();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.sessionStorage.getItem("captenly_guest_auth_bar_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   if (isAuthenticated || dismissed) return null;
 
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      window.sessionStorage.setItem("captenly_guest_auth_bar_dismissed", "1");
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
   return (
     <div
-      className="hidden lg:flex fixed lg:bottom-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-[760px] z-40 rounded-2xl bg-dark-slate/95 backdrop-blur-md text-surface-card border border-electric-volt/35 shadow-2xl px-4 py-3 flex-row items-center justify-between gap-3"
+      data-testid="guest-floating-auth-bar"
+      className="hidden lg:flex fixed lg:bottom-5 lg:left-1/2 lg:-translate-x-1/2 lg:w-[740px] z-40 rounded-2xl bg-dark-slate/95 backdrop-blur-md text-surface-card border border-electric-volt/35 shadow-2xl px-4 py-2.5 flex-row items-center justify-between gap-3"
       dir="rtl"
     >
       <div className="flex items-start sm:items-center gap-2.5 min-w-0 pr-1">
@@ -51,9 +68,9 @@ export function GuestFloatingAuthBar({
         </Link>
         <button
           type="button"
-          onClick={() => setDismissed(true)}
+          onClick={handleDismiss}
           aria-label="إخفاء الشريط"
-          className="w-7 h-7 rounded-full hover:bg-white/10 text-surface-variant flex items-center justify-center shrink-0"
+          className="w-7 h-7 rounded-full hover:bg-white/10 text-surface-variant flex items-center justify-center shrink-0 cursor-pointer"
         >
           <Icon name="close" className="text-[15px]" />
         </button>

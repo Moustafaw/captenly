@@ -5,27 +5,6 @@ import { callerHasAnyStaffRole, getServerCaller } from "@/lib/memberSession";
 
 export const runtime = "nodejs";
 
-async function ensureNotificationsTableViaPg() {
-  await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_notifications (
-        id uuid default gen_random_uuid() primary key,
-        member_code text not null,
-        title_ar text not null,
-        message_ar text not null,
-        notif_type text default 'system',
-        action_label_ar text,
-        action_href text,
-        is_read boolean default false,
-        created_at timestamptz default now()
-      );
-      alter table public.captenly_notifications enable row level security;
-      drop policy if exists "captenly_notifications_public_read" on public.captenly_notifications;
-    `);
-    return true;
-  });
-}
-
 export async function GET(request: Request) {
   const caller = await getServerCaller();
   if (!caller.authenticated) {
@@ -62,7 +41,6 @@ export async function GET(request: Request) {
     }
   }
 
-  await ensureNotificationsTableViaPg();
   const pgRes = await withPgClient(async (client) => {
     const { rows } = await client.query(
       `select * from public.captenly_notifications where member_code = $1 order by created_at desc limit 40`,
@@ -101,7 +79,6 @@ export async function POST(request: Request) {
         const { error } = await updateQuery;
         if (!error) return NextResponse.json({ persisted: true });
       }
-      await ensureNotificationsTableViaPg();
       const pgRes = await withPgClient(async (client) => {
         if (!caller.isAdmin && caller.memberCode) {
           await client.query(
@@ -151,7 +128,6 @@ export async function POST(request: Request) {
       if (!error) return NextResponse.json({ persisted: true });
     }
 
-    await ensureNotificationsTableViaPg();
     const pgRes = await withPgClient(async (client) => {
       await client.query(
         `insert into public.captenly_notifications

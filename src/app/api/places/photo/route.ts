@@ -11,6 +11,116 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const NEGATIVE_TTL_MS = 60 * 60 * 1000;
 const PHOTO_CACHE = new Map<string, CachedPhotoEntry>();
 
+interface CachedImageBytes {
+  bytes: ArrayBuffer;
+  contentType: string;
+  ts: number;
+}
+
+const IMAGE_BYTES_CACHE = new Map<string, CachedImageBytes>();
+const MAX_CACHED_IMAGES = 48;
+const MAX_IMAGE_BYTES = 1_500_000;
+
+// 1x1 transparent PNG so missing directory photos return 200 OK instead of 404 console errors;
+// FacilityImageOrFallback checks naturalWidth < 24 and renders the branded fallback card.
+const TRANSPARENT_1X1_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64"
+);
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+]);
+
+function emptyTransparentImageResponse(maxAgeSeconds = 3600): NextResponse {
+  return new NextResponse(TRANSPARENT_1X1_PNG, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}`,
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+async function fetchSafeImageBytes(
+  startUrl: string
+): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
+  const now = Date.now();
+  const cachedBytes = IMAGE_BYTES_CACHE.get(startUrl);
+  if (cachedBytes && now - cachedBytes.ts < CACHE_TTL_MS) {
+    return { bytes: cachedBytes.bytes, contentType: cachedBytes.contentType };
+  }
+
+  let currentUrl = isSafePublicHttpUrl(startUrl);
+  if (!currentUrl) return null;
+
+  try {
+    let res: Response | null = null;
+    for (let hop = 0; hop < 3; hop += 1) {
+      res = await fetch(currentUrl.toString(), {
+        headers: {
+          "User-Agent": "CaptenlyApp/1.0 (https://captenly.vercel.app)",
+          Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8",
+        },
+        redirect: "manual",
+        signal: AbortSignal.timeout(2800),
+        cache: "no-store",
+      });
+
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return null;
+        const nextUrl = isSafePublicHttpUrl(new URL(loc, currentUrl.origin).toString());
+        if (!nextUrl) return null;
+        currentUrl = nextUrl;
+        continue;
+      }
+      break;
+    }
+
+    if (!res || !res.ok) return null;
+    const rawContentType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!ALLOWED_IMAGE_TYPES.has(rawContentType)) return null;
+
+    const bytes = await res.arrayBuffer();
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) return null;
+
+    if (bytes.byteLength <= 200_000) {
+      if (IMAGE_BYTES_CACHE.size >= MAX_CACHED_IMAGES) {
+        const firstKey = IMAGE_BYTES_CACHE.keys().next().value;
+        if (firstKey) IMAGE_BYTES_CACHE.delete(firstKey);
+      }
+      IMAGE_BYTES_CACHE.set(startUrl, { bytes, contentType: rawContentType, ts: now });
+    }
+    return { bytes, contentType: rawContentType };
+  } catch {
+    return null;
+  }
+}
+
+async function respondWithProxiedImage(resolvedUrl: string): Promise<NextResponse> {
+  const payload = await fetchSafeImageBytes(resolvedUrl);
+  if (!payload) {
+    return emptyTransparentImageResponse(1800);
+  }
+  return new NextResponse(payload.bytes, {
+    status: 200,
+    headers: {
+      "Content-Type": payload.contentType,
+      "Cache-Control": "public, max-age=86400, s-maxage=86400",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 const SOCIAL_ONLY_HOSTS = new Set([
   "facebook.com",
   "www.facebook.com",
@@ -26,23 +136,52 @@ const SOCIAL_ONLY_HOSTS = new Set([
   "www.tiktok.com",
 ]);
 
+const TRUSTED_IMAGE_EXACT_HOSTS = new Set([
+  "upload.wikimedia.org",
+  "commons.wikimedia.org",
+  "places.googleapis.com",
+  "maps.gstatic.com",
+  "t2.gstatic.com",
+]);
+
+function isTrustedImageRedirectHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (TRUSTED_IMAGE_EXACT_HOSTS.has(host)) return true;
+  if (/^lh[3-6]\.googleusercontent\.com$/.test(host)) return true;
+  return false;
+}
+
 function isSafePublicHttpUrl(raw?: string | null): URL | null {
   if (!raw) return null;
   try {
     const parsed = new URL(raw.trim());
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-    const host = parsed.hostname.toLowerCase();
-    if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+    if (parsed.username || parsed.password) return null;
+    const rawHost = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (
+      !rawHost ||
+      rawHost === "localhost" ||
+      rawHost.endsWith(".local") ||
+      rawHost.endsWith(".internal") ||
+      rawHost === "0.0.0.0" ||
+      rawHost === "::" ||
+      rawHost === "::1" ||
+      rawHost === "0:0:0:0:0:0:0:0" ||
+      rawHost === "0:0:0:0:0:0:0:1"
+    ) {
       return null;
     }
     if (
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^169\.254\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
-      host === "::1" ||
-      host === "[::1]"
+      /^0\./.test(rawHost) ||
+      /^127\./.test(rawHost) ||
+      /^10\./.test(rawHost) ||
+      /^192\.168\./.test(rawHost) ||
+      /^169\.254\./.test(rawHost) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(rawHost) ||
+      /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(rawHost) ||
+      /^(::ffff:|fe80|fc00|fd[0-9a-f]{2})/i.test(rawHost) ||
+      /^\d+$/.test(rawHost) ||
+      /^0x[0-9a-f]+$/i.test(rawHost)
     ) {
       return null;
     }
@@ -214,16 +353,38 @@ async function resolveWebsiteImageOrLogo(websiteRaw: string): Promise<string | n
         "User-Agent": "Mozilla/5.0 (compatible; CaptenlyBot/1.0)",
         Accept: "text/html,application/xhtml+xml",
       },
-      redirect: "follow",
+      redirect: "manual",
       signal: AbortSignal.timeout(2500),
       cache: "no-store",
     });
-    if (res.ok) {
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      const redirectUrl = location ? isSafePublicHttpUrl(new URL(location, parsed.origin).toString()) : null;
+      if (!redirectUrl || SOCIAL_ONLY_HOSTS.has(redirectUrl.hostname.toLowerCase())) {
+        return null;
+      }
+      const followed = await fetch(redirectUrl.toString(), {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; CaptenlyBot/1.0)",
+          Accept: "text/html,application/xhtml+xml",
+        },
+        redirect: "manual",
+        signal: AbortSignal.timeout(2000),
+        cache: "no-store",
+      });
+      if (followed.ok) {
+        const ctype = (followed.headers.get("content-type") || "").toLowerCase();
+        if (ctype.includes("text/html") || ctype.includes("application/xhtml")) {
+          const html = (await followed.text()).slice(0, 65000);
+          const metaImg = extractMetaImageFromHtml(html, redirectUrl);
+          if (metaImg) return metaImg;
+        }
+      }
+    } else if (res.ok) {
       const ctype = (res.headers.get("content-type") || "").toLowerCase();
       if (ctype.includes("text/html") || ctype.includes("application/xhtml")) {
-        const finalUrl = isSafePublicHttpUrl(res.url) || parsed;
         const html = (await res.text()).slice(0, 65000);
-        const metaImg = extractMetaImageFromHtml(html, finalUrl);
+        const metaImg = extractMetaImageFromHtml(html, parsed);
         if (metaImg) return metaImg;
       }
     }
@@ -246,31 +407,43 @@ export async function GET(request: Request) {
   const photoName = (searchParams.get("photoName") || "").trim();
 
   const cacheKey = `${photoName}|${directImg}|${wikiParam}|${website}|${nameAr}|${nameEn}`.toLowerCase();
+
+  // 1. Direct verified OSM image tag — strict allowlist to prevent Open Redirect (F-009)
+  if (directImg) {
+    const safeDirect = isSafePublicHttpUrl(directImg);
+    if (!safeDirect || !isTrustedImageRedirectHost(safeDirect.hostname)) {
+      return NextResponse.json(
+        { ok: false, error: "untrusted_image_host" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.redirect(safeDirect.toString(), {
+      status: 302,
+      headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400" },
+    });
+  }
+
+  // Reject unsafe website SSRF targets before proceeding
+  if (website && !isSafePublicHttpUrl(website)) {
+    return NextResponse.json(
+      { ok: false, error: "unsafe_website_url" },
+      { status: 400 }
+    );
+  }
+
   const cached = PHOTO_CACHE.get(cacheKey);
   const now = Date.now();
   if (cached) {
     const ttl = cached.url ? CACHE_TTL_MS : NEGATIVE_TTL_MS;
     if (now - cached.ts < ttl) {
       if (cached.url) {
-        return NextResponse.redirect(cached.url, {
-          status: 302,
-          headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400" },
-        });
+        return respondWithProxiedImage(cached.url);
       }
-      return new NextResponse(null, {
-        status: 404,
-        headers: { "Cache-Control": "public, max-age=3600, s-maxage=3600" },
-      });
+      return emptyTransparentImageResponse(3600);
     }
   }
 
   let resolvedUrl: string | null = null;
-
-  // 1. Direct verified OSM image tag
-  const safeDirect = isSafePublicHttpUrl(directImg);
-  if (safeDirect) {
-    resolvedUrl = safeDirect.toString();
-  }
 
   // 2. Google Place Photo resource (if billing / photo SKU is available)
   if (!resolvedUrl && photoName) {
@@ -311,14 +484,8 @@ export async function GET(request: Request) {
   PHOTO_CACHE.set(cacheKey, { url: resolvedUrl, ts: now });
 
   if (resolvedUrl) {
-    return NextResponse.redirect(resolvedUrl, {
-      status: 302,
-      headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400" },
-    });
+    return respondWithProxiedImage(resolvedUrl);
   }
 
-  return new NextResponse(null, {
-    status: 404,
-    headers: { "Cache-Control": "public, max-age=3600, s-maxage=3600" },
-  });
+  return emptyTransparentImageResponse(3600);
 }

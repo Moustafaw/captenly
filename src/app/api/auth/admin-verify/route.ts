@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { getAuthInstance } from "@/auth";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -70,6 +71,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const rl = await enforceRateLimit({
+      bucket: "auth:admin-verify",
+      identifier: getClientIp(request),
+      limit: 10,
+      windowSec: 300,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfterSec, "تم تجاوز محاولات الدخول الإداري مؤقتاً.");
+    }
+
     const expectedKey = (process.env.CAPTENLY_ADMIN_KEY || "").trim();
     if (!expectedKey) {
       return NextResponse.json(

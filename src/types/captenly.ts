@@ -145,6 +145,60 @@ export interface CoachSessionOffer {
   notesAr?: string;
 }
 
+export type FacilityDiscountType = "percent" | "fixed_egp";
+
+export interface FacilityPromoCode {
+  id: string;
+  code: string;
+  discountType: FacilityDiscountType;
+  value: number;
+  maxUses?: number;
+  usedCount: number;
+  expiresAtIso?: string;
+  expiresLabelAr?: string;
+  isActive: boolean;
+  notesAr?: string;
+  createdAtIso: string;
+}
+
+export type AcademyAgreementType = "per_swimmer_water" | "fixed_monthly";
+
+export interface FacilityLinkedEntity {
+  id: string;
+  facilityId: string;
+  facilityNameAr: string;
+  entityKind: "academy" | "coach";
+  linkedCoachId?: string;
+  linkedFacilityId?: string;
+  linkedMemberCode?: string;
+  displayNameAr: string;
+  ownerNameAr?: string;
+  phone?: string;
+  agreementType: AcademyAgreementType;
+  fixedMonthlyAmountEgp?: number;
+  customWaterFeePerSessionEgp?: number;
+  direction: "requested_by_entity" | "added_by_facility";
+  status: "pending" | "approved" | "rejected";
+  /** Governance: false = safe gate-only default; true = coach/academy can scan own group's QR */
+  canScanGroupQr: boolean;
+  groupLabelAr?: string;
+  swimmersCountEstimate?: number;
+  collectedMonthlyEgp?: number;
+  createdAtAr: string;
+  createdAtIso: string;
+}
+
+export interface FacilityPoolDeskConfig {
+  /** Flexible water fee per session in EGP set freely by the facility (0 if unspecified) */
+  waterFeePerSessionEgp: number;
+  allowOpenManualDiscount: boolean;
+  openDiscountReasonsAr?: string[];
+  promoCodes: FacilityPromoCode[];
+  linkedEntities: FacilityLinkedEntity[];
+  lastUpdatedIso?: string;
+  lastShiftPreppedAtIso?: string;
+}
+
 export interface FacilityLocation {
   id: string;
   labelAr?: string;
@@ -217,6 +271,7 @@ export interface Facility {
   schoolPrograms?: FacilitySchoolProgram[];
   staffMembers?: FacilityStaffMember[];
   coachRoster?: FacilityCoachRosterEntry[];
+  poolDeskConfig?: FacilityPoolDeskConfig;
   affiliatedCoachIds: string[];
   // Monthly Value Proof (MVP-11/12)
   monthlyMetrics: {
@@ -281,6 +336,27 @@ export interface SessionCheckin {
   verifiedByAr: string;
   coachNoteAr?: string;
   wasOffline?: boolean;
+  scannedAtIso?: string;
+  scannedByNameAr?: string;
+  scannedByMemberCode?: string;
+  scannedByRole?: "facility_gate" | "delegated_coach" | "coach_private" | "admin";
+  scanSource?: "gate_kiosk" | "dashboard_manual" | "coach_poolside" | "system_url_qr";
+}
+
+export interface LedgerPricingSnapshot {
+  waterFeePerSessionEgp: number;
+  waterTotalEgp: number;
+  trainingFeeEgp: number;
+  grossTotalEgp: number;
+  discountSource?: "promo_code" | "open_manual" | "none";
+  promoCode?: string;
+  discountType?: FacilityDiscountType;
+  discountInputValue?: number;
+  discountAmountEgp: number;
+  discountReasonAr?: string;
+  netTotalEgp: number;
+  waterPaidStatus?: "paid" | "partial" | "pending";
+  capturedAtIso: string;
 }
 
 export interface InstaPayReceipt {
@@ -306,6 +382,10 @@ export interface SessionLedger {
   coachNameAr: string;
   facilityId: string;
   facilityNameAr: string;
+  linkedEntityId?: string;
+  linkedEntityNameAr?: string;
+  agreementTypeAtEnroll?: AcademyAgreementType;
+  pricingSnapshot?: LedgerPricingSnapshot;
   sportSector: "swimming" | "fitness";
   trackType?: "school" | "buds" | "prep" | "team" | "ladies";
   trackLabelAr?: string;

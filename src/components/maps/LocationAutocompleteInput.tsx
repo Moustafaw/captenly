@@ -29,12 +29,14 @@ interface PredictionItem {
 interface LocationAutocompleteInputProps {
   initialValue?: string;
   placeholder?: string;
+  hideQuickCities?: boolean;
   onSelectLocation: (loc: SelectedLocationPayload) => void;
 }
 
 export function LocationAutocompleteInput({
   initialValue = "",
   placeholder = "ابحث عن مدينتك، حيّك، أو أقرب معلم (مثال: المعادي، المحلة، سموحة)...",
+  hideQuickCities = false,
   onSelectLocation,
 }: LocationAutocompleteInputProps) {
   const { facilities } = useCaptenly();
@@ -239,8 +241,8 @@ export function LocationAutocompleteInput({
         </span>
       </div>
 
-      {predictions.length === 0 && localSuggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+      {!hideQuickCities && predictions.length === 0 && localSuggestions.length > 0 && (
+        <div data-testid="location-autocomplete-quick-cities" className="flex flex-wrap gap-1.5">
           {localSuggestions.map((item) => (
             <button
               key={item.addressLabel}

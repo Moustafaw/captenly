@@ -53,6 +53,15 @@ async function ensureUserStateTablesViaPg() {
   });
 }
 
+async function withUserStatePg<T>(
+  fn: (client: import("pg").Client) => Promise<T>
+): Promise<{ ok: true; value: T } | { ok: false; errorCode: string }> {
+  const first = await withPgClient(fn);
+  if (first.ok || first.errorCode !== "42P01") return first;
+  await ensureUserStateTablesViaPg();
+  return withPgClient(fn);
+}
+
 async function isProviderLinkedToAthlete(
   caller: ServerCallerContext,
   memberCode: string,
@@ -138,14 +147,36 @@ export async function GET(request: Request) {
   const admin = getSupabaseAdminClient();
   if (admin) {
     try {
-      const [pbRes, evalRes, minorRes, prefRes] = await Promise.all([
+      // Security remediation (F-008): always scope skill evaluations by authenticated memberCode
+      // (plus caller's linked minor child_member_codes), never arbitrary global athleteIds.
+      const [pbRes, minorRes, prefRes] = await Promise.all([
         admin.from("captenly_pb_records").select("payload").eq("member_code", memberCode).limit(60),
-        athleteIdsParam.length > 0
-          ? admin.from("captenly_skill_evaluations").select("athlete_id, payload").in("athlete_id", athleteIdsParam)
-          : admin.from("captenly_skill_evaluations").select("athlete_id, payload").eq("member_code", memberCode),
-        admin.from("captenly_minor_athletes").select("payload").eq("parent_member_code", memberCode).limit(20),
+        admin.from("captenly_minor_athletes").select("id, child_member_code, payload").eq("parent_member_code", memberCode).limit(20),
         admin.from("captenly_user_prefs").select("*").eq("member_code", memberCode).limit(1),
       ]);
+
+      const minorMemberCodes = Array.from(
+        new Set(
+          [
+            memberCode,
+            ...((minorRes.data || [])
+              .map((m) => (m as { child_member_code?: string | null }).child_member_code)
+              .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+              .map((c) => c.trim().toUpperCase())),
+          ]
+        )
+      );
+
+      let evalQuery = admin.from("captenly_skill_evaluations").select("athlete_id, payload");
+      if (!caller.isAdmin) {
+        evalQuery = evalQuery.in("member_code", minorMemberCodes);
+      }
+      if (athleteIdsParam.length > 0) {
+        evalQuery = evalQuery.in("athlete_id", athleteIdsParam);
+      } else if (caller.isAdmin) {
+        evalQuery = evalQuery.eq("member_code", memberCode);
+      }
+      const evalRes = await evalQuery;
 
       if (!pbRes.error && !evalRes.error && !minorRes.error && !prefRes.error) {
         const skillEvaluations: Record<string, SkillEvaluation5Point> = {};
@@ -174,16 +205,34 @@ export async function GET(request: Request) {
     }
   }
 
-  await ensureUserStateTablesViaPg();
-  const pgRes = await withPgClient(async (client) => {
-    const [pbRows, evalRows, minorRows, prefRows] = await Promise.all([
+  const pgRes = await withUserStatePg(async (client) => {
+    const [pbRows, minorRows, prefRows] = await Promise.all([
       client.query(`select payload from public.captenly_pb_records where member_code = $1 order by updated_at desc limit 60`, [memberCode]),
-      athleteIdsParam.length > 0
-        ? client.query(`select athlete_id, payload from public.captenly_skill_evaluations where athlete_id = any($1::text[])`, [athleteIdsParam])
-        : client.query(`select athlete_id, payload from public.captenly_skill_evaluations where member_code = $1`, [memberCode]),
-      client.query(`select payload from public.captenly_minor_athletes where parent_member_code = $1 order by updated_at desc limit 20`, [memberCode]),
+      client.query(`select child_member_code, payload from public.captenly_minor_athletes where parent_member_code = $1 order by updated_at desc limit 20`, [memberCode]),
       client.query(`select favorites, compare_ids, user_settings, user_location from public.captenly_user_prefs where member_code = $1 limit 1`, [memberCode]),
     ]);
+    const minorMemberCodes = Array.from(
+      new Set([
+        memberCode,
+        ...(minorRows.rows || [])
+          .map((m) => (m as { child_member_code?: string | null }).child_member_code)
+          .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+          .map((c) => c.trim().toUpperCase()),
+      ])
+    );
+    const evalRows = caller.isAdmin
+      ? athleteIdsParam.length > 0
+        ? await client.query(`select athlete_id, payload from public.captenly_skill_evaluations where athlete_id = any($1::text[])`, [athleteIdsParam])
+        : await client.query(`select athlete_id, payload from public.captenly_skill_evaluations where member_code = $1`, [memberCode])
+      : athleteIdsParam.length > 0
+        ? await client.query(
+            `select athlete_id, payload from public.captenly_skill_evaluations where member_code = any($1::text[]) and athlete_id = any($2::text[])`,
+            [minorMemberCodes, athleteIdsParam]
+          )
+        : await client.query(
+            `select athlete_id, payload from public.captenly_skill_evaluations where member_code = any($1::text[])`,
+            [minorMemberCodes]
+          );
     return {
       pbRows: pbRows.rows,
       evalRows: evalRows.rows,
@@ -261,7 +310,6 @@ export async function POST(request: Request) {
     }
 
     const admin = getSupabaseAdminClient();
-    await ensureUserStateTablesViaPg();
 
     if (body.type === "pb" && body.pbRecord?.id) {
       const rec = body.pbRecord;
@@ -278,7 +326,7 @@ export async function POST(request: Request) {
         );
         if (!error) return NextResponse.json({ persisted: true });
       }
-      const pg = await withPgClient(async (client) => {
+      const pg = await withUserStatePg(async (client) => {
         await client.query(
           `insert into public.captenly_pb_records (id, member_code, athlete_id, payload, updated_at)
            values ($1,$2,$3,$4::jsonb,now())
@@ -304,7 +352,7 @@ export async function POST(request: Request) {
         );
         if (!error) return NextResponse.json({ persisted: true });
       }
-      const pg = await withPgClient(async (client) => {
+      const pg = await withUserStatePg(async (client) => {
         await client.query(
           `insert into public.captenly_skill_evaluations (athlete_id, member_code, payload, updated_at)
            values ($1,$2,$3::jsonb,now())
@@ -332,7 +380,7 @@ export async function POST(request: Request) {
         );
         if (!error) return NextResponse.json({ persisted: true });
       }
-      const pg = await withPgClient(async (client) => {
+      const pg = await withUserStatePg(async (client) => {
         await client.query(
           `insert into public.captenly_minor_athletes (id, parent_member_code, child_member_code, full_name_ar, payload, updated_at)
            values ($1,$2,$3,$4,$5::jsonb,now())
@@ -358,7 +406,7 @@ export async function POST(request: Request) {
           .eq("parent_member_code", memberCode);
         if (!error) return NextResponse.json({ persisted: true });
       }
-      const pg = await withPgClient(async (client) => {
+      const pg = await withUserStatePg(async (client) => {
         await client.query(
           `delete from public.captenly_minor_athletes where id = $1 and parent_member_code = $2`,
           [body.minorId, memberCode]
@@ -384,7 +432,7 @@ export async function POST(request: Request) {
         );
         if (!error) return NextResponse.json({ persisted: true });
       }
-      const pg = await withPgClient(async (client) => {
+      const pg = await withUserStatePg(async (client) => {
         await client.query(
           `insert into public.captenly_user_prefs (member_code, favorites, compare_ids, user_settings, user_location, updated_at)
            values ($1, coalesce($2::jsonb, '[]'::jsonb), coalesce($3::jsonb, '[]'::jsonb), coalesce($4::jsonb, '{}'::jsonb), coalesce($5::jsonb, '{}'::jsonb), now())

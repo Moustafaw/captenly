@@ -480,67 +480,102 @@ export default function Desktop15() {
 
               <form
                 onSubmit={handleAddPB}
-                className="pt-3 border-t border-[#0F172A]/8 grid grid-cols-1 sm:grid-cols-6 gap-2"
+                className="pt-4 border-t border-[#0F172A]/8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
               >
                 {canManageFamily && minorAthletes.length > 0 && (
-                  <select
-                    value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
-                    onChange={(e) => setPbTargetAthleteId(e.target.value)}
-                    className="sm:col-span-2 rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs font-bold outline-none border border-[#0F172A]/10"
-                  >
-                    {!isParentOnlyIntent && (
-                      <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
-                    )}
-                    {minorAthletes.map((child) => (
-                      <option key={child.id} value={child.id}>
-                        الابن: {child.fullNameAr}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
+                    <label htmlFor="d15-pb-athlete" className="text-[11px] font-bold text-[#475569]">
+                      السبّاح المستهدف
+                    </label>
+                    <select
+                      id="d15-pb-athlete"
+                      aria-label="السبّاح المستهدف"
+                      value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
+                      onChange={(e) => setPbTargetAthleteId(e.target.value)}
+                      className="rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs font-bold outline-none border border-[#0F172A]/10"
+                    >
+                      {!isParentOnlyIntent && (
+                        <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
+                      )}
+                      {minorAthletes.map((child) => (
+                        <option key={child.id} value={child.id}>
+                          الابن: {child.fullNameAr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
-                <input
-                  required
-                  value={eventTitle}
-                  onChange={(e) => setEventTitle(e.target.value)}
-                  placeholder="السباق (مثلاً: 50م حرة)"
-                  className="sm:col-span-2 rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
-                />
-                <select
-                  value={pbUnitAr}
-                  onChange={(e) => setPbUnitAr(e.target.value)}
-                  className="rounded-xl bg-[#F7F9FA] px-2.5 py-2 text-xs font-bold outline-none border border-[#0F172A]/10"
-                >
-                  <option value="ثانية">ثانية</option>
-                  <option value="متر">متر</option>
-                  <option value="لفة">لفة</option>
-                  <option value="تكرار">تكرار</option>
-                  <option value="نقطة">نقطة</option>
-                </select>
-                <input
-                  required
-                  type="number"
-                  step="0.1"
-                  value={newVal}
-                  onChange={(e) => setNewVal(e.target.value)}
-                  placeholder={`الرقم الجديد (${pbUnitAr})`}
-                  className="rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
-                />
-                <input
-                  type="number"
-                  step="0.1"
-                  value={prevVal}
-                  onChange={(e) => setPrevVal(e.target.value)}
-                  placeholder="السابق (اختياري)"
-                  className="rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
-                />
-                <button
-                  type="submit"
-                  className={`${
-                    canManageFamily && minorAthletes.length > 0 ? "sm:col-span-6" : ""
-                  } rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs py-2.5 px-4 shadow-sm transition-colors`}
-                >
-                  + تسجيل رقم قياسي جديد
-                </button>
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <label htmlFor="d15-pb-event" className="text-[11px] font-bold text-[#475569]">
+                    اسم السباق أو التمرين *
+                  </label>
+                  <input
+                    id="d15-pb-event"
+                    aria-label="اسم السباق أو التمرين"
+                    required
+                    value={eventTitle}
+                    onChange={(e) => setEventTitle(e.target.value)}
+                    placeholder="مثال: 50م سباحة حرة"
+                    className="w-full rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="d15-pb-unit" className="text-[11px] font-bold text-[#475569]">
+                    وحدة القياس
+                  </label>
+                  <select
+                    id="d15-pb-unit"
+                    aria-label="وحدة القياس"
+                    value={pbUnitAr}
+                    onChange={(e) => setPbUnitAr(e.target.value)}
+                    className="w-full rounded-xl bg-[#F7F9FA] px-2.5 py-2 text-xs font-bold outline-none border border-[#0F172A]/10"
+                  >
+                    <option value="ثانية">ثانية</option>
+                    <option value="متر">متر</option>
+                    <option value="لفة">لفة</option>
+                    <option value="تكرار">تكرار</option>
+                    <option value="نقطة">نقطة</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="d15-pb-new" className="text-[11px] font-bold text-[#475569]">
+                    الرقم الجديد ({pbUnitAr}) *
+                  </label>
+                  <input
+                    id="d15-pb-new"
+                    aria-label={`الرقم الجديد (${pbUnitAr})`}
+                    required
+                    type="number"
+                    step="0.1"
+                    value={newVal}
+                    onChange={(e) => setNewVal(e.target.value)}
+                    placeholder="مثال: 29.5"
+                    className="w-full rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <label htmlFor="d15-pb-prev" className="text-[11px] font-bold text-[#475569]">
+                    الرقم السابق للمقارنة (اختياري)
+                  </label>
+                  <input
+                    id="d15-pb-prev"
+                    aria-label="الرقم السابق للمقارنة (اختياري)"
+                    type="number"
+                    step="0.1"
+                    value={prevVal}
+                    onChange={(e) => setPrevVal(e.target.value)}
+                    placeholder="مثال: 31.0"
+                    className="w-full rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10 focus:border-[#1D6E7D]"
+                  />
+                </div>
+                <div className="flex items-end sm:col-span-2">
+                  <button
+                    type="submit"
+                    className="w-full rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs py-2.5 px-4 shadow-sm transition-colors"
+                  >
+                    + تسجيل رقم قياسي جديد
+                  </button>
+                </div>
               </form>
             </section>
 

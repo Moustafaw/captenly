@@ -2,59 +2,55 @@ import { NextResponse } from "next/server";
 import type { SessionLedger } from "@/types/captenly";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
+import { checkCoachDelegatedQrAccess } from "@/lib/server/facilityLinksDb";
+import { getDeterministicCoachId } from "@/lib/coachProvisioning";
 import {
-  callerHasAnyStaffRole,
+  getCallerAuthorizedFacilityIds,
   getCallerFacilityAccessRole,
   getServerCaller,
-  hasFacilityStaffAccess,
   sanitizeFilterToken,
   type ServerCallerContext,
 } from "@/lib/memberSession";
 
 export const dynamic = "force-dynamic";
 
-const CREATE_LEDGER_STATEMENTS = [
-  `create table if not exists public.captenly_session_ledgers (
-    id text primary key,
-    ledger_code text not null unique,
-    member_code text,
-    athlete_id text not null,
-    athlete_name_ar text not null,
-    coach_id text not null,
-    facility_id text not null,
-    pin_code text not null,
-    total_sessions integer not null,
-    completed_sessions integer not null default 0,
-    status text not null default 'active',
-    payload jsonb not null default '{}'::jsonb,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-  )`,
-  `create index if not exists idx_captenly_session_ledgers_member_code on public.captenly_session_ledgers (member_code)`,
-  `create index if not exists idx_captenly_session_ledgers_athlete_id on public.captenly_session_ledgers (athlete_id)`,
-  `create index if not exists idx_captenly_session_ledgers_coach_id on public.captenly_session_ledgers (coach_id)`,
-  `create index if not exists idx_captenly_session_ledgers_facility_id on public.captenly_session_ledgers (facility_id)`,
-  `alter table public.captenly_session_ledgers enable row level security`,
-  `notify pgrst, 'reload schema'`,
-];
+const DUPLICATE_SCAN_WINDOW_MS = 3 * 60 * 60 * 1000;
 
-let tableBootstrapped = false;
-
-async function runBootstrapDdl(client: import("pg").Client): Promise<void> {
-  if (tableBootstrapped) return;
-  for (const stmt of CREATE_LEDGER_STATEMENTS) {
-    await client.query(stmt);
+function canCallerReadLedger(
+  ledger: SessionLedger,
+  caller: ServerCallerContext,
+  authorizedFacilityIds: Set<string>,
+  callerCoachId?: string
+): boolean {
+  if (caller.isAdmin) return true;
+  if (ledger.facilityId && authorizedFacilityIds.has(ledger.facilityId)) return true;
+  if (callerCoachId && ledger.coachId === callerCoachId) return true;
+  if (
+    caller.memberCode &&
+    ledger.memberCode &&
+    ledger.memberCode.trim().toUpperCase() === caller.memberCode.trim().toUpperCase()
+  ) {
+    return true;
   }
-  tableBootstrapped = true;
+  return false;
 }
 
-async function ensureLedgerTableExists(): Promise<{ ok: boolean; errorCode?: string }> {
-  if (tableBootstrapped) return { ok: true };
-  const res = await withPgClient(async (client) => {
-    await runBootstrapDdl(client);
-    return true;
-  });
-  return res.ok ? { ok: true } : { ok: false, errorCode: res.errorCode };
+function findRecentCheckinAgeMs(checkins: unknown): number | null {
+  if (!Array.isArray(checkins) || checkins.length === 0) return null;
+  const now = Date.now();
+  let smallestAge: number | null = null;
+  for (const c of checkins) {
+    if (!c || typeof c !== "object") continue;
+    const rawIso = (c as { scannedAtIso?: unknown }).scannedAtIso;
+    if (typeof rawIso !== "string") continue;
+    const ts = Date.parse(rawIso);
+    if (!Number.isFinite(ts)) continue;
+    const age = now - ts;
+    if (age >= 0 && (smallestAge === null || age < smallestAge)) {
+      smallestAge = age;
+    }
+  }
+  return smallestAge;
 }
 
 function canCallerSeePin(row: Record<string, unknown>, caller: ServerCallerContext): boolean {
@@ -100,6 +96,10 @@ function rowToSessionLedger(
     coachNameAr: payload.coachNameAr || "",
     facilityId: String(row.facility_id || payload.facilityId || ""),
     facilityNameAr: payload.facilityNameAr || "",
+    linkedEntityId: payload.linkedEntityId,
+    linkedEntityNameAr: payload.linkedEntityNameAr,
+    agreementTypeAtEnroll: payload.agreementTypeAtEnroll,
+    pricingSnapshot: payload.pricingSnapshot,
     sportSector: payload.sportSector === "fitness" ? "fitness" : "swimming",
     trackType: payload.trackType,
     trackLabelAr: payload.trackLabelAr,
@@ -126,8 +126,6 @@ async function queryLedgersWithPgFallback(
   caller: ServerCallerContext
 ): Promise<{ ok: boolean; ledgers: SessionLedger[]; errorCode?: string }> {
   const res = await withPgClient(async (client) => {
-    await runBootstrapDdl(client);
-
     const conditions: string[] = [];
     const values: string[] = [];
     if (filters.ledgerCode) {
@@ -188,24 +186,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ persisted: false, ledgers: [], profile: null });
   }
 
-  const isStaff = await callerHasAnyStaffRole(caller);
+  const authorizedFacilityIds = caller.isAdmin
+    ? new Set<string>()
+    : await getCallerAuthorizedFacilityIds(caller);
+  const callerCoachId =
+    caller.linkedCoachId ||
+    (caller.role === "coach" && caller.memberCode
+      ? getDeterministicCoachId(caller.memberCode)
+      : undefined);
+
   if (!caller.isAdmin) {
-    if (facilityId && !(await hasFacilityStaffAccess(facilityId, caller))) {
+    if (facilityId && !authorizedFacilityIds.has(facilityId)) {
       return NextResponse.json(
         { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
         { status: 403 }
       );
     }
-    if (coachId) {
-      const ownsCoach = Boolean(caller.linkedCoachId && caller.linkedCoachId === coachId);
-      if (!ownsCoach) {
-        return NextResponse.json(
-          { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
-          { status: 403 }
-        );
-      }
+    if (coachId && (!callerCoachId || callerCoachId !== coachId)) {
+      return NextResponse.json(
+        { persisted: false, ledgers: [], profile: null, reason: "forbidden" },
+        { status: 403 }
+      );
     }
-    if ((memberCode || ledgerCode || athleteId) && !isStaff) {
+    const hasStaffScope = authorizedFacilityIds.size > 0 || Boolean(callerCoachId);
+    if ((memberCode || ledgerCode || athleteId) && !hasStaffScope) {
       const selfMatches = Boolean(
         memberCode && caller.memberCode && caller.memberCode.toUpperCase() === memberCode
       );
@@ -275,50 +279,30 @@ export async function GET(request: Request) {
       .limit(80);
 
     if (error && (error.code === "42P01" || error.code === "PGRST205")) {
-      const boot = await ensureLedgerTableExists();
-      if (!boot.ok) {
-        return NextResponse.json({
-          persisted: false,
-          ledgers: [],
-          profile: matchedProfile,
-          reason: boot.errorCode || error.code || "bootstrap_failed",
-        });
-      }
-      const retry = await admin
-        .from("captenly_session_ledgers")
-        .select("*")
-        .or(orClauses.join(","))
-        .order("updated_at", { ascending: false })
-        .limit(80);
-      if (!retry.error) {
-        data = retry.data;
-        error = null;
-      } else {
-        const pgFallback = await queryLedgersWithPgFallback(
-          {
-            memberCode,
-            athleteId,
-            coachId,
-            facilityId,
-            ledgerCode,
-          },
-          caller
-        );
-        const visiblePgLedgers =
-          !caller.isAdmin && !isStaff && caller.memberCode
-            ? pgFallback.ledgers.filter(
-                (l) =>
-                  l.memberCode &&
-                  l.memberCode.toUpperCase() === caller.memberCode!.toUpperCase()
-              )
-            : pgFallback.ledgers;
-        return NextResponse.json({
-          persisted: pgFallback.ok,
-          ledgers: visiblePgLedgers,
-          profile: matchedProfile,
-          ...(pgFallback.ok ? {} : { reason: pgFallback.errorCode || retry.error.code }),
-        });
-      }
+      const pgFallback = await queryLedgersWithPgFallback(
+        {
+          memberCode,
+          athleteId,
+          coachId,
+          facilityId,
+          ledgerCode,
+        },
+        caller
+      );
+      const visiblePgLedgers = pgFallback.ledgers.filter((l) =>
+        canCallerReadLedger(l, caller, authorizedFacilityIds, callerCoachId)
+      );
+      const allowMatchedProfile = Boolean(
+        caller.isAdmin ||
+          (memberCode && caller.memberCode && caller.memberCode.toUpperCase() === memberCode) ||
+          visiblePgLedgers.length > 0
+      );
+      return NextResponse.json({
+        persisted: pgFallback.ok,
+        ledgers: visiblePgLedgers,
+        profile: allowMatchedProfile ? matchedProfile : null,
+        ...(pgFallback.ok ? {} : { reason: pgFallback.errorCode || error.code }),
+      });
     }
 
     if (error) {
@@ -337,25 +321,25 @@ export async function GET(request: Request) {
       })
       .filter((x): x is SessionLedger => Boolean(x));
 
-    const ledgers =
-      !caller.isAdmin && !isStaff && caller.memberCode
-        ? rawLedgers.filter(
-            (l) =>
-              l.memberCode &&
-              l.memberCode.toUpperCase() === caller.memberCode!.toUpperCase()
-          )
-        : rawLedgers;
+    const ledgers = rawLedgers.filter((l) =>
+      canCallerReadLedger(l, caller, authorizedFacilityIds, callerCoachId)
+    );
+    const allowMatchedProfile = Boolean(
+      caller.isAdmin ||
+        (memberCode && caller.memberCode && caller.memberCode.toUpperCase() === memberCode) ||
+        ledgers.length > 0
+    );
 
     return NextResponse.json({
       persisted: true,
       ledgers,
-      profile: matchedProfile,
+      profile: allowMatchedProfile ? matchedProfile : null,
     });
   } catch {
     return NextResponse.json({
       persisted: false,
       ledgers: [],
-      profile: matchedProfile,
+      profile: null,
       reason: "query_error",
     });
   }
@@ -385,39 +369,160 @@ export async function POST(request: Request) {
       accessRole === "owner" ||
       accessRole === "general_staff" ||
       accessRole === "subscriptions_manager";
+    // Security remediation (F-007): 3-hour duplicate override is restricted exclusively
+    // to platform admins, facility owners/managers, and subscription administrators.
+    const canOverrideDuplicate3h =
+      caller.isAdmin ||
+      accessRole === "admin" ||
+      accessRole === "owner" ||
+      accessRole === "subscriptions_manager";
     const isAccountsOnly = accessRole === "accounts_manager";
-    const isCoachOwner = Boolean(caller.linkedCoachId && caller.linkedCoachId === ledger.coachId);
+    const callerCoachId =
+      caller.linkedCoachId ||
+      (caller.role === "coach" && caller.memberCode ? getDeterministicCoachId(caller.memberCode) : undefined);
+    const isCoachOwner = Boolean(callerCoachId && callerCoachId === ledger.coachId);
+    const delegatedAccess =
+      !caller.isAdmin && !isProviderFacilityWriter && ledger.facilityId
+        ? await checkCoachDelegatedQrAccess({
+            facilityId: ledger.facilityId,
+            coachId: callerCoachId,
+            memberCode: caller.memberCode,
+            ledgerLinkedEntityId: ledger.linkedEntityId,
+          })
+        : { governed: false, canScan: true };
+    const isDelegatedGroupScanner = Boolean(
+      delegatedAccess.governed &&
+        delegatedAccess.canScan &&
+        ledger.linkedEntityId &&
+        delegatedAccess.matchedLink?.id === ledger.linkedEntityId
+    );
     const isSwimmerOwner = Boolean(
       caller.memberCode &&
         ledger.memberCode &&
         caller.memberCode.trim().toUpperCase() === ledger.memberCode.trim().toUpperCase()
     );
 
-    if (!caller.isAdmin && !isProviderFacilityWriter && !isAccountsOnly && !isCoachOwner && !isSwimmerOwner) {
+    if (
+      !caller.isAdmin &&
+      !isProviderFacilityWriter &&
+      !isAccountsOnly &&
+      !isCoachOwner &&
+      !isDelegatedGroupScanner &&
+      !isSwimmerOwner
+    ) {
       return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
     }
 
     let existingPin: string | undefined;
+    let existingFacilityId: string | undefined;
     let existingPayload: Partial<SessionLedger> | undefined;
+    let existingLookupSucceeded = false;
     try {
-      const { data: existingRow } = await admin
+      const { data: existingRow, error: existingErr } = await admin
         .from("captenly_session_ledgers")
-        .select("pin_code, payload")
+        .select("pin_code, facility_id, payload")
         .eq("id", ledger.id)
         .maybeSingle();
-      if (typeof existingRow?.pin_code === "string" && existingRow.pin_code !== "****") {
-        existingPin = existingRow.pin_code;
-      }
-      if (existingRow?.payload && typeof existingRow.payload === "object") {
-        existingPayload = existingRow.payload as Partial<SessionLedger>;
+      if (!existingErr) {
+        existingLookupSucceeded = true;
+        if (typeof existingRow?.pin_code === "string" && existingRow.pin_code !== "****") {
+          existingPin = existingRow.pin_code;
+        }
+        if (typeof existingRow?.facility_id === "string") {
+          existingFacilityId = existingRow.facility_id;
+        }
+        if (existingRow?.payload && typeof existingRow.payload === "object") {
+          existingPayload = existingRow.payload as Partial<SessionLedger>;
+        }
       }
     } catch {
-      // ignore lookup failure
+      // fall through to PostgreSQL fallback lookup
+    }
+
+    let pgLookupOk = false;
+    if (!existingLookupSucceeded) {
+      const pgExisting = await withPgClient(async (client) => {
+        const res = await client.query(
+          `select pin_code, facility_id, payload from public.captenly_session_ledgers where id = $1 limit 1`,
+          [ledger.id]
+        );
+        return (res.rows?.[0] || null) as Record<string, unknown> | null;
+      });
+      pgLookupOk = pgExisting.ok;
+      if (pgExisting.ok && pgExisting.value) {
+        if (typeof pgExisting.value.pin_code === "string" && pgExisting.value.pin_code !== "****") {
+          existingPin = pgExisting.value.pin_code;
+        }
+        if (typeof pgExisting.value.facility_id === "string") {
+          existingFacilityId = pgExisting.value.facility_id;
+        }
+        if (pgExisting.value.payload && typeof pgExisting.value.payload === "object") {
+          existingPayload = pgExisting.value.payload as Partial<SessionLedger>;
+        }
+      }
+    }
+
+    if (!existingLookupSucceeded && !pgLookupOk) {
+      return NextResponse.json(
+        { persisted: false, error: "ledger_lookup_unavailable" },
+        { status: 503 }
+      );
+    }
+
+    // Security remediation (F-007): prevent swapping facilityId on an existing ledger to bypass ACLs.
+    const storedFacilityId = existingFacilityId || existingPayload?.facilityId;
+    if (!caller.isAdmin && storedFacilityId && storedFacilityId !== ledger.facilityId) {
+      return NextResponse.json({ persisted: false, error: "forbidden_facility_change" }, { status: 403 });
+    }
+
+    // Governance enforcement: If a host facility governs this coach/academy link and has NOT enabled QR scan delegation,
+    // prevent direct check-in increments from coach clients.
+    const isCheckinIncrement =
+      ledger.completedSessions > Number(existingPayload?.completedSessions ?? 0) ||
+      (Array.isArray(ledger.checkins) &&
+        ledger.checkins.length > (existingPayload?.checkins?.length || 0));
+
+    if (
+      !caller.isAdmin &&
+      !isProviderFacilityWriter &&
+      isCheckinIncrement &&
+      delegatedAccess.governed &&
+      !delegatedAccess.canScan
+    ) {
+      return NextResponse.json(
+        {
+          persisted: false,
+          error: "coach_qr_scan_not_delegated",
+          messageAr: `صلاحية مسح الـ QR لهذه المجموعة مقصورة حالياً على بوابة ${ledger.facilityNameAr}.`,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Security remediation (F-007): server-side atomic 3-hour duplicate check-in guard
+    if (existingPayload && isCheckinIncrement) {
+      const recentAgeMs = findRecentCheckinAgeMs(existingPayload.checkins);
+      if (recentAgeMs !== null && recentAgeMs < DUPLICATE_SCAN_WINDOW_MS) {
+        const allowFacilityOverride =
+          Boolean(body?.overrideDuplicate3h) && canOverrideDuplicate3h;
+        if (!allowFacilityOverride) {
+          return NextResponse.json(
+            {
+              persisted: false,
+              duplicateBlocked: true,
+              error: "duplicate_checkin_3h",
+              messageAr:
+                "تنبيه تكرار المسح: تم تسجيل حضور لهذه الباقة خلال آخر 3 ساعات بالفعل.",
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     let sanitizedLedger: SessionLedger = { ...ledger };
 
-    if (!caller.isAdmin && !isProviderFacilityWriter && !isCoachOwner) {
+    if (!caller.isAdmin && !isProviderFacilityWriter && !isCoachOwner && !isDelegatedGroupScanner) {
       if (isAccountsOnly) {
         if (!existingPayload) {
           return NextResponse.json({ persisted: false, error: "forbidden" }, { status: 403 });
@@ -489,27 +594,15 @@ export async function POST(request: Request) {
       .upsert(record, { onConflict: "id" });
 
     if (error && (error.code === "42P01" || error.code === "PGRST205")) {
-      const boot = await ensureLedgerTableExists();
-      if (!boot.ok) {
-        return NextResponse.json({
-          persisted: false,
-          reason: boot.errorCode || error.code || "bootstrap_failed",
-        });
-      }
-      const retry = await admin
-        .from("captenly_session_ledgers")
-        .upsert(record, { onConflict: "id" });
-      error = retry.error;
-
-      if (error) {
-        const pgRes = await withPgClient(async (client) => {
-          await runBootstrapDdl(client);
-          await client.query(
+      const pgRes = await withPgClient(async (client) => {
+        await client.query(
             `insert into public.captenly_session_ledgers
               (id, ledger_code, member_code, athlete_id, athlete_name_ar, coach_id, facility_id, pin_code, total_sessions, completed_sessions, status, payload, updated_at)
              values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,now())
              on conflict (id) do update set
                member_code = excluded.member_code,
+               athlete_name_ar = excluded.athlete_name_ar,
+               total_sessions = excluded.total_sessions,
                completed_sessions = excluded.completed_sessions,
                status = excluded.status,
                payload = excluded.payload,
@@ -530,12 +623,11 @@ export async function POST(request: Request) {
             ]
           );
           return true;
-        });
-        if (pgRes.ok) {
-          return NextResponse.json({ persisted: true, ledger: responseLedger });
-        }
-        return NextResponse.json({ persisted: false, reason: pgRes.errorCode });
+      });
+      if (pgRes.ok) {
+        return NextResponse.json({ persisted: true, ledger: responseLedger });
       }
+      return NextResponse.json({ persisted: false, reason: pgRes.errorCode });
     }
 
     if (error) {

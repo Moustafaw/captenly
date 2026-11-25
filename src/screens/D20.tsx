@@ -120,6 +120,7 @@ export default function Desktop20() {
         <section className="bg-surface-card rounded-2xl p-6 shadow-sm border border-surface-container flex flex-col gap-4">
           <h2 className="font-card-title text-dark-slate">ابحث عن منطقتك أو حدّد موقعك على الخريطة</h2>
           <LocationAutocompleteInput
+            hideQuickCities
             onSelectLocation={(loc) => {
               setUserCoordinates({
                 city: loc.city,

@@ -11,6 +11,7 @@ import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 import { ShareButton } from "@/components/editorial/ShareButton";
+import { cleanPublicAddressAr } from "@/lib/maps";
 
 export default function Phone13() {
   const params = useParams();
@@ -239,7 +240,8 @@ export default function Phone13() {
         </div>
         <h1 className="font-section-title-mobile text-[#0B1C2E] font-black leading-snug">{facility.nameAr}</h1>
         <p className="text-xs text-[#64748B] font-semibold">
-          {activeBranch ? activeBranch.addressAr : facility.addressAr}
+          {cleanPublicAddressAr(activeBranch ? activeBranch.addressAr : facility.addressAr) ||
+            `${facility.city}${facility.district ? ` • ${facility.district}` : ""}`}
         </p>
         {branchLocations.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -380,8 +382,15 @@ export default function Phone13() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="font-black text-xs text-[#0B1C2E]">{rc.fullNameAr}</div>
-                      <div className="text-[11px] text-[#1D6E7D] font-bold">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-black text-xs text-[#0B1C2E]">{rc.fullNameAr}</span>
+                        {!rc.linkedCoachId && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-bold text-amber-800">
+                            مُضاف من إدارة المنشأة (غير موثق بالمنصة بعد)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[#1D6E7D] font-bold mt-0.5">
                         {rc.roleTitleAr} • {rc.specialtyAr}
                       </div>
                     </div>
@@ -398,9 +407,16 @@ export default function Phone13() {
                     {rc.certificatesAr.map((cert, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EAF4F8] border border-[#00ACC1]/20 text-[10px] font-bold text-[#1D6E7D]"
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          rc.linkedCoachId
+                            ? "bg-[#EAF4F8] border border-[#00ACC1]/20 text-[#1D6E7D]"
+                            : "bg-white border border-[#E2E8F0] text-[#475569]"
+                        }`}
                       >
-                        <Icon name="workspace_premium" className="text-[12px] text-[#00ACC1]" />
+                        <Icon
+                          name={rc.linkedCoachId ? "workspace_premium" : "assignment"}
+                          className={`text-[12px] ${rc.linkedCoachId ? "text-[#00ACC1]" : "text-[#64748B]"}`}
+                        />
                         <span>{cert}</span>
                       </span>
                     ))}

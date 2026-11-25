@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Facility } from "@/types/captenly";
-import { calculateDistanceKm } from "@/lib/maps";
+import { calculateDistanceKm, cleanPublicAddressAr } from "@/lib/maps";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -218,6 +219,7 @@ function buildPublicDirectoryFacility(input: {
   directImage?: string;
   photoName?: string;
 }): Facility {
+  const cleanedAddress = cleanPublicAddressAr(input.addressAr) || input.city;
   return {
     id: input.id,
     slug: input.id,
@@ -228,8 +230,8 @@ function buildPublicDirectoryFacility(input: {
     sportSector: "swimming",
     governorate: input.governorate,
     city: input.city,
-    district: input.district || input.city,
-    addressAr: input.addressAr,
+    district: cleanPublicAddressAr(input.district || input.city) || input.city,
+    addressAr: cleanedAddress,
     coordinates: {
       lat: input.lat,
       lng: input.lng,
@@ -597,12 +599,16 @@ function normalizeGooglePlaceToFacility(p: GooglePlaceItem, rawCity: string): Fa
     rawCity === "موقعك الحالي" || rawCity === "كل مصر"
       ? ""
       : rawCity.replace(/\s*\(GPS\)/g, "").trim();
-  const formattedAddress = String(
-    p.formattedAddress ||
-      (cleanCityInput && cleanCityInput !== "الكل" ? `${cleanCityInput}، مصر` : "مصر")
-  );
+  const formattedAddress =
+    cleanPublicAddressAr(
+      String(
+        p.formattedAddress ||
+          (cleanCityInput && cleanCityInput !== "الكل" ? `${cleanCityInput}، مصر` : "مصر")
+      )
+    ) || (cleanCityInput && cleanCityInput !== "الكل" ? `${cleanCityInput}، مصر` : "مصر");
   const cityLabel = inferCityFromAddress(formattedAddress, cleanCityInput || "الكل");
   const governorate = inferGovernorateFromCity(cityLabel, formattedAddress);
+  const rawDistrict = cleanPublicAddressAr(formattedAddress.split("،")[0]?.trim()) || cityLabel;
 
   return buildPublicDirectoryFacility({
     id: `gplace-${placeId}`,
@@ -610,7 +616,7 @@ function normalizeGooglePlaceToFacility(p: GooglePlaceItem, rawCity: string): Fa
     nameEn: nameAr,
     city: cityLabel,
     governorate,
-    district: formattedAddress.split("،")[0]?.trim() || cityLabel,
+    district: rawDistrict,
     addressAr: formattedAddress,
     lat: p.location?.latitude || 30.0444,
     lng: p.location?.longitude || 31.2357,
@@ -681,7 +687,8 @@ function normalizeNominatimItemToFacility(item: NominatimItem, fallbackId: strin
   const lat = Number(item.lat);
   const lng = Number(item.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const displayName = String(item.display_name || "مصر");
+  const rawDisplayName = String(item.display_name || "مصر");
+  const displayName = cleanPublicAddressAr(rawDisplayName) || "مصر";
   const nameAr = String(item.name || displayName.split("،")[0] || "مسبح أو نادي سباحة").trim();
   const cleanCityInput =
     rawCity === "موقعك الحالي" || rawCity === "كل مصر"
@@ -810,8 +817,10 @@ function matchOsmSeeds(options: {
   rawQuery: string;
   cleanCity: string;
   biasCoords?: { lat: number; lng: number };
+  radiusKm?: number;
+  enforceRadius?: boolean;
 }): Facility[] {
-  const { rawQuery, cleanCity, biasCoords } = options;
+  const { rawQuery, cleanCity, biasCoords, radiusKm = 25, enforceRadius = false } = options;
   const qLower = rawQuery.trim().toLowerCase();
   const cityLower = cleanCity.trim().toLowerCase();
 
@@ -822,18 +831,22 @@ function matchOsmSeeds(options: {
       const hay = `${f.nameAr} ${f.nameEn} ${f.city} ${f.governorate} ${f.district} ${f.addressAr}`.toLowerCase();
       return hay.includes(qLower);
     });
+  } else if (enforceRadius && biasCoords) {
+    candidates = candidates.filter(
+      (f) => calculateDistanceKm(biasCoords.lat, biasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= radiusKm
+    );
   } else if (cityLower) {
     candidates = candidates.filter((f) => {
       const hay = `${f.city} ${f.governorate} ${f.district} ${f.addressAr}`.toLowerCase();
       const matchesText = hay.includes(cityLower);
       const withinRadius = biasCoords
-        ? calculateDistanceKm(biasCoords.lat, biasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= 25
+        ? calculateDistanceKm(biasCoords.lat, biasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= radiusKm
         : false;
       return matchesText || withinRadius;
     });
   } else if (biasCoords) {
     candidates = candidates.filter(
-      (f) => calculateDistanceKm(biasCoords.lat, biasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= 25
+      (f) => calculateDistanceKm(biasCoords.lat, biasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= radiusKm
     );
   }
 
@@ -859,6 +872,16 @@ function deduplicateFacilities(primary: Facility[], secondary: Facility[]): Faci
 }
 
 export async function GET(request: Request) {
+  const rl = await enforceRateLimit({
+    bucket: "places:search",
+    identifier: getClientIp(request),
+    limit: 60,
+    windowSec: 60,
+  });
+  if (!rl.allowed) {
+    return rateLimitExceededResponse(rl.retryAfterSec);
+  }
+
   const apiKey = process.env.GOOGLE_PLACES_SERVER_API_KEY?.trim();
 
   const { searchParams } = new URL(request.url);
@@ -922,6 +945,12 @@ export async function GET(request: Request) {
     }
   }
 
+  const hasExplicitRadius = Boolean(searchParams.get("radius") || searchParams.get("radiusKm"));
+  const parsedRadiusRaw = Number(searchParams.get("radius") || searchParams.get("radiusKm") || 25);
+  const radiusKm = Number.isFinite(parsedRadiusRaw)
+    ? Math.min(100, Math.max(1, Math.round(parsedRadiusRaw)))
+    : 25;
+
   const scopeParam = (searchParams.get("scope") || "").trim();
   const isEgyptWide =
     scopeParam === "egypt" ||
@@ -940,6 +969,7 @@ export async function GET(request: Request) {
     cleanCityForText || rawCity,
     rawQuery.toLowerCase(),
     hasCoords ? `${parsedLat.toFixed(2)},${parsedLng.toFixed(2)}` : "",
+    `r${radiusKm}`,
   ].join("|");
 
   const now = Date.now();
@@ -969,7 +999,7 @@ export async function GET(request: Request) {
       body.locationBias = {
         circle: {
           center: { latitude: biasCoords.lat, longitude: biasCoords.lng },
-          radius: 18000.0,
+          radius: Math.min(50000, Math.max(1000, radiusKm * 1000.0)),
         },
       };
     }
@@ -1108,10 +1138,13 @@ export async function GET(request: Request) {
   }
 
   const useBiasCoords = hasCoords ? { lat: parsedLat, lng: parsedLng } : undefined;
+  const enforceRadius = Boolean(hasExplicitRadius && useBiasCoords && !rawQuery);
   const seedMatches = matchOsmSeeds({
     rawQuery,
     cleanCity: cleanCityForText,
     biasCoords: useBiasCoords,
+    radiusKm,
+    enforceRadius,
   });
 
   const osmSearchTerms: string[] = [];
@@ -1129,7 +1162,7 @@ export async function GET(request: Request) {
   );
   let liveOsmMatches = deduplicateFacilities([], photonResultsArrays.flat());
 
-  // When searching a city without custom query, constrain live OSM hits to that city or 25km radius if coordinates provided
+  // When searching a city without custom query, constrain live OSM hits to that city or radius if coordinates provided
   if (!rawQuery && (cleanCityForText || useBiasCoords)) {
     const cityNorm = cleanCityForText.toLowerCase();
     liveOsmMatches = liveOsmMatches.filter((f) => {
@@ -1137,9 +1170,9 @@ export async function GET(request: Request) {
         cityNorm.length > 0 &&
         `${f.nameAr} ${f.city} ${f.governorate} ${f.district} ${f.addressAr}`.toLowerCase().includes(cityNorm);
       const radiusMatch = useBiasCoords
-        ? calculateDistanceKm(useBiasCoords.lat, useBiasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= 25
+        ? calculateDistanceKm(useBiasCoords.lat, useBiasCoords.lng, f.coordinates.lat, f.coordinates.lng) <= radiusKm
         : false;
-      return textMatch || radiusMatch;
+      return enforceRadius ? radiusMatch : textMatch || radiusMatch;
     });
   }
 

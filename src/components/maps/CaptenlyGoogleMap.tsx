@@ -5,8 +5,8 @@ import type { Facility } from "@/types/captenly";
 import { Icon } from "@/components/Icon";
 import {
   buildGoogleMapsDirectionsUrl,
-  buildGoogleMapsEmbedUrl,
   buildGoogleMapsPlaceUrl,
+  cleanPublicAddressAr,
   formatDistanceAr,
   getFacilityDistanceKm,
   getGoogleMapsApiKey,
@@ -35,7 +35,9 @@ export function CaptenlyGoogleMap({
   const apiKey = getGoogleMapsApiKey();
   const [sdkFailed, setSdkFailed] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [shouldLoadSdk, setShouldLoadSdk] = useState(false);
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -45,11 +47,52 @@ export function CaptenlyGoogleMap({
     return facilities.find((f) => f.id === selectedFacilityId) || facilities[0];
   }, [facilities, selectedFacilityId]);
 
-  const useInteractiveJsSdk = Boolean(apiKey) && !sdkFailed;
+  const hasValidCoords = Boolean(
+    activeFacility?.coordinates &&
+      Number.isFinite(activeFacility.coordinates.lat) &&
+      Number.isFinite(activeFacility.coordinates.lng) &&
+      !(activeFacility.coordinates.lat === 0 && activeFacility.coordinates.lng === 0)
+  );
+  const useInteractiveJsSdk = Boolean(apiKey) && !sdkFailed && hasValidCoords;
+
+  useEffect(() => {
+    if (!sdkFailed || !apiKey) return;
+    const onOnline = () => {
+      setSdkReady(false);
+      setSdkFailed(false);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [sdkFailed, apiKey]);
+
+  // Defer Google Maps SDK slightly until visible or browser is idle (preserves F-012 fallback timer & lowers TBT)
+  useEffect(() => {
+    if (!useInteractiveJsSdk || shouldLoadSdk) return;
+    const target = mapContainerRef.current || wrapperRef.current;
+    const timer = setTimeout(() => setShouldLoadSdk(true), 600);
+    if (!target || typeof IntersectionObserver === "undefined") {
+      return () => clearTimeout(timer);
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          clearTimeout(timer);
+          setShouldLoadSdk(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "250px" }
+    );
+    io.observe(target);
+    return () => {
+      clearTimeout(timer);
+      io.disconnect();
+    };
+  }, [useInteractiveJsSdk, shouldLoadSdk]);
 
   // Load Google Maps JavaScript SDK when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is configured
   useEffect(() => {
-    if (!useInteractiveJsSdk || !activeFacility || !mapContainerRef.current) return;
+    if (!useInteractiveJsSdk || !shouldLoadSdk || !activeFacility || !hasValidCoords || !mapContainerRef.current) return;
 
     let cancelled = false;
     const win = window as any;
@@ -58,9 +101,13 @@ export function CaptenlyGoogleMap({
       if (!cancelled) setSdkFailed(true);
       if (typeof prevAuthFail === "function") prevAuthFail();
     };
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled && !mapInstanceRef.current) setSdkFailed(true);
+    }, 4500);
 
     loadGoogleMapsSdk(apiKey)
       .then((maps) => {
+        clearTimeout(fallbackTimer);
         if (cancelled || !mapContainerRef.current) return;
         setSdkReady(true);
 
@@ -122,16 +169,20 @@ export function CaptenlyGoogleMap({
         }
       })
       .catch(() => {
+        clearTimeout(fallbackTimer);
         if (!cancelled) setSdkFailed(true);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(fallbackTimer);
       win.gm_authFailure = prevAuthFail;
     };
   }, [
     apiKey,
     useInteractiveJsSdk,
+    shouldLoadSdk,
+    hasValidCoords,
     facilities,
     activeFacility,
     selectedFacilityId,
@@ -150,27 +201,31 @@ export function CaptenlyGoogleMap({
     );
   }
 
-  const distanceText = userCoordinates
-    ? formatDistanceAr(getFacilityDistanceKm(activeFacility, userCoordinates))
-    : "";
+  const cleanAddr = cleanPublicAddressAr(activeFacility.addressAr);
+  const textLocationQuery = [activeFacility.nameAr, cleanAddr, activeFacility.city]
+    .filter((s) => typeof s === "string" && s.trim().length > 0)
+    .join(" ");
 
-  const embedUrl = buildGoogleMapsEmbedUrl(
-    activeFacility.coordinates.lat,
-    activeFacility.coordinates.lng,
-    compact ? 15 : 14,
-    activeFacility.nameAr
-  );
+  const distanceText =
+    userCoordinates && hasValidCoords
+      ? formatDistanceAr(getFacilityDistanceKm(activeFacility, userCoordinates))
+      : "";
 
-  const directionsUrl = buildGoogleMapsDirectionsUrl(
-    activeFacility.coordinates.lat,
-    activeFacility.coordinates.lng
-  );
+  const directionsUrl = hasValidCoords
+    ? buildGoogleMapsDirectionsUrl(activeFacility.coordinates.lat, activeFacility.coordinates.lng)
+    : textLocationQuery
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(textLocationQuery)}&travelmode=driving`
+      : "";
 
-  const placeUrl = buildGoogleMapsPlaceUrl(
-    activeFacility.coordinates.lat,
-    activeFacility.coordinates.lng,
-    activeFacility.nameAr
-  );
+  const placeUrl = hasValidCoords
+    ? buildGoogleMapsPlaceUrl(
+        activeFacility.coordinates.lat,
+        activeFacility.coordinates.lng,
+        activeFacility.nameAr
+      )
+    : textLocationQuery
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(textLocationQuery)}`
+      : "";
 
   return (
     <div className="flex flex-col gap-3">
@@ -188,13 +243,63 @@ export function CaptenlyGoogleMap({
             )}
           </>
         ) : (
-          <iframe
-            title={`خريطة ${activeFacility.nameAr}`}
-            src={embedUrl}
-            referrerPolicy="no-referrer-when-downgrade"
-            className="w-full h-full border-0"
-            allowFullScreen
-          />
+          <div
+            data-testid="captenly-map-fallback-card"
+            className="relative w-full h-full bg-gradient-to-br from-[#0B1C2E] via-[#133248] to-[#1D6E7D] text-white p-5 flex flex-col justify-between"
+          >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-20"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.2) 1px, transparent 1px)",
+                backgroundSize: "32px 32px",
+              }}
+            />
+            <div className="relative z-10 flex flex-col items-center justify-center text-center my-auto gap-1.5 px-3">
+              <div className="w-11 h-11 rounded-full bg-[#A3FF00] text-[#0B1C2E] flex items-center justify-center shadow-lg border-2 border-white">
+                <Icon name="pool" className="text-[22px]" />
+              </div>
+              <div className="font-extrabold text-sm leading-snug line-clamp-1">
+                {activeFacility.nameAr}
+              </div>
+              <p className="text-[11px] text-white/80 line-clamp-2 max-w-md">
+                {cleanAddr ||
+                  [activeFacility.district, activeFacility.city].filter(Boolean).join(" • ") ||
+                  "لم تُضف بيانات العنوان التفصيلية لهذه المنشأة بعد."}
+              </p>
+              {!hasValidCoords && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-300/35 text-[10px] font-bold text-amber-100">
+                  الإحداثيات الدقيقة غير مضافة بعد
+                </span>
+              )}
+            </div>
+            <div className="relative z-10 flex flex-wrap items-center justify-center gap-2">
+              {placeUrl && (
+                <a
+                  href={placeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-[#0B1C2E] hover:bg-[#A3FF00] text-xs font-extrabold shadow-sm transition-colors"
+                >
+                  <Icon name="directions" className="text-[15px]" />
+                  <span>افتح الموقع في خرائط Google</span>
+                </a>
+              )}
+              {sdkFailed && Boolean(apiKey) && hasValidCoords && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSdkReady(false);
+                    setSdkFailed(false);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold border border-white/20 transition-colors cursor-pointer"
+                >
+                  <Icon name="refresh" className="text-[14px]" />
+                  <span>إعادة تحميل الخريطة</span>
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Top Overlay Pill */}
@@ -246,26 +351,32 @@ export function CaptenlyGoogleMap({
       )}
 
       {/* Direct Google Maps Actions */}
-      <div className="flex flex-wrap items-center gap-2">
-        <a
-          href={directionsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 min-w-[140px] py-2 px-3 rounded-full bg-deep-olive text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-95 shadow-sm"
-        >
-          <Icon name="directions" className="text-[15px]" />
-          <span>الاتجاهات عبر خرائط Google</span>
-        </a>
-        <a
-          href={placeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="py-2 px-3.5 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold flex items-center justify-center gap-1 hover:bg-lime-tint"
-        >
-          <Icon name="explore" className="text-[14px]" />
-          <span>عرض الموقع</span>
-        </a>
-      </div>
+      {(directionsUrl || placeUrl) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {directionsUrl && (
+            <a
+              href={directionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 min-w-[140px] py-2 px-3 rounded-full bg-deep-olive text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-95 shadow-sm"
+            >
+              <Icon name="directions" className="text-[15px]" />
+              <span>الاتجاهات عبر خرائط Google</span>
+            </a>
+          )}
+          {placeUrl && (
+            <a
+              href={placeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2 px-3.5 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold flex items-center justify-center gap-1 hover:bg-lime-tint"
+            >
+              <Icon name="explore" className="text-[14px]" />
+              <span>عرض الموقع</span>
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }

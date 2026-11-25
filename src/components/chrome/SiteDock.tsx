@@ -95,7 +95,7 @@ export function SiteDock() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, currentPersona.role, activeStaffAssignment?.id]);
 
-  if (isChromeless(pathname)) return null;
+  if (isChromeless(pathname) || pathname.startsWith("/dashboard/facility/gate")) return null;
 
   return (
     <>
@@ -137,7 +137,7 @@ export function SiteDock() {
                 }
               }}
               className={`relative z-10 min-w-[52px] min-h-[46px] px-2.5 py-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-300 ${
-                t.active ? "text-[#1D6E7D] font-extrabold" : "text-[#64748B] hover:text-[#1D6E7D]"
+                t.active ? "text-[#1D6E7D] font-extrabold" : "text-[#475569] hover:text-[#1D6E7D]"
               }`}
             >
               <Icon

@@ -67,7 +67,7 @@ function Phone6Inner() {
   useEffect(() => {
     const q = smartFilters.searchQuery.trim();
     const city = smartFilters.city;
-    if (q.length < 2 && city === "الكل") {
+    if (q.length < 2 && city === "الكل" && !userLocation.isSpecified) {
       setGooglePlacesResults([]);
       setPlacesLoading(false);
       return;
@@ -85,6 +85,9 @@ function Phone6Inner() {
         if (city === userLocation.city) {
           params.set("lat", String(userLocation.lat));
           params.set("lng", String(userLocation.lng));
+          if (smartFilters.maxDistanceKm > 0) {
+            params.set("radius", String(smartFilters.maxDistanceKm));
+          }
         } else {
           const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
           if (preset) {
@@ -95,6 +98,9 @@ function Phone6Inner() {
       } else if (userLocation.isSpecified) {
         params.set("lat", String(userLocation.lat));
         params.set("lng", String(userLocation.lng));
+        if (smartFilters.maxDistanceKm > 0) {
+          params.set("radius", String(smartFilters.maxDistanceKm));
+        }
       } else {
         params.set("scope", "egypt");
       }
@@ -122,7 +128,7 @@ function Phone6Inner() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [smartFilters.searchQuery, smartFilters.city, userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
+  }, [smartFilters.searchQuery, smartFilters.city, smartFilters.maxDistanceKm, userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
@@ -138,6 +144,13 @@ function Phone6Inner() {
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
       const basePrice = getFacilityStartingPriceEgp(f);
       if (basePrice > 0 && basePrice > smartFilters.maxPriceEgp) return false;
+      if (
+        userLocation.isSpecified &&
+        smartFilters.maxDistanceKm > 0 &&
+        getFacilityDistanceKm(f, userLocation) > smartFilters.maxDistanceKm
+      ) {
+        return false;
+      }
       return true;
     });
 
@@ -146,6 +159,13 @@ function Phone6Inner() {
       const seenIds = new Set(mergedList.map((f) => f.id));
       for (const ext of googlePlacesResults) {
         if (seenIds.has(ext.id)) continue;
+        if (
+          userLocation.isSpecified &&
+          smartFilters.maxDistanceKm > 0 &&
+          getFacilityDistanceKm(ext, userLocation) > smartFilters.maxDistanceKm
+        ) {
+          continue;
+        }
         mergedList.push(ext);
       }
     }
@@ -167,8 +187,12 @@ function Phone6Inner() {
   }, [facilities, googlePlacesResults, smartFilters, userLocation]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filtered, 0, userLocation),
-    [filtered, userLocation]
+    () =>
+      partitionFacilities3Tier(filtered, 0, {
+        ...userLocation,
+        maxDistanceKm: userLocation.isSpecified ? smartFilters.maxDistanceKm : undefined,
+      }),
+    [filtered, userLocation, smartFilters.maxDistanceKm]
   );
 
   const matchingCoaches = useMemo(
@@ -215,10 +239,11 @@ function Phone6Inner() {
         <div className="flex-1 flex items-center bg-white rounded-full px-3.5 py-2 shadow-xs border border-[#0F172A]/8 focus-within:border-[#1D6E7D]">
           <Icon name="search" className="text-[#64748B] ml-1.5 text-[16px]" />
           <input
+            aria-label="ابحث بالاسم أو المنطقة"
             value={smartFilters.searchQuery}
             onChange={(e) => updateSmartFilters({ searchQuery: e.target.value })}
             placeholder="ابحث بالاسم أو المنطقة..."
-            className="w-full bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#64748B]"
+            className="w-full bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#475569]"
           />
         </div>
         <button
@@ -314,7 +339,7 @@ function Phone6Inner() {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-1.5 px-1">
                 <Icon name="verified" className="text-[15px] text-deep-olive" />
-                <span className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</span>
+                <h2 className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</h2>
               </div>
               <div className="flex flex-col gap-3">
                 {partitioned.featured.map((fac) => (
@@ -335,9 +360,9 @@ function Phone6Inner() {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-1.5 px-1">
                 <Icon name="pool" className="text-[15px] text-dark-slate" />
-                <span className="text-xs font-bold text-dark-slate">
+                <h2 className="text-xs font-bold text-dark-slate">
                   الحسابات المسجلة على كابتنلي ({partitioned.registered.length})
-                </span>
+                </h2>
               </div>
               <div className="flex flex-col gap-4">
                 {partitioned.registered.map((fac) => (
@@ -358,9 +383,9 @@ function Phone6Inner() {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-1.5 px-1">
                 <Icon name="sports" className="text-[15px] text-dark-slate" />
-                <span className="text-xs font-bold text-dark-slate">
+                <h2 className="text-xs font-bold text-dark-slate">
                   الكباتن والمدربون المطابقون ({matchingCoaches.length})
-                </span>
+                </h2>
               </div>
               <div className="flex flex-col gap-3">
                 {matchingCoaches.map((coach) => (
@@ -374,9 +399,9 @@ function Phone6Inner() {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-1.5 px-1">
                 <Icon name="explore" className="text-[15px] text-text-muted" />
-                <span className="text-xs font-bold text-text-muted">
+                <h2 className="text-xs font-bold text-text-muted">
                   دليل الأماكن من خرائط Google — بدون أزرار تواصل ({partitioned.unclaimedDirectory.length})
-                </span>
+                </h2>
               </div>
               <div className="flex flex-col gap-4">
                 {partitioned.unclaimedDirectory.map((fac) => (

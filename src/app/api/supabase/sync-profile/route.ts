@@ -5,7 +5,6 @@ import { withPgClient } from "@/lib/supabase/pgFallback";
 import { attachMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
 import { getDeterministicCoachId } from "@/lib/coachProvisioning";
 import { ensureSelfRegisteredCoachInDb } from "@/lib/server/coachDb";
-import { ensureSingleOwnerAccountBaseline } from "@/lib/server/accountPurge";
 
 export const dynamic = "force-dynamic";
 
@@ -17,48 +16,6 @@ function toDbSafeRole(candidate: unknown, fallback = "adult_athlete"): string {
   if (ALLOWED_ROLES.has(clean)) return clean;
   if (ALLOWED_ROLES.has(fallback)) return fallback;
   return "adult_athlete";
-}
-
-let profileSchemaBootstrapped = false;
-
-const PROFILE_BOOTSTRAP_STATEMENTS = [
-  `create table if not exists public.captenly_profiles (
-    id uuid primary key default gen_random_uuid(),
-    member_code text not null unique,
-    email text unique,
-    full_name_ar text not null,
-    role text not null check (role in ('adult_athlete', 'parent', 'coach', 'facility_manager')),
-    phone text,
-    city text,
-    governorate text,
-    avatar_url text,
-    auth_provider text not null default 'captenly',
-    has_parent_supervision boolean not null default false,
-    needs_onboarding boolean not null default false,
-    bio_ar text,
-    social_links jsonb default '{}'::jsonb,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-  )`,
-  `alter table public.captenly_profiles add column if not exists bio_ar text`,
-  `alter table public.captenly_profiles add column if not exists social_links jsonb default '{}'::jsonb`,
-  `alter table public.captenly_profiles add column if not exists governorate text`,
-  `alter table public.captenly_profiles add column if not exists password_hash text`,
-  `alter table public.captenly_profiles add column if not exists otp_code_hash text`,
-  `alter table public.captenly_profiles add column if not exists otp_expires_at timestamptz`,
-  `alter table public.captenly_profiles add column if not exists account_intent text`,
-  `alter table public.captenly_profiles enable row level security`,
-];
-
-async function ensureProfileTableViaPg() {
-  if (profileSchemaBootstrapped) return;
-  const res = await withPgClient(async (client) => {
-    for (const stmt of PROFILE_BOOTSTRAP_STATEMENTS) {
-      await client.query(stmt);
-    }
-    return true;
-  });
-  if (res.ok) profileSchemaBootstrapped = true;
 }
 
 function normalizeRowToProfile(row: Record<string, unknown>) {
@@ -109,7 +66,6 @@ function normalizeRowToProfile(row: Record<string, unknown>) {
 }
 
 export async function GET(request: Request) {
-  await ensureSingleOwnerAccountBaseline();
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ ok: false, found: false, profile: null, error: "unauthorized" }, { status: 401 });
@@ -185,7 +141,6 @@ export async function GET(request: Request) {
     }
   }
 
-  await ensureProfileTableViaPg();
   const pgRes = await withPgClient(async (client) => {
     if (emailParam) {
       const { rows } = await client.query(
@@ -233,7 +188,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  await ensureSingleOwnerAccountBaseline();
   const caller = await getServerCaller();
   if (!caller.authenticated) {
     return NextResponse.json({ persisted: false, error: "unauthorized" }, { status: 401 });
@@ -261,6 +215,31 @@ export async function POST(request: Request) {
         { persisted: false, error: "missing_required_fields", messageAr: "بيانات الحساب المطلوبة غير مكتملة." },
         { status: 400 }
       );
+    }
+
+    if (typeof body.bioAr === "string" && body.bioAr.trim() && !caller.isAdmin) {
+      const bioLower = body.bioAr.toLowerCase();
+      const medicalBlocked = [
+        "علاج طبيعي",
+        "علاج طبي",
+        "تأهيل طبي",
+        "تشخيص",
+        "وصفة طبية",
+        "علاج الديسك",
+        "rehabilitation therapy",
+        "medical therapy",
+      ].some((kw) => bioLower.includes(kw.toLowerCase()));
+      if (medicalBlocked) {
+        return NextResponse.json(
+          {
+            persisted: false,
+            error: "law_3_1985_prohibited_medical_claims",
+            messageAr:
+              "مخالف لقانون 3 لسنة 1985: يُمنع إدراج مصطلحات العلاج الطبي أو التأهيل الطبي في النبذة التعريفية بدون ترخيص علاج طبيعي موثق.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     if (!caller.isAdmin) {
@@ -588,7 +567,6 @@ export async function POST(request: Request) {
       lastAdminError = error.message || error.code || "supabase_error";
     }
 
-    await ensureProfileTableViaPg();
     const pgRes = await withPgClient(async (client) => {
       const avatarVal = typeof baseRecord.avatar_url === "string" ? baseRecord.avatar_url : null;
       const bioVal =

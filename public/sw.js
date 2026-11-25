@@ -1,10 +1,13 @@
-const CACHE_NAME = "captenly-pwa-v2";
+const CACHE_NAME = "captenly-pwa-v3";
 const CORE_SHELL_URLS = [
   "/",
   "/explore",
   "/coaches",
   "/dashboard/ledger",
   "/dashboard/athlete",
+  "/dashboard/facility",
+  "/dashboard/facility/gate",
+  "/dashboard/coach",
   "/manifest.json",
   "/captenly-icon-v2.svg",
   "/favicon-v2.png",
@@ -49,6 +52,19 @@ self.addEventListener("fetch", (event) => {
           const cached = await caches.match(request);
           if (cached) return cached;
           const url = new URL(request.url);
+          if (url.pathname.startsWith("/dashboard/facility/gate")) {
+            return (
+              (await caches.match("/dashboard/facility/gate")) ||
+              (await caches.match("/dashboard/facility")) ||
+              (await caches.match("/"))
+            );
+          }
+          if (url.pathname.startsWith("/dashboard/facility")) {
+            return (await caches.match("/dashboard/facility")) || (await caches.match("/"));
+          }
+          if (url.pathname.startsWith("/dashboard/coach")) {
+            return (await caches.match("/dashboard/coach")) || (await caches.match("/"));
+          }
           if (url.pathname.startsWith("/dashboard/ledger")) {
             return (await caches.match("/dashboard/ledger")) || (await caches.match("/"));
           }

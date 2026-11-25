@@ -1,18 +1,20 @@
-import { ResponsiveScreen } from "@/components/ResponsiveScreen";
-import Desktop23 from "@/screens/D23";
-import Desktop3 from "@/screens/D3";
-import Phone6 from "@/screens/P6";
+import type { Metadata } from "next";
+import { ExploreScreenClient } from "@/components/screens/ExploreScreenClient";
+import { buildPageMetadata } from "@/lib/seo";
 
-export default function ExplorePage({
+export const metadata: Metadata = buildPageMetadata({
+  title: "استكشف المسابح والأكاديميات القريبة منك",
+  description:
+    "ابحث في خريطة ودليل مسابح السباحة والأكاديميات في مدينتك، وصفِّ حسب السعر والمسافة والتدفئة الشتوية ومواعيد السيدات.",
+  path: "/explore",
+});
+
+export default async function ExplorePage({
   searchParams,
 }: {
-  searchParams?: { fallback?: string; q?: string };
+  searchParams?: Promise<{ fallback?: string; q?: string }>;
 }) {
-  const isFallback = searchParams?.fallback === "1";
-  return (
-    <ResponsiveScreen
-      desktop={isFallback ? <Desktop3 /> : <Desktop23 />}
-      phone={<Phone6 />}
-    />
-  );
+  const resolved = searchParams ? await searchParams : undefined;
+  const isFallback = resolved?.fallback === "1";
+  return <ExploreScreenClient isFallback={isFallback} />;
 }

@@ -7,6 +7,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { useState } from "react";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { getFacilityBookablePackages, getFacilityStartingPriceEgp } from "@/lib/facilityPricing";
+import { cleanPublicAddressAr } from "@/lib/maps";
 
 import { FacilityImageOrFallback, resolveFacilityImage } from "./FacilityImageOrFallback";
 
@@ -183,7 +184,9 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
           </Link>
 
           <p className="font-body-compact text-body-compact text-[#64748B] line-clamp-2">
-            {facility.publicDescriptionAr || facility.scheduleSummaryAr || facility.addressAr}
+            {cleanPublicAddressAr(
+              facility.publicDescriptionAr || facility.scheduleSummaryAr || facility.addressAr
+            )}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">

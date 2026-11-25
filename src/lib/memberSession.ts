@@ -461,3 +461,60 @@ export async function callerHasAnyStaffRole(
   });
   return pgRes.ok && inspectFacilities(pgRes.value);
 }
+
+export async function getCallerAuthorizedFacilityIds(
+  caller: ServerCallerContext,
+  allowedStaffRoles?: FacilityStaffRole[]
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  if (!caller.authenticated) return ids;
+  if (caller.linkedFacilityId) ids.add(caller.linkedFacilityId);
+
+  const callerCode = (caller.memberCode || "").trim().toUpperCase();
+  if (!callerCode) return ids;
+
+  const collectFromRows = (rows: Array<{ id?: unknown; payload?: unknown }>) => {
+    for (const r of rows) {
+      const p = (r.payload || {}) as {
+        id?: string;
+        ownerMemberCode?: string;
+        staffMembers?: StoredStaffEntry[];
+      };
+      const facId = String(r.id || p.id || "").trim();
+      if (!facId) continue;
+      if (p.ownerMemberCode && p.ownerMemberCode.trim().toUpperCase() === callerCode) {
+        ids.add(facId);
+        continue;
+      }
+      const staff = Array.isArray(p.staffMembers) ? p.staffMembers : [];
+      const matched = staff.some((st) => {
+        if (!isAcceptedStaffMatch(st, callerCode)) return false;
+        if (!allowedStaffRoles || allowedStaffRoles.length === 0) return true;
+        return Boolean(st.role && allowedStaffRoles.includes(st.role));
+      });
+      if (matched) ids.add(facId);
+    }
+  };
+
+  const admin = getSupabaseAdminClient();
+  if (admin) {
+    try {
+      const { data } = await admin.from("captenly_facilities").select("id, payload").limit(120);
+      if (Array.isArray(data)) {
+        collectFromRows(data);
+        return ids;
+      }
+    } catch {
+      // fall through to PG fallback
+    }
+  }
+
+  const pgRes = await withPgClient(async (client) => {
+    const { rows } = await client.query(`select id, payload from public.captenly_facilities limit 120`);
+    return rows as Array<{ id?: unknown; payload?: unknown }>;
+  });
+  if (pgRes.ok) {
+    collectFromRows(pgRes.value);
+  }
+  return ids;
+}

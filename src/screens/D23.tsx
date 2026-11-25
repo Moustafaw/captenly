@@ -65,7 +65,7 @@ function Desktop23Inner() {
   useEffect(() => {
     const q = smartFilters.searchQuery.trim();
     const city = smartFilters.city;
-    if (q.length < 2 && city === "الكل") {
+    if (q.length < 2 && city === "الكل" && !userLocation.isSpecified) {
       setGooglePlacesResults([]);
       setPlacesLoading(false);
       return;
@@ -84,6 +84,9 @@ function Desktop23Inner() {
         if (city === userLocation.city) {
           params.set("lat", String(userLocation.lat));
           params.set("lng", String(userLocation.lng));
+          if (smartFilters.maxDistanceKm > 0) {
+            params.set("radius", String(smartFilters.maxDistanceKm));
+          }
         } else {
           const preset = EGYPT_CITY_PRESETS.find((p) => p.city === city);
           if (preset) {
@@ -94,6 +97,9 @@ function Desktop23Inner() {
       } else if (userLocation.isSpecified) {
         params.set("lat", String(userLocation.lat));
         params.set("lng", String(userLocation.lng));
+        if (smartFilters.maxDistanceKm > 0) {
+          params.set("radius", String(smartFilters.maxDistanceKm));
+        }
       } else {
         params.set("scope", "egypt");
       }
@@ -121,7 +127,7 @@ function Desktop23Inner() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [smartFilters.searchQuery, smartFilters.city, userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
+  }, [smartFilters.searchQuery, smartFilters.city, smartFilters.maxDistanceKm, userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
   const filtered = useMemo(() => {
     const q = smartFilters.searchQuery.trim().toLowerCase();
@@ -137,6 +143,13 @@ function Desktop23Inner() {
       if (smartFilters.lifeguardOnly && !f.poolSpecs?.hasEdlfLifeguard) return false;
       const basePrice = getFacilityStartingPriceEgp(f);
       if (basePrice > 0 && basePrice > smartFilters.maxPriceEgp) return false;
+      if (
+        userLocation.isSpecified &&
+        smartFilters.maxDistanceKm > 0 &&
+        getFacilityDistanceKm(f, userLocation) > smartFilters.maxDistanceKm
+      ) {
+        return false;
+      }
       return true;
     });
 
@@ -146,6 +159,13 @@ function Desktop23Inner() {
       const seenIds = new Set(mergedList.map((f) => f.id));
       for (const ext of googlePlacesResults) {
         if (seenIds.has(ext.id)) continue;
+        if (
+          userLocation.isSpecified &&
+          smartFilters.maxDistanceKm > 0 &&
+          getFacilityDistanceKm(ext, userLocation) > smartFilters.maxDistanceKm
+        ) {
+          continue;
+        }
         mergedList.push(ext);
       }
     }
@@ -167,8 +187,12 @@ function Desktop23Inner() {
   }, [facilities, googlePlacesResults, smartFilters, userLocation]);
 
   const partitioned = useMemo(
-    () => partitionFacilities3Tier(filtered, 0, userLocation),
-    [filtered, userLocation]
+    () =>
+      partitionFacilities3Tier(filtered, 0, {
+        ...userLocation,
+        maxDistanceKm: userLocation.isSpecified ? smartFilters.maxDistanceKm : undefined,
+      }),
+    [filtered, userLocation, smartFilters.maxDistanceKm]
   );
 
   const matchingCoaches = useMemo(
@@ -235,10 +259,11 @@ function Desktop23Inner() {
               <div className="flex items-center bg-[#F7F9FA] rounded-full px-4 py-2 border border-[#0F172A]/10 focus-within:border-[#1D6E7D] focus-within:bg-white transition-colors">
                 <Icon name="search" className="text-[#64748B] ml-2 text-[17px]" />
                 <input
+                  aria-label="ابحث بالاسم أو المنطقة"
                   value={smartFilters.searchQuery}
                   onChange={(e) => updateSmartFilters({ searchQuery: e.target.value })}
                   placeholder="ابحث بالاسم أو المنطقة..."
-                  className="bg-transparent outline-none text-sm w-48 text-[#0F172A] placeholder:text-[#64748B]"
+                  className="bg-transparent outline-none text-sm w-48 text-[#0F172A] placeholder:text-[#475569]"
                 />
               </div>
 
@@ -252,6 +277,7 @@ function Desktop23Inner() {
               </button>
 
               <select
+                aria-label="ترتيب المنشآت"
                 value={smartFilters.sortBy}
                 onChange={(e) =>
                   updateSmartFilters({
@@ -302,9 +328,11 @@ function Desktop23Inner() {
               )}
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-[#64748B]">
-              <span>الحد الأقصى للسعر الشهري:</span>
+            <div className="flex items-center gap-3 text-xs text-[#475569]">
+              <label htmlFor="explore-max-price">الحد الأقصى للسعر الشهري:</label>
               <input
+                id="explore-max-price"
+                aria-label="الحد الأقصى للسعر الشهري"
                 type="range"
                 min={400}
                 max={2500}

@@ -11,6 +11,7 @@ import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
 import { GuestFloatingAuthBar } from "@/components/auth/GuestFloatingAuthBar";
 import { ShareButton } from "@/components/editorial/ShareButton";
+import { cleanPublicAddressAr } from "@/lib/maps";
 
 export default function Desktop22() {
   const params = useParams();
@@ -159,7 +160,7 @@ export default function Desktop22() {
   };
 
   return (
-    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-16">
+    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased min-h-screen pt-6 pb-28">
       <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop flex flex-col gap-6">
         {/* Verified Notice — Visible only to authorized facility owner/staff */}
         {!isUnclaimed && canManageThisFacility && (
@@ -213,10 +214,10 @@ export default function Desktop22() {
                   </span>
                 </span>
                 {facility.rating > 0 ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF3C7]/70 text-[#B45309] font-bold text-xs">
-                    <Icon name="star" className="text-[14px] text-[#F59E0B]" />
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF3C7]/70 text-[#92400E] font-bold text-xs">
+                    <Icon name="star" className="text-[14px] text-[#92400E]" />
                     <span className="text-[#0F172A]">{facility.rating}</span>
-                    {facility.reviewsCount > 0 ? <span className="text-[#64748B]">({facility.reviewsCount} تقييم)</span> : null}
+                    {facility.reviewsCount > 0 ? <span className="text-[#475569]">({facility.reviewsCount} تقييم)</span> : null}
                   </span>
                 ) : null}
               </div>
@@ -225,7 +226,8 @@ export default function Desktop22() {
                 {facility.nameAr}
               </h1>
               <p className="font-body-default text-[#475569]">
-                {activeBranch ? activeBranch.addressAr : facility.addressAr}
+                {cleanPublicAddressAr(activeBranch ? activeBranch.addressAr : facility.addressAr) ||
+                  `${facility.city}${facility.district ? ` • ${facility.district}` : ""}`}
               </p>
               {branchLocations.length > 0 && (
                 <div className="flex flex-col gap-1.5 pt-1">
@@ -277,62 +279,70 @@ export default function Desktop22() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-[#0F172A]/8">
-              <ContactChannelsBar
-                supplyStatus={facility.supplyStatus}
-                whatsappNumber={facility.whatsappNumber}
-                facebookUrl={facility.facebookUrl}
-                instagramUrl={facility.instagramUrl}
-                onWhatsappClick={handleDirectWhatsapp}
-              />
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-[#0F172A]/8">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <ContactChannelsBar
+                  supplyStatus={facility.supplyStatus}
+                  whatsappNumber={facility.whatsappNumber}
+                  facebookUrl={facility.facebookUrl}
+                  instagramUrl={facility.instagramUrl}
+                  onWhatsappClick={handleDirectWhatsapp}
+                />
 
-              {!isUnclaimed && (
-                <Link
-                  href={`/booking?facility=${facility.slug}`}
-                  onClick={(e) => {
-                    if (!isAuthenticated) {
-                      e.preventDefault();
-                      openAuthGateModal("تجهيز بيانات التسجيل والحجز");
-                    }
-                  }}
-                  className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm shadow-sm transition-colors"
+                {!isUnclaimed && (
+                  <Link
+                    href={`/booking?facility=${facility.slug}`}
+                    onClick={(e) => {
+                      if (!isAuthenticated) {
+                        e.preventDefault();
+                        openAuthGateModal("تجهيز بيانات التسجيل والحجز");
+                      }
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title-sm shadow-sm transition-colors"
+                  >
+                    تجهيز الحجز والانضمام
+                  </Link>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleFavorite(facility.id)}
+                  aria-label={fav ? "إزالة من المفضلة" : "حفظ المنشأة"}
+                  title={fav ? "محفوظة" : "حفظ المنشأة"}
+                  className={`px-3.5 py-2 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
+                    fav
+                      ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                      : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
+                  }`}
                 >
-                  تجهيز الحجز والانضمام
-                </Link>
-              )}
+                  <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[16px]" />
+                  <span>{fav ? "محفوظة" : "حفظ"}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => toggleFavorite(facility.id)}
-                className={`px-4 py-2.5 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
-                  fav
-                    ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
-                    : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
-                }`}
-              >
-                <Icon name={fav ? "bookmark" : "bookmark_border"} className="text-[16px]" />
-                <span>{fav ? "محفوظة" : "حفظ"}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleCompareFacility(facility.id)}
+                  aria-label="أضف للمقارنة"
+                  title={inCompare ? "في المقارنة" : "أضف للمقارنة"}
+                  className={`px-3.5 py-2 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
+                    inCompare
+                      ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
+                      : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
+                  }`}
+                >
+                  <Icon name="compare_arrows" className="text-[16px]" />
+                  <span>{inCompare ? "بالمقارنة ✓" : "مقارنة"}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => toggleCompareFacility(facility.id)}
-                className={`px-4 py-2.5 rounded-full font-badge-label text-xs flex items-center gap-1.5 border transition-colors ${
-                  inCompare
-                    ? "bg-[#1D6E7D] border-[#1D6E7D] text-white"
-                    : "bg-[#F7F9FA] border-[#0F172A]/10 text-[#0F172A] hover:bg-[#EAF4F8]"
-                }`}
-              >
-                <Icon name="compare_arrows" className="text-[16px]" />
-                <span>{inCompare ? "في المقارنة ✓" : "أضف للمقارنة"}</span>
-              </button>
-
-              <ShareButton
-                title={`${facility.nameAr} — ${facility.city} | كابتنلي`}
-                text={`تعرّف على مواعيد وباقات ${facility.nameAr} على منصة كابتنلي`}
-                label="مشاركة الصفحة"
-                className="px-4 py-2.5 rounded-full bg-[#F7F9FA] border border-[#0F172A]/10 text-[#0F172A] font-badge-label text-xs flex items-center gap-1.5 hover:bg-[#EAF4F8] hover:text-[#1D6E7D] transition-colors cursor-pointer"
-              />
+                <ShareButton
+                  title={`${facility.nameAr} — ${facility.city} | كابتنلي`}
+                  text={`تعرّف على مواعيد وباقات ${facility.nameAr} على منصة كابتنلي`}
+                  ariaLabel="مشاركة الصفحة"
+                  variant="icon"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -368,8 +378,8 @@ export default function Desktop22() {
                 {!hasRealScheduleOrPricing ? (
                   <div className="rounded-[24px] bg-white p-8 border border-[#0F172A]/8 text-center flex flex-col items-center gap-2 shadow-[0_4px_20px_rgba(15,23,42,0.03)]">
                     <Icon name="info" className="text-[28px] text-[#64748B]" />
-                    <h3 className="font-card-title text-[#0F172A]">لا توجد بيانات متوفرة الآن</h3>
-                    <p className="text-xs text-[#64748B] max-w-md leading-relaxed">
+                    <h2 className="font-card-title text-[#0F172A]">لا توجد بيانات متوفرة الآن</h2>
+                    <p className="text-xs text-[#475569] max-w-md leading-relaxed">
                       {isUnclaimed
                         ? "هذه المنشأة غير مسجلة أو مفعّلة على منصة Captenly بعد — لذلك لا تتوفر باقات أو مواعيد حصص معلنة حتى الآن."
                         : "لم تقم إدارة المنشأة بإضافة بطاقات المواعيد والأسعار بعد."}
@@ -379,10 +389,10 @@ export default function Desktop22() {
                   <>
                     {schoolPrograms.length > 0 && (
                       <div className="rounded-[24px] bg-white p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-4">
-                        <h3 className="font-card-title text-[#0F172A] flex items-center gap-2">
+                        <h2 className="font-card-title text-[#0F172A] flex items-center gap-2">
                           <Icon name="school" className="text-[19px] text-[#1D6E7D]" />
                           <span>بطاقات المواعيد والمدارس ({schoolPrograms.length})</span>
-                        </h3>
+                        </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                           {schoolPrograms.map((prog) => (
                             <div
@@ -459,7 +469,9 @@ export default function Desktop22() {
             {activeTab === "coaches" && (
               <div className="bg-white rounded-[24px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-4">
                 {totalCoachesCount > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <>
+                    <h2 className="sr-only">الكباتن والمدربون بالمكان</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {rosterCoaches.map((rc) => (
                       <div
                         key={rc.id}
@@ -469,9 +481,19 @@ export default function Desktop22() {
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-card-title text-[#0F172A]">{rc.fullNameAr}</h3>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[11px] font-extrabold">
-                                <Icon name="verified" className="text-[13px]" />
-                                <span>معتمد بالمنشأة</span>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                                  rc.linkedCoachId
+                                    ? "bg-[#EAF4F8] text-[#1D6E7D]"
+                                    : "bg-amber-50 border border-amber-200 text-amber-800"
+                                }`}
+                              >
+                                <Icon name={rc.linkedCoachId ? "verified" : "info"} className="text-[13px]" />
+                                <span>
+                                  {rc.linkedCoachId
+                                    ? "حساب كابتن مسجّل"
+                                    : "مُضاف من إدارة المنشأة (غير موثق بالمنصة بعد)"}
+                                </span>
                               </span>
                             </div>
                             <div className="text-xs font-bold text-[#1D6E7D] mt-1">
@@ -496,15 +518,15 @@ export default function Desktop22() {
 
                         <div className="flex flex-col gap-1.5 pt-2 border-t border-[#0F172A]/8">
                           <span className="text-[11px] font-extrabold text-[#0F172A]">
-                            الشهادات والاعتمادات المسجلة:
+                            البيانات والشهادات المُدخلة من الإدارة (قيد المراجعة):
                           </span>
                           <div className="flex flex-wrap gap-1.5">
                             {rc.certificatesAr.map((cert, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#0F172A]/8 text-[11px] font-bold text-[#1D6E7D]"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#0F172A]/8 text-[11px] font-bold text-[#475569]"
                               >
-                                <Icon name="workspace_premium" className="text-[14px]" />
+                                <Icon name={rc.linkedCoachId ? "workspace_premium" : "assignment"} className="text-[14px]" />
                                 <span>{cert}</span>
                               </span>
                             ))}
@@ -518,14 +540,15 @@ export default function Desktop22() {
                       .map((c) => (
                         <VerifiedCoachCard key={c.id} coach={c} />
                       ))}
-                  </div>
+                    </div>
+                  </>
                 ) : (
                   <div className="text-center py-6 flex flex-col items-center gap-3">
                     <Icon name="verified" className="text-[28px] text-[#1D6E7D]" />
-                    <h3 className="font-card-title text-[#0F172A]">
+                    <h2 className="font-card-title text-[#0F172A]">
                       لم تُضف قائمة كباتن لهذه المنشأة بعد
-                    </h3>
-                    <p className="text-xs text-[#64748B] max-w-md">
+                    </h2>
+                    <p className="text-xs text-[#475569] max-w-md">
                       يمكن لإدارة المنشأة إضافة الكباتن وشهاداتهم مباشرة من لوحة تحكم المنشأة ليظهروا هنا تلقائياً.
                     </p>
                   </div>
@@ -535,10 +558,10 @@ export default function Desktop22() {
 
             {facilityArticles.length > 0 && (
               <div className="bg-white rounded-[24px] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-3">
-                <h3 className="font-card-title text-[#0F172A] flex items-center gap-2">
+                <h2 className="font-card-title text-[#0F172A] flex items-center gap-2">
                   <Icon name="article" className="text-[18px] text-[#1D6E7D]" />
                   <span>مقالات ومنشورات {facility.nameAr} ({facilityArticles.length})</span>
-                </h3>
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {facilityArticles.map((art) => (
                     <Link
@@ -557,9 +580,9 @@ export default function Desktop22() {
 
             {activeTab === "safety" && (
               <div className="bg-white rounded-[24px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col gap-3">
-                <h3 className="font-card-title text-[#0F172A]">
+                <h2 className="font-card-title text-[#0F172A]">
                   كيف تحفظ حقك وتفعّل دفتر الحصص الرقمي هنا؟
-                </h3>
+                </h2>
                 <p className="font-body-compact text-[#475569] leading-relaxed">
                   بمجرد اشتراكك مع الإدارة أو الكابتن الموثق بالمكان، اعطهم كود عضويتك الفريد (مثال: {currentPersona.memberCode}) لإضافتك إلى دفتر الحصص الرقمي وتفعيل كود الـ QR الذي يعمل حتى في حالة ضعف أو انقطاع الإنترنت داخل صالة المسبح.
                 </p>
@@ -578,7 +601,7 @@ export default function Desktop22() {
 
           {/* Left Sticky Column: Dynamic Schedule/Pricing Cards + Contact + Google Maps */}
           <aside className="lg:col-span-4 lg:sticky lg:top-[124px] bg-white rounded-[24px] p-6 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-[#0F172A]/8 flex flex-col gap-4">
-            <h3 className="font-card-title text-[#0F172A]">الباقات ومواعيد الحصص</h3>
+            <h2 className="font-card-title text-[#0F172A]">الباقات ومواعيد الحصص</h2>
 
             {!hasRealScheduleOrPricing ? (
               <div className="rounded-xl bg-[#F7F9FA] p-4 text-center flex flex-col items-center gap-1.5 border border-[#0F172A]/8">

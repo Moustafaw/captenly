@@ -31,8 +31,10 @@ const TRACK_LABELS: Record<UnifiedProgramTrack, string> = {
   ladies: "مواعيد السيدات",
 };
 
-function normalizePackageKey(titleAr: string, priceEgp: number): string {
-  return `${titleAr.trim().toLowerCase().replace(/\s+/g, " ")}::${Math.round(priceEgp)}`;
+function normalizePackageKey(titleAr: unknown, priceEgp: unknown): string {
+  const safeTitle = typeof titleAr === "string" ? titleAr.trim() : "";
+  const safePrice = Number(priceEgp) || 0;
+  return `${safeTitle.toLowerCase().replace(/\s+/g, " ")}::${Math.round(safePrice)}`;
 }
 
 /**
@@ -91,7 +93,11 @@ export function getFacilityBookablePackages(
 
   for (const prog of facility.schoolPrograms || []) {
     const price = Math.max(0, Number(prog.priceEgp || 0));
-    const key = normalizePackageKey(prog.titleAr, price);
+    const safeTitle =
+      typeof prog.titleAr === "string" && prog.titleAr.trim()
+        ? prog.titleAr.trim()
+        : "برنامج تدريب سباحة";
+    const key = normalizePackageKey(safeTitle, price);
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -102,7 +108,7 @@ export function getFacilityBookablePackages(
       source: "schoolProgram",
       trackType,
       trackLabelAr: prog.trackLabelAr || TRACK_LABELS[trackType],
-      nameAr: prog.titleAr,
+      nameAr: safeTitle,
       sessionsCount,
       sessionsPerWeek: Math.max(1, Math.round(sessionsCount / 4)),
       durationMinutes: Math.max(30, Number(prog.durationMinutes || 60)),
@@ -120,7 +126,11 @@ export function getFacilityBookablePackages(
 
   for (const pkg of facility.pricePackages || []) {
     const price = Math.max(0, Number(pkg.baseMonthlyEgp || 0));
-    const key = normalizePackageKey(pkg.nameAr, price);
+    const safeName =
+      typeof pkg.nameAr === "string" && pkg.nameAr.trim()
+        ? pkg.nameAr.trim()
+        : "باقة منشأة";
+    const key = normalizePackageKey(safeName, price);
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -129,7 +139,7 @@ export function getFacilityBookablePackages(
       source: "pricePackage",
       trackType: "school",
       trackLabelAr: "باقة منشأة",
-      nameAr: pkg.nameAr,
+      nameAr: safeName,
       sessionsCount: Math.max(1, Number(pkg.sessionsCount || 8)),
       sessionsPerWeek: Math.max(1, Number(pkg.sessionsPerWeek || 2)),
       durationMinutes: Math.max(30, Number(pkg.durationMinutes || 60)),

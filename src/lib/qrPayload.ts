@@ -95,7 +95,7 @@ export function parseCaptenlyQr(raw: string): ParsedQrResult {
       subscriptionCode: clean.slice("CAP-SUB:".length).trim().toUpperCase(),
     };
   }
-  if (/^SUB-[A-Z0-9-]{3,16}$/i.test(clean)) {
+  if (/^(?:CAP-)?SUB-[A-Z0-9-]{2,24}$/i.test(clean)) {
     return { kind: "subscription_qr", subscriptionCode: upper };
   }
   if (upper.startsWith("CAP-QR:")) {

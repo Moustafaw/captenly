@@ -6,27 +6,6 @@ import {
 } from "@/lib/coachProvisioning";
 import type { Coach, UserSocialLinks } from "@/types/captenly";
 
-async function ensureCoachesTableViaPg() {
-  await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_coaches (
-        id text primary key,
-        slug text not null unique,
-        full_name_ar text not null,
-        city text not null,
-        sport_sector text not null check (sport_sector in ('swimming', 'fitness', 'both')),
-        trust_tier text not null,
-        rating numeric(3, 2) not null default 0,
-        reviews_count integer not null default 0,
-        payload jsonb not null default '{}'::jsonb,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
-    `);
-    return true;
-  });
-}
-
 export async function findExistingCoachById(coachId: string): Promise<Coach | undefined> {
   const admin = getSupabaseAdminClient();
   if (admin) {
@@ -107,7 +86,6 @@ export async function ensureSelfRegisteredCoachInDb(input: {
     if (!error) return coachPayload;
   }
 
-  await ensureCoachesTableViaPg();
   await withPgClient(async (client) => {
     await client.query(
       `insert into public.captenly_coaches

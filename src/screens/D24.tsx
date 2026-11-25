@@ -8,10 +8,20 @@ import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 import { sortCoachesWithVerificationPriority } from "@/lib/coachSearch";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
+import type { Coach, Facility } from "@/types/captenly";
 
 type HomeCategoryKey = "all" | "swimming" | "ladies" | "kids" | "heated";
 
-export default function Desktop24() {
+interface Desktop24Props {
+  initialFacilities?: Facility[];
+  initialCoaches?: Coach[];
+}
+
+export default function Desktop24({
+  initialFacilities = [],
+  initialCoaches = [],
+}: Desktop24Props = {}) {
   const {
     facilities,
     coaches,
@@ -22,6 +32,8 @@ export default function Desktop24() {
     toggleFavorite,
     compareFacilityIds,
     placesHydrating,
+    publicSupplyHydrated,
+    smartFilters,
     currentPersona,
     isAuthenticated,
   } = useCaptenly();
@@ -40,9 +52,14 @@ export default function Desktop24() {
     setRotationSeed(0);
   }, [userLocation.isSpecified, userLocation.city, userLocation.lat, userLocation.lng]);
 
+  const effectiveFacilities = facilities.length > 0 ? facilities : initialFacilities;
+  const effectiveCoaches = coaches.length > 0 ? coaches : initialCoaches;
+  const isFacilitiesLoading =
+    (placesHydrating || !publicSupplyHydrated) && effectiveFacilities.length === 0;
+
   const swimmingFacilities = useMemo(
-    () => facilities.filter((f) => f.sportSector !== "fitness"),
-    [facilities]
+    () => effectiveFacilities.filter((f) => f.sportSector !== "fitness"),
+    [effectiveFacilities]
   );
 
   const filteredFacilities = useMemo(() => {
@@ -66,26 +83,15 @@ export default function Desktop24() {
         lng: userLocation.lng,
         city: userLocation.city,
         isSpecified: userLocation.isSpecified,
+        maxDistanceKm: userLocation.isSpecified ? smartFilters.maxDistanceKm : undefined,
       }),
-    [filteredFacilities, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified]
+    [filteredFacilities, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified, smartFilters.maxDistanceKm]
   );
 
   // Home always showcases up to 3 rotating suggestions (diversified across Egypt if no location selected, or nearest when selected)
   const homeSuggestions = useMemo(
     () => partitioned.allSorted.slice(0, 3),
     [partitioned.allSorted]
-  );
-  const homeFeatured = useMemo(
-    () => homeSuggestions.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed"),
-    [homeSuggestions]
-  );
-  const homeRegistered = useMemo(
-    () => homeSuggestions.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !f.isFeaturedTier),
-    [homeSuggestions]
-  );
-  const homeDirectory = useMemo(
-    () => homeSuggestions.filter((f) => f.supplyStatus === "seeded_unclaimed"),
-    [homeSuggestions]
   );
 
   const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
@@ -97,14 +103,60 @@ export default function Desktop24() {
   const visibleCoaches = useMemo(
     () =>
       sortCoachesWithVerificationPriority(
-        coaches.filter((c) => c.sportSector !== "fitness"),
+        effectiveCoaches.filter((c) => c.sportSector !== "fitness"),
         userLocation
       ),
-    [coaches, userLocation]
+    [effectiveCoaches, userLocation]
   );
 
+  const totalFacilitiesCount = partitioned.allSorted.length;
+  const shownFacilitiesCount = homeSuggestions.length;
+
+  const facilitiesSubtitleAr = useMemo(() => {
+    if (isFacilitiesLoading) {
+      return "جاري تحميل المسابح والأكاديميات الموثقة في نطاقك...";
+    }
+    if (shownFacilitiesCount === 0) {
+      return selectedCat === "all"
+        ? "لا توجد منشآت مسجّلة في هذا النطاق حالياً — يمكنك استكشاف الخريطة أو تسجيل منشأتك مجاناً"
+        : "لا توجد نتائج مطابقة لهذا التصنيف حالياً — جرّب تصنيف «الكل» أو سجّل منشأتك مجاناً";
+    }
+    if (shownFacilitiesCount === 1) {
+      return userLocation.isSpecified
+        ? `يتم عرض منشأة واحدة متاحة حالياً في ${cleanCityLabel} — يمكنك تحديث الترشيحات أو التصفح الكامل`
+        : "يتم عرض منشأة واحدة مسجّلة حالياً في مصر — حدّد موقعك أو سجّل منشأتك مجاناً";
+    }
+    if (shownFacilitiesCount === 2) {
+      return userLocation.isSpecified
+        ? `يتم عرض أقرب منشأتين لنطاقك في ${cleanCityLabel} — اضغط للتحديث أو التصفح الكامل`
+        : "يتم عرض منشأتين مسجّلتين من مصر — حدّد موقعك لترتيب الأقرب لك";
+    }
+    return userLocation.isSpecified
+      ? `يتم عرض أقرب ${shownFacilitiesCount} مسابح وأكاديميات لنطاقك الجغرافي — اضغط للتحديث أو التصفح الكامل`
+      : `تظهر ${shownFacilitiesCount} منشآت متنوعة من مختلف محافظات مصر — حدّد موقعك لترتيب الأقرب لك`;
+  }, [isFacilitiesLoading, shownFacilitiesCount, selectedCat, userLocation.isSpecified, cleanCityLabel]);
+
+  const showFacilityCtaInGrid = !isFacilitiesLoading && shownFacilitiesCount < 3;
+  const facilitiesGridClass =
+    shownFacilitiesCount <= 1 ? "grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop" : "grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop";
+
+  const coachesGridClass =
+    visibleCoaches.length === 1
+      ? "grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop"
+      : visibleCoaches.length === 2
+      ? "grid grid-cols-1 sm:grid-cols-2 gap-gutter-desktop"
+      : visibleCoaches.length === 3
+      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop"
+      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop";
+
   const categories: { key: HomeCategoryKey; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${partitioned.allSorted.length} مسبح وأكاديمية)` },
+    {
+      key: "all",
+      label:
+        totalFacilitiesCount > 0
+          ? `الكل (${totalFacilitiesCount} مسبح وأكاديمية)`
+          : "الكل",
+    },
     { key: "swimming", label: "مدارس السباحة", icon: "pool" },
     { key: "kids", label: "أطفال وتأسيس", icon: "child_care" },
     { key: "heated", label: "مسابح مدفأة شتاءً", icon: "thermostat" },
@@ -179,12 +231,15 @@ export default function Desktop24() {
                   </div>
                 </div>
                 <div className="col-span-12 lg:col-span-5 h-[340px] rounded-[20px] relative overflow-hidden hidden lg:block border border-[#0F172A]/6">
-                  <div
-                    className="w-full h-full bg-cover bg-center"
-                    style={{ backgroundImage: "url('/screens/2c0d763d9374.jpg')" }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/45 via-transparent to-transparent" />
-                  </div>
+                  <CaptenlyImage
+                    src="/screens/2c0d763d9374.jpg"
+                    alt="حوض سباحة أولمبي معتمد"
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 520px"
+                    className="object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/45 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-3.5 right-3.5 z-20 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md shadow-sm text-[11px] font-bold text-[#1D6E7D] flex items-center gap-1.5">
                     <Icon name="pool" className="text-[14px]" />
                     <span>حوض أولمبي معتمد</span>
@@ -255,9 +310,7 @@ export default function Desktop24() {
                       : "أندية وأكاديميات السباحة المقترحة في مصر"}
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
-                    {userLocation.isSpecified
-                      ? "يتم عرض أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي — اضغط للتحديث أو التصفح الكامل"
-                      : "تظهر 3 منشآت متنوعة من مختلف محافظات مصر لعدم تحديد نطاق جغرافي — حدّد موقعك لترتيب الأقرب لك"}
+                    {facilitiesSubtitleAr}
                   </p>
                 </div>
                 <div className="flex items-center gap-2.5 flex-wrap">
@@ -284,8 +337,12 @@ export default function Desktop24() {
                   >
                     <span>
                       {userLocation.isSpecified
-                        ? `عرض كل المسابح في ${cleanCityLabel} (${partitioned.allSorted.length})`
-                        : `تصفح كل المسابح في مصر (${partitioned.allSorted.length})`}
+                        ? totalFacilitiesCount > 0
+                          ? `عرض كل المسابح في ${cleanCityLabel} (${totalFacilitiesCount})`
+                          : `عرض كل المسابح في ${cleanCityLabel}`
+                        : totalFacilitiesCount > 0
+                        ? `تصفح كل المسابح في مصر (${totalFacilitiesCount})`
+                        : "تصفح كل المسابح في مصر"}
                     </span>
                     <Icon name="chevron_left" className="text-[16px]" />
                   </Link>
@@ -298,7 +355,7 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {placesHydrating && homeSuggestions.length === 0 && (
+              {isFacilitiesLoading && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
                   {[1, 2, 3].map((idx) => (
                     <div
@@ -315,59 +372,110 @@ export default function Desktop24() {
                 </div>
               )}
 
-              {homeFeatured.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <Icon name="verified" className="text-[17px] text-deep-olive" />
-                    <h3 className="font-card-title-sm text-dark-slate">ترشيحات كابتنلي المختارة</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
-                    {homeFeatured.map((facility) => (
-                      <FacilityCard
-                        key={facility.id}
-                        facility={facility}
-                        onSelectCompareFeedback={handleCompareNotice}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {homeRegistered.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
-                  {homeRegistered.map((facility) => (
+              {!isFacilitiesLoading && (homeSuggestions.length > 0 || showFacilityCtaInGrid) && (
+                <div className={facilitiesGridClass}>
+                  {homeSuggestions.map((facility) => (
                     <FacilityCard
                       key={facility.id}
                       facility={facility}
                       onSelectCompareFeedback={handleCompareNotice}
                     />
                   ))}
-                </div>
-              )}
 
-              {homeDirectory.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  {homeRegistered.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Icon name="explore" className="text-[17px] text-text-muted" />
-                      <h3 className="font-card-title-sm text-text-muted">أقرب المسابح من خرائط Google في نطاقك</h3>
+                  {homeSuggestions.length === 0 && (
+                    <div className="bg-white rounded-[20px] p-6 border border-[#0F172A]/8 shadow-[0_4px_20px_rgba(15,23,42,0.04)] flex flex-col justify-between gap-4">
+                      <div className="flex flex-col gap-2">
+                        <div className="w-11 h-11 rounded-2xl bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center">
+                          <Icon name="explore" className="text-[22px]" />
+                        </div>
+                        <h3 className="font-card-title text-[#0F172A]">
+                          {selectedCat === "all"
+                            ? `لا توجد منشآت مسجّلة في ${cleanCityLabel} بعد`
+                            : `لا توجد نتائج مطابقة لتصنيف هذا القسم في ${cleanCityLabel}`}
+                        </h3>
+                        <p className="font-body-compact text-[#475569] leading-relaxed">
+                          جرّب اختيار تصنيف «الكل» أو تصفح الخريطة الكاملة لاكتشاف أقرب المسابح والأكاديميات المتاحة.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedCat !== "all" && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCat("all")}
+                            className="px-4 py-2 rounded-full bg-[#1D6E7D] text-white text-xs font-bold hover:bg-[#155460] transition-colors"
+                          >
+                            عرض جميع التصنيفات
+                          </button>
+                        )}
+                        <Link
+                          href={exploreCityHref}
+                          className="px-4 py-2 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-xs font-bold hover:bg-[#d7ecf4] transition-colors"
+                        >
+                          فتح الخريطة والاستكشاف ←
+                        </Link>
+                      </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
-                    {homeDirectory.map((facility) => (
-                      <FacilityCard
-                        key={facility.id}
-                        facility={facility}
-                        onSelectCompareFeedback={handleCompareNotice}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {!placesHydrating && homeSuggestions.length === 0 && (
-                <div className="p-6 rounded-2xl bg-surface-card border border-surface-container text-center text-sm text-text-muted">
-                  لم نجد نتائج مطابقة لهذا التصنيف حالياً في {cleanCityLabel} — جرّب تصنيف الكل أو افتح صفحة الاستكشاف.
+                  {showFacilityCtaInGrid && (
+                    <article className="rounded-[20px] bg-gradient-to-br from-[#EAF4F8] via-white to-[#F7F9FA] border border-[#1D6E7D]/20 p-6 shadow-[0_4px_20px_rgba(29,110,125,0.06)] flex flex-col justify-between gap-5">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-extrabold">
+                            <Icon name={isAthleteOrParent ? "map" : "verified"} className="text-[14px]" />
+                            <span>{isAthleteOrParent ? "اكتشاف أوسع" : "0% عمولة وساطة"}</span>
+                          </span>
+                          <span className="w-10 h-10 rounded-2xl bg-[#1D6E7D] text-white flex items-center justify-center shrink-0">
+                            <Icon
+                              name={isFacilityManager ? "stadium" : isCoachRole ? "sports" : isAthleteOrParent ? "explore" : "add_business"}
+                              className="text-[20px]"
+                            />
+                          </span>
+                        </div>
+                        <h3 className="font-card-title text-[#0F172A] leading-snug">
+                          {isFacilityManager
+                            ? "أضف فرعاً جديداً أو حدّث مواعيد منشأتك"
+                            : isCoachRole
+                            ? "اربط نشاطك التدريبي بأقرب مسبح مضيف"
+                            : isAthleteOrParent
+                            ? "استكشف الخريطة وقارن جميع المسابح"
+                            : "أضف منشأتك أو طالب بصفحتك مجاناً"}
+                        </h3>
+                        <p className="font-body-compact text-[#475569] leading-relaxed">
+                          {isFacilityManager
+                            ? "أدر المشتركين، تسعير المياه، الكباتن المعتمدين ودفاتر حضور الـ QR الأوفلاين من لوحة واحدة."
+                            : isCoachRole
+                            ? "سجّل ربطك بالأندية المضيفة واظهر للسباحين والأهالي بالشارات الموثقة في نطاقك."
+                            : isAthleteOrParent
+                            ? "تصفح المسابح المدفأة ومواعيد السيدات وقارن الأسعار والباقات بشفافية كاملة."
+                            : "هل تدير مسبحاً أو أكاديمية سباحة؟ سجّل صفحتك الموثقة وابدأ تفعيل دفاتر الحصص QR أوفلاين مجاناً."}
+                        </p>
+                      </div>
+                      <Link
+                        href={
+                          isFacilityManager
+                            ? "/dashboard/facility"
+                            : isCoachRole
+                            ? "/dashboard/coach"
+                            : isAthleteOrParent
+                            ? "/explore"
+                            : "/claim"
+                        }
+                        className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold transition-colors shadow-sm"
+                      >
+                        <span>
+                          {isFacilityManager
+                            ? "فتح لوحة المنشأة"
+                            : isCoachRole
+                            ? "إدارة الأندية المضيفة"
+                            : isAthleteOrParent
+                            ? "فتح صفحة الاستكشاف"
+                            : "سجّل ووثّق منشأتك الآن"}
+                        </span>
+                        <Icon name="arrow_back" className="text-[16px]" />
+                      </Link>
+                    </article>
+                  )}
                 </div>
               )}
 
@@ -376,8 +484,8 @@ export default function Desktop24() {
                   href={exploreCityHref}
                   className="px-6 py-3 rounded-full bg-surface-card hover:bg-lime-tint text-dark-slate font-card-title-sm shadow-sm transition-colors border border-surface-container"
                 >
-                  {partitioned.allSorted.length > homeSuggestions.length
-                    ? `تصفح باقي المسابح والأكاديميات في ${cleanCityLabel} (${partitioned.allSorted.length - homeSuggestions.length} إضافية) ←`
+                  {totalFacilitiesCount > homeSuggestions.length
+                    ? `تصفح باقي المسابح والأكاديميات في ${cleanCityLabel} (${totalFacilitiesCount - homeSuggestions.length} إضافية) ←`
                     : `استكشف جميع مسابح وأكاديميات ${cleanCityLabel} على الخريطة ←`}
                 </Link>
               </div>
@@ -406,10 +514,57 @@ export default function Desktop24() {
                 </div>
 
                 {visibleCoaches.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter-desktop">
+                  <div className={coachesGridClass}>
                     {visibleCoaches.map((coach) => (
                       <VerifiedCoachCard key={coach.id} coach={coach} />
                     ))}
+                    {visibleCoaches.length === 1 && (
+                      <article className="rounded-[20px] bg-gradient-to-br from-[#EAF4F8] via-white to-[#F7F9FA] border border-[#1D6E7D]/20 p-6 shadow-sm flex flex-col justify-between gap-4">
+                        <div className="flex flex-col gap-2.5">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-[#1D6E7D] border border-[#1D6E7D]/15 text-[11px] font-extrabold w-fit">
+                            <Icon name="verified" className="text-[14px]" />
+                            <span>{isAthleteOrParent ? "دليل الكباتن" : "توثيق مجاني للكباتن"}</span>
+                          </span>
+                          <h3 className="font-card-title text-[#0F172A]">
+                            {isFacilityManager
+                              ? "أضف كباتن منشأتك ليظهروا هنا"
+                              : isAthleteOrParent
+                              ? "تصفح الدليل الكامل للكباتن المعتمدين"
+                              : "هل أنت كابتن سباحة أو إنقاذ مائي؟"}
+                          </h3>
+                          <p className="font-body-compact text-[#475569] leading-relaxed">
+                            {isFacilityManager
+                              ? "أدرج مدربي السباحة المعتمدين في منشأتك وشهاداتهم ليتمكن الأهالي من متابعتهم."
+                              : isAthleteOrParent
+                              ? "استعرض التخصصات والشهادات المعتمدة وقارن المدربين في مختلف محافظات مصر."
+                              : "سجّل برقم هاتفك ووثّق شهادات النقابة والاتحاد للحصول على الشارات الخضراء وظهور ملفك للأهالي مجاناً."}
+                          </p>
+                        </div>
+                        <Link
+                          href={
+                            isFacilityManager
+                              ? "/dashboard/facility"
+                              : isAthleteOrParent
+                              ? "/coaches"
+                              : isCoachRole
+                              ? "/dashboard/coach"
+                              : "/claim?mode=coach"
+                          }
+                          className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold transition-colors"
+                        >
+                          <span>
+                            {isFacilityManager
+                              ? "إدارة كباتن المنشأة"
+                              : isAthleteOrParent
+                              ? "عرض كل الكباتن"
+                              : isCoachRole
+                              ? "لوحة الكابتن"
+                              : "وثّق ملفك ككابتن الآن"}
+                          </span>
+                          <Icon name="arrow_back" className="text-[16px]" />
+                        </Link>
+                      </article>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-surface-card rounded-[20px] p-8 shadow-sm border border-surface-container flex flex-col md:flex-row items-center justify-between gap-6">
@@ -440,6 +595,81 @@ export default function Desktop24() {
                 )}
               </section>
             )}
+
+            {/* 3-Step Visual Offline QR Ledger Journey */}
+            <section
+              aria-labelledby="qr-journey-heading"
+              className="rounded-[24px] bg-gradient-to-br from-[#EAF4F8] via-white to-[#F7F9FA] border border-[#1D6E7D]/18 p-6 lg:p-8 shadow-[0_8px_32px_rgba(29,110,125,0.06)] flex flex-col gap-6"
+            >
+              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-[#1D6E7D] border border-[#1D6E7D]/20 text-[11px] font-extrabold w-fit">
+                    <Icon name="qr_code_2" className="text-[15px]" />
+                    <span>يعمل أوفلاين عند المسبح (PWA + IndexedDB)</span>
+                  </span>
+                  <h2 id="qr-journey-heading" className="font-section-title text-section-title text-[#0F172A]">
+                    كيف يعمل دفتر الحصص QR أوفلاين في 3 خطوات؟
+                  </h2>
+                  <p className="font-body-compact text-body-compact text-[#475569] max-w-2xl">
+                    نظام متكامل لمتابعة رصيد الحصص بين السباح وولي الأمر والكابتن والمنشأة حتى داخل الصالات المغطاة بدون شبكة إنترنت.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/ledger"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#0F4C5C] hover:bg-[#1D6E7D] text-white text-xs font-extrabold transition-colors shrink-0 w-fit shadow-sm"
+                >
+                  <Icon name="qr_code_scanner" className="text-[17px]" />
+                  <span>افتح دفتر الحصص الآن</span>
+                </Link>
+              </div>
+
+              <ol className="grid grid-cols-1 md:grid-cols-3 gap-gutter-desktop">
+                {[
+                  {
+                    step: "01",
+                    icon: "badge",
+                    tag: "كود عضوية فريد CAP-M-*",
+                    title: "سجّل واستلم كود عضويتك وبطاقة QR",
+                    desc: "أنشئ حسابك مجاناً في ثوانٍ (أو أضف أبناءك) للحصول على كود عضوية دائم وباركود QR جاهز للمسح أو الطباعة.",
+                  },
+                  {
+                    step: "02",
+                    icon: "qr_code_2",
+                    tag: "0% عمولة وساطة",
+                    title: "فعّل باقتك مع الكابتن أو إدارة المسبح",
+                    desc: "شارك كود العضوية عند الاشتراك ليصدر لك دفتر حصص مستقل يعرض عدد الحصص وتفاصيل المياه والتدريب بشفافية.",
+                  },
+                  {
+                    step: "03",
+                    icon: "wifi_off",
+                    tag: "مزامنة سحابية تلقائية",
+                    title: "امسح الحضور أوفلاين عند بوابة المسبح",
+                    desc: "يُخصم الحضور لحظياً بالـ QR أو كود الاشتراك حتى بدون إنترنت بالمسبح، وتُحفظ العملية وتُزامن تلقائياً عند عودة الشبكة.",
+                  },
+                ].map((item) => (
+                  <li
+                    key={item.step}
+                    className="bg-white rounded-[20px] p-5 border border-[#0F172A]/8 shadow-[0_4px_16px_rgba(15,23,42,0.03)] flex flex-col gap-3 relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-9 h-9 rounded-xl bg-[#1D6E7D] text-white font-mono text-xs font-black flex items-center justify-center shrink-0">
+                          {item.step}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] text-[10px] font-extrabold">
+                          {item.tag}
+                        </span>
+                      </div>
+                      <div className="w-9 h-9 rounded-full bg-[#F7F9FA] text-[#1D6E7D] flex items-center justify-center shrink-0 border border-[#0F172A]/6">
+                        <Icon name={item.icon} className="text-[19px]" />
+                      </div>
+                    </div>
+                    <h3 className="font-card-title-sm text-[#0F172A] leading-snug">{item.title}</h3>
+                    <p className="font-body-compact text-[#475569] leading-relaxed">{item.desc}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
 
             {/* 6 Pillars */}
             <section className="bg-surface-card rounded-[20px] p-space-xl shadow-sm relative overflow-hidden">
@@ -498,7 +728,7 @@ export default function Desktop24() {
                       <Icon name={item.icon} className="text-[20px]" />
                     </div>
                     <div className="flex flex-col">
-                      <h4 className="font-card-title-sm text-card-title-sm text-dark-slate">{item.title}</h4>
+                      <h3 className="font-card-title-sm text-card-title-sm text-dark-slate">{item.title}</h3>
                       <p className="font-body-compact text-body-compact text-text-muted">{item.desc}</p>
                     </div>
                   </div>
@@ -511,7 +741,7 @@ export default function Desktop24() {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h2 className="font-section-title text-section-title text-dark-slate">
-                    أحدث الأدلة الرياضية من مجلة كابتنلي ({articles.length})
+                    أحدث الأدلة الرياضية من مجلة كابتنلي{articles.length > 0 ? ` (${articles.length})` : ""}
                   </h2>
                   <p className="font-body-compact text-body-compact text-text-muted mt-0.5">
                     مقالات توعوية لإرشاد الرياضيين وأولياء الأمور لاختيار التدريب الأنسب
@@ -525,7 +755,13 @@ export default function Desktop24() {
                   <Icon name="chevron_left" className="text-[16px]" />
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
+              <div
+                className={
+                  articles.slice(0, 3).length <= 2
+                    ? "grid grid-cols-1 md:grid-cols-2 gap-gutter-desktop"
+                    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop"
+                }
+              >
                 {articles.slice(0, 3).map((art) => {
                   const saved = isFavorite(art.id);
                   return (
@@ -536,9 +772,11 @@ export default function Desktop24() {
                       <div>
                         {art.imageUrl ? (
                           <div className="relative w-full h-44 overflow-hidden bg-[#EAF4F8]">
-                            <Link href={`/magazine/${art.slug}`}>
-                              <img
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            <Link href={`/magazine/${art.slug}`} className="block relative w-full h-full">
+                              <CaptenlyImage
+                                fill
+                                sizes="(max-width: 768px) 100vw, 400px"
+                                className="object-cover group-hover:scale-105 transition-transform duration-300"
                                 alt={art.titleAr}
                                 src={art.imageUrl}
                               />

@@ -8,11 +8,13 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 interface DemandRadarFallbackProps {
   queryText?: string;
   onResetFilters?: () => void;
+  asPageHero?: boolean;
 }
 
 export function DemandRadarFallback({
   queryText,
   onResetFilters,
+  asPageHero = false,
 }: DemandRadarFallbackProps) {
   const { userLocation, resetLocationToAllEgypt, subscribeDemandRadar, facilities, resetSmartFilters } =
     useCaptenly();
@@ -48,11 +50,19 @@ export function DemandRadarFallback({
             <Icon name="radar" className="text-[16px]" />
             <span>رادار التوسع والطلب الميداني</span>
           </div>
-          <h2 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A] leading-tight">
-            {queryText
-              ? `لم نجد نتائج مطابقة تماماً لـ «${queryText}» في هذا النطاق بعد`
-              : `نطاق ${userLocation.city} قيد التجهيز والتوثيق الميداني قريباً`}
-          </h2>
+          {asPageHero ? (
+            <h1 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A] leading-tight">
+              {queryText
+                ? `لم نجد نتائج مطابقة تماماً لـ «${queryText}» في هذا النطاق بعد`
+                : `نطاق ${userLocation.city} قيد التجهيز والتوثيق الميداني قريباً`}
+            </h1>
+          ) : (
+            <h2 className="font-hero-headline text-[26px] md:text-[32px] text-[#0F172A] leading-tight">
+              {queryText
+                ? `لم نجد نتائج مطابقة تماماً لـ «${queryText}» في هذا النطاق بعد`
+                : `نطاق ${userLocation.city} قيد التجهيز والتوثيق الميداني قريباً`}
+            </h2>
+          )}
           <p className="font-body-default text-[#475569]">
             بدلاً من عرض بيانات وهمية، نفتح لك التسجيل المباشر في رادار الطلب ليبدأ فريق التوثيق فحص وتفعيل أول 3 أكاديميات وكباتن في مدينتك، أو يمكنك تصفح المنشآت المعلنة في جميع محافظات مصر الآن.
           </p>

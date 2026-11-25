@@ -7,7 +7,8 @@ export async function GET() {
   const readiness = getGoogleOAuthReadiness();
   return NextResponse.json({
     ...readiness,
-    previewAllowed: process.env.NODE_ENV !== "production",
+    // Security remediation (F-001): never enable unauthenticated preview login bypass
+    previewAllowed: false,
     callbackPath: "/api/auth/callback/google",
   });
 }

@@ -9,10 +9,20 @@ import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { VerifiedCoachCard } from "@/components/editorial/VerifiedCoachCard";
 import { partitionFacilities3Tier } from "@/lib/hybridDiscovery";
 import { sortCoachesWithVerificationPriority } from "@/lib/coachSearch";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
+import type { Coach, Facility } from "@/types/captenly";
 
 type MobileCat = "all" | "swimming" | "kids" | "heated" | "ladies";
 
-export default function Phone21() {
+interface Phone21Props {
+  initialFacilities?: Facility[];
+  initialCoaches?: Coach[];
+}
+
+export default function Phone21({
+  initialFacilities = [],
+  initialCoaches = [],
+}: Phone21Props = {}) {
   const router = useRouter();
   const {
     facilities,
@@ -24,6 +34,8 @@ export default function Phone21() {
     setFilterModalOpen,
     userLocation,
     placesHydrating,
+    publicSupplyHydrated,
+    smartFilters,
     currentPersona,
     isAuthenticated,
   } = useCaptenly();
@@ -65,9 +77,14 @@ export default function Phone21() {
     el.scrollBy({ left: dir === "next" ? -step : step, behavior: "smooth" });
   };
 
+  const effectiveFacilities = facilities.length > 0 ? facilities : initialFacilities;
+  const effectiveCoaches = coaches.length > 0 ? coaches : initialCoaches;
+  const isFacilitiesLoading =
+    (placesHydrating || !publicSupplyHydrated) && effectiveFacilities.length === 0;
+
   const swimmingFacilities = useMemo(
-    () => facilities.filter((f) => f.sportSector !== "fitness"),
-    [facilities]
+    () => effectiveFacilities.filter((f) => f.sportSector !== "fitness"),
+    [effectiveFacilities]
   );
 
   const filtered = useMemo(() => {
@@ -91,25 +108,14 @@ export default function Phone21() {
         lng: userLocation.lng,
         city: userLocation.city,
         isSpecified: userLocation.isSpecified,
+        maxDistanceKm: userLocation.isSpecified ? smartFilters.maxDistanceKm : undefined,
       }),
-    [filtered, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified]
+    [filtered, rotationSeed, userLocation.lat, userLocation.lng, userLocation.city, userLocation.isSpecified, smartFilters.maxDistanceKm]
   );
 
   const homeSuggestions = useMemo(
     () => partitioned.allSorted.slice(0, 3),
     [partitioned.allSorted]
-  );
-  const homeFeatured = useMemo(
-    () => homeSuggestions.filter((f) => Boolean(f.isFeaturedTier) && f.supplyStatus !== "seeded_unclaimed"),
-    [homeSuggestions]
-  );
-  const homeRegistered = useMemo(
-    () => homeSuggestions.filter((f) => f.supplyStatus !== "seeded_unclaimed" && !f.isFeaturedTier),
-    [homeSuggestions]
-  );
-  const homeDirectory = useMemo(
-    () => homeSuggestions.filter((f) => f.supplyStatus === "seeded_unclaimed"),
-    [homeSuggestions]
   );
   const cleanCityLabel = userLocation.city.replace(/\s*\(GPS\)/g, "").trim();
   const exploreCityHref =
@@ -120,14 +126,41 @@ export default function Phone21() {
   const visibleCoaches = useMemo(
     () =>
       sortCoachesWithVerificationPriority(
-        coaches.filter((c) => c.sportSector !== "fitness"),
+        effectiveCoaches.filter((c) => c.sportSector !== "fitness"),
         userLocation
       ),
-    [coaches, userLocation]
+    [effectiveCoaches, userLocation]
   );
 
+  const totalFacilitiesCount = partitioned.allSorted.length;
+  const shownFacilitiesCount = homeSuggestions.length;
+
+  const facilitiesSubtitleAr = useMemo(() => {
+    if (isFacilitiesLoading) {
+      return "جاري تحميل المسابح والأكاديميات القريبة...";
+    }
+    if (shownFacilitiesCount === 0) {
+      return cat === "all"
+        ? "لا توجد منشآت مسجّلة في هذا النطاق حالياً — استكشف الخريطة أو سجّل منشأتك"
+        : "لا توجد نتائج مطابقة لهذا التصنيف — جرّب «الكل» أو سجّل منشأتك";
+    }
+    if (shownFacilitiesCount === 1) {
+      return userLocation.isSpecified
+        ? `منشأة واحدة متاحة حالياً في ${cleanCityLabel}`
+        : "منشأة واحدة مسجّلة حالياً في مصر — حدّد مدينتك للأقرب";
+    }
+    if (shownFacilitiesCount === 2) {
+      return userLocation.isSpecified
+        ? `أقرب منشأتين لنطاقك في ${cleanCityLabel}`
+        : "منشأتان مسجّلتان من مصر — حدّد مدينتك للأقرب";
+    }
+    return userLocation.isSpecified
+      ? `أقرب ${shownFacilitiesCount} مسابح وأكاديميات لنطاقك الجغرافي`
+      : `تظهر ${shownFacilitiesCount} منشآت متنوعة من مختلف المحافظات`;
+  }, [isFacilitiesLoading, shownFacilitiesCount, cat, userLocation.isSpecified, cleanCityLabel]);
+
   const cats: { key: MobileCat; label: string; icon?: string }[] = [
-    { key: "all", label: `الكل (${partitioned.allSorted.length})` },
+    { key: "all", label: totalFacilitiesCount > 0 ? `الكل (${totalFacilitiesCount})` : "الكل" },
     { key: "swimming", label: "سباحة", icon: "pool" },
     { key: "kids", label: "تأسيس أطفال", icon: "child_care" },
     { key: "heated", label: "مدفأ شتاءً", icon: "thermostat" },
@@ -188,10 +221,13 @@ export default function Phone21() {
       {/* Bright Photo-First Mobile Hero Card — Option B Luxury */}
       <section className="rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] flex flex-col">
         <div className="relative h-44 w-full overflow-hidden bg-[#EAF4F8]">
-          <img
+          <CaptenlyImage
             src="/screens/2c0d763d9374.jpg"
             alt="حوض سباحة أولمبي معتمد"
-            className="w-full h-full object-cover object-center"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 480px"
+            className="object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/25 via-transparent to-transparent pointer-events-none" />
           <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#1D6E7D] text-[11px] font-bold shadow-sm inline-flex items-center gap-1">
@@ -249,9 +285,7 @@ export default function Phone21() {
                 : "أندية ومسابح مقترحة في مصر"}
             </h2>
             <p className="text-[11px] text-[#64748B]">
-              {userLocation.isSpecified
-                ? "أقرب 3 مسابح وأكاديميات لنطاقك الجغرافي (تدوير تلقائي)"
-                : "تظهر 3 منشآت متنوعة من مختلف المحافظات لعدم تحديد نطاق بعد"}
+              {facilitiesSubtitleAr}
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -272,7 +306,7 @@ export default function Phone21() {
           </div>
         )}
 
-        {placesHydrating && homeSuggestions.length === 0 && (
+        {isFacilitiesLoading && (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((idx) => (
               <div key={idx} className="h-48 rounded-2xl bg-surface-card border border-surface-container animate-pulse" />
@@ -280,30 +314,9 @@ export default function Phone21() {
           </div>
         )}
 
-        {homeFeatured.length > 0 && (
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-1.5 px-1">
-              <Icon name="verified" className="text-[15px] text-deep-olive" />
-              <span className="text-xs font-bold text-dark-slate">ترشيحات كابتنلي المختارة</span>
-            </div>
-            <div className="flex flex-col gap-3">
-              {homeFeatured.map((fac) => (
-                <FacilityCard
-                  key={fac.id}
-                  facility={fac}
-                  onSelectCompareFeedback={(msg) => {
-                    setToast(msg);
-                    setTimeout(() => setToast(null), 2800);
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {homeRegistered.length > 0 && (
-          <div className="flex flex-col gap-4">
-            {homeRegistered.map((fac) => (
+        {!isFacilitiesLoading && homeSuggestions.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {homeSuggestions.map((fac) => (
               <FacilityCard
                 key={fac.id}
                 facility={fac}
@@ -316,35 +329,67 @@ export default function Phone21() {
           </div>
         )}
 
-        {homeDirectory.length > 0 && (
-          <div className="flex flex-col gap-2.5 pt-1">
-            {homeRegistered.length > 0 && (
-              <div className="flex items-center gap-1.5 px-1">
-                <Icon name="explore" className="text-[15px] text-text-muted" />
-                <span className="text-xs font-bold text-text-muted">أقرب المسابح من خرائط Google</span>
-              </div>
-            )}
-            <div className="flex flex-col gap-3">
-              {homeDirectory.map((fac) => (
-                <FacilityCard
-                  key={fac.id}
-                  facility={fac}
-                  onSelectCompareFeedback={(msg) => {
-                    setToast(msg);
-                    setTimeout(() => setToast(null), 2800);
-                  }}
+        {!isFacilitiesLoading && shownFacilitiesCount < 3 && (
+          <article className="rounded-[20px] bg-gradient-to-br from-[#EAF4F8] via-white to-[#F7F9FA] border border-[#1D6E7D]/20 p-4 shadow-xs flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white text-[#1D6E7D] border border-[#1D6E7D]/15 text-[10px] font-extrabold">
+                <Icon name={isAthleteOrParent ? "explore" : "verified"} className="text-[13px]" />
+                <span>{isAthleteOrParent ? "اكتشاف أوسع" : "0% عمولة وساطة"}</span>
+              </span>
+              <span className="w-8 h-8 rounded-xl bg-[#1D6E7D] text-white flex items-center justify-center shrink-0">
+                <Icon
+                  name={isFacilityManager ? "stadium" : isCoachRole ? "sports" : isAthleteOrParent ? "map" : "add_business"}
+                  className="text-[17px]"
                 />
-              ))}
+              </span>
             </div>
-          </div>
+            <h3 className="font-card-title-sm text-sm text-[#0F172A]">
+              {isFacilityManager
+                ? "أضف فرعاً جديداً أو حدّث مواعيد منشأتك"
+                : isCoachRole
+                ? "اربط نشاطك بأقرب مسبح مضيف"
+                : isAthleteOrParent
+                ? "استكشف الخريطة الكاملة وقارن الباقات"
+                : "أضف منشأتك أو طالب بصفحتك مجاناً"}
+            </h3>
+            <p className="text-xs text-[#475569] leading-relaxed">
+              {isFacilityManager
+                ? "أدر المشتركين وتسعير المياه ودفاتر حضور الـ QR الأوفلاين من لوحة واحدة."
+                : isCoachRole
+                ? "وثّق ربطك بالأندية المضيفة واظهر للسباحين بالشارات المعتمدة."
+                : isAthleteOrParent
+                ? "تصفح جميع المسابح المدفأة وساعات السيدات في نطاقك مباشرة."
+                : "سجّل مسبحك أو أكاديميتك مجاناً وفعّل دفاتر حضور الـ QR بدون عمولة."}
+            </p>
+            <Link
+              href={
+                isFacilityManager
+                  ? "/dashboard/facility"
+                  : isCoachRole
+                  ? "/dashboard/coach"
+                  : isAthleteOrParent
+                  ? "/explore"
+                  : "/claim"
+              }
+              className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold text-center shadow-xs transition-colors"
+            >
+              {isFacilityManager
+                ? "فتح لوحة المنشأة"
+                : isCoachRole
+                ? "إدارة الأندية المضيفة"
+                : isAthleteOrParent
+                ? "فتح صفحة الاستكشاف ←"
+                : "سجّل ووثّق منشأتك الآن ←"}
+            </Link>
+          </article>
         )}
 
         <Link
           href={exploreCityHref}
           className="w-full py-3 rounded-full bg-surface-card text-dark-slate text-xs font-bold text-center shadow-sm border border-surface-container"
         >
-          {partitioned.allSorted.length > homeSuggestions.length
-            ? `تصفح باقي المسابح في ${cleanCityLabel} (${partitioned.allSorted.length - homeSuggestions.length} إضافية) ←`
+          {totalFacilitiesCount > homeSuggestions.length
+            ? `تصفح باقي المسابح في ${cleanCityLabel} (${totalFacilitiesCount - homeSuggestions.length} إضافية) ←`
             : `عرض كل مسابح ${cleanCityLabel} والخريطة ←`}
         </Link>
       </section>
@@ -393,11 +438,77 @@ export default function Phone21() {
         </section>
       )}
 
+      {/* 3-Step Visual Offline QR Ledger Journey */}
+      <section
+        aria-labelledby="mobile-qr-journey-heading"
+        className="rounded-[24px] bg-gradient-to-br from-[#EAF4F8] via-white to-[#F7F9FA] border border-[#1D6E7D]/18 p-4 shadow-sm flex flex-col gap-3.5"
+      >
+        <div className="flex flex-col gap-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white text-[#1D6E7D] border border-[#1D6E7D]/20 text-[10px] font-extrabold w-fit">
+            <Icon name="qr_code_2" className="text-[13px]" />
+            <span>يعمل أوفلاين عند المسبح (PWA + IndexedDB)</span>
+          </span>
+          <h2 id="mobile-qr-journey-heading" className="font-section-title-mobile text-section-title-mobile text-[#0F172A]">
+            كيف يعمل دفتر الحصص QR أوفلاين في 3 خطوات؟
+          </h2>
+          <p className="text-xs text-[#475569] leading-relaxed">
+            تتبّع رصيد حصصك بوضوح تام وسجّل حضورك على بوابة المسبح حتى بدون إنترنت.
+          </p>
+        </div>
+
+        <ol className="flex flex-col gap-2.5">
+          {[
+            {
+              step: "01",
+              icon: "badge",
+              title: "سجّل واستلم كود عضويتك وبطاقة QR",
+              desc: "احصل على كود عضوية فريد (CAP-M-*) وباركود QR خاص بك وبأبنائك فور التسجيل المجاني.",
+            },
+            {
+              step: "02",
+              icon: "qr_code_2",
+              title: "فعّل باقتك مع الكابتن أو المسبح بـ 0% عمولة",
+              desc: "قدّم الكود عند الاشتراك ليُنشأ لك دفتر حصص مستقل بعدد الحصص وتفاصيل التكلفة.",
+            },
+            {
+              step: "03",
+              icon: "wifi_off",
+              title: "امسح الحضور أوفلاين عند البوابة بمزامنة تلقائية",
+              desc: "تُخصم الحصة لحظياً بالـ QR أو كود الاشتراك دون حاجة لشبكة بالمسبح وتُزامَن تلقائياً.",
+            },
+          ].map((item) => (
+            <li
+              key={item.step}
+              className="rounded-2xl bg-white p-3.5 border border-[#0F172A]/8 flex items-start gap-3"
+            >
+              <span className="w-8 h-8 rounded-xl bg-[#1D6E7D] text-white font-mono text-[11px] font-black flex items-center justify-center shrink-0">
+                {item.step}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Icon name={item.icon} className="text-[15px] text-[#1D6E7D] shrink-0" />
+                  <h3 className="font-card-title-sm text-xs text-[#0F172A]">{item.title}</h3>
+                </div>
+                <p className="text-[11px] text-[#475569] leading-relaxed mt-1">{item.desc}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <Link
+          href="/dashboard/ledger"
+          className="w-full py-2.5 rounded-full bg-[#0F4C5C] hover:bg-[#1D6E7D] text-white text-xs font-extrabold text-center flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <Icon name="qr_code_scanner" className="text-[16px]" />
+          <span>افتح دفتر الحصص الآن</span>
+        </Link>
+      </section>
+
       {/* Magazine Articles Carousel (All articles, swipe + drag + arrow buttons) */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-section-title-mobile text-section-title-mobile text-dark-slate">
-            أدلة مجلة كابتنلي ({articles.length})
+            أدلة مجلة كابتنلي{articles.length > 0 ? ` (${articles.length})` : ""}
           </h2>
           <div className="flex items-center gap-1.5">
             <button
@@ -458,11 +569,18 @@ export default function Phone21() {
                 <div>
                   {art.imageUrl ? (
                     <div className="relative h-32">
-                      <Link href={`/magazine/${art.slug}`}>
-                        <img src={art.imageUrl} alt={art.titleAr} className="w-full h-full object-cover" />
+                      <Link href={`/magazine/${art.slug}`} className="block relative w-full h-full">
+                        <CaptenlyImage
+                          src={art.imageUrl}
+                          alt={art.titleAr}
+                          fill
+                          sizes="276px"
+                          className="object-cover"
+                        />
                       </Link>
                       <button
                         type="button"
+                        aria-label={fav ? `إزالة ${art.titleAr} من المفضلة` : `حفظ ${art.titleAr} في المفضلة`}
                         onClick={() => toggleFavorite(art.id)}
                         className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center shadow ${
                           fav ? "bg-[#1D6E7D] text-white" : "bg-white/90 text-[#0F172A]"
@@ -478,6 +596,7 @@ export default function Phone21() {
                       </span>
                       <button
                         type="button"
+                        aria-label={fav ? `إزالة ${art.titleAr} من المفضلة` : `حفظ ${art.titleAr} في المفضلة`}
                         onClick={() => toggleFavorite(art.id)}
                         className={`w-7 h-7 rounded-full flex items-center justify-center border border-[#0F172A]/8 ${
                           fav ? "bg-[#1D6E7D] text-white" : "bg-[#F7F9FA] text-[#0F172A]"

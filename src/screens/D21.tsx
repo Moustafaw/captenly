@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { ShareButton } from "@/components/editorial/ShareButton";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export default function Desktop21() {
   const { articles, facilities, isFavorite, toggleFavorite, subscribeNewsletter, currentPersona } =
@@ -115,11 +116,14 @@ export default function Desktop21() {
           <article className="relative w-full rounded-3xl bg-white border border-[#E2E8F0] overflow-hidden shadow-[0_12px_36px_rgba(11,28,46,0.06)] grid grid-cols-1 lg:grid-cols-12 min-h-[290px]">
             {featured.imageUrl && (
               <div className="lg:col-span-5 relative min-h-[230px] lg:min-h-full order-1 lg:order-2 overflow-hidden">
-                <Link href={`/magazine/${featured.slug}`} className="block w-full h-full">
-                  <img
+                <Link href={`/magazine/${featured.slug}`} className="block relative w-full h-full min-h-[230px]">
+                  <CaptenlyImage
                     src={featured.imageUrl}
                     alt={featured.titleAr}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 480px"
+                    className="object-cover hover:scale-105 transition-transform duration-500"
                   />
                 </Link>
                 <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#1D6E7D] text-white font-bold text-[11px] shadow-md">
@@ -256,11 +260,13 @@ export default function Desktop21() {
                     <div>
                       {art.imageUrl ? (
                         <div className="relative h-48 w-full overflow-hidden">
-                          <Link href={`/magazine/${art.slug}`}>
-                            <img
+                          <Link href={`/magazine/${art.slug}`} className="block relative w-full h-full">
+                            <CaptenlyImage
                               src={art.imageUrl}
                               alt={art.titleAr}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 400px"
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           </Link>
                           <span className="absolute top-3 right-3 px-3 py-1 rounded-full bg-[#EAF4F8]/95 border border-[#00ACC1]/20 text-[#1D6E7D] font-bold text-[11px] backdrop-blur-xs">

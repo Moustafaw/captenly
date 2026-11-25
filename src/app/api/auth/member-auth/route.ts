@@ -7,9 +7,9 @@ import { getAuthInstance } from "@/auth";
 import { attachMemberSessionCookie, clearMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
 import { getDeterministicCoachId } from "@/lib/coachProvisioning";
 import { deleteCoachByMemberOrIdInDb, ensureSelfRegisteredCoachInDb } from "@/lib/server/coachDb";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 import {
   OWNER_EMAIL,
-  ensureSingleOwnerAccountBaseline,
   purgeNonOwnerAccountsInDb,
 } from "@/lib/server/accountPurge";
 
@@ -112,41 +112,6 @@ function sanitizeProfileRow(row: Record<string, unknown>) {
   };
 }
 
-async function ensureAuthSchemaViaPg() {
-  await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_profiles (
-        id uuid default gen_random_uuid() primary key,
-        member_code text unique not null,
-        email text unique,
-        full_name_ar text not null,
-        role text not null default 'adult_athlete',
-        phone text,
-        city text not null default 'كل مصر',
-        governorate text not null default 'مصر',
-        avatar_url text,
-        auth_provider text default 'phone_otp',
-        has_parent_supervision boolean default false,
-        needs_onboarding boolean default false,
-        bio_ar text,
-        social_links jsonb default '{}'::jsonb,
-        password_hash text,
-        otp_code_hash text,
-        otp_expires_at timestamptz,
-        created_at timestamptz default now(),
-        updated_at timestamptz default now()
-      );
-    `);
-    await client.query(`
-      alter table public.captenly_profiles
-        add column if not exists password_hash text,
-        add column if not exists otp_code_hash text,
-        add column if not exists otp_expires_at timestamptz;
-    `);
-    return true;
-  });
-}
-
 async function findProfileByQuery(queryRaw: string): Promise<{
   row: Record<string, unknown> | null;
   dbAvailable: boolean;
@@ -181,7 +146,6 @@ async function findProfileByQuery(queryRaw: string): Promise<{
     }
   }
 
-  await ensureAuthSchemaViaPg();
   const pgRes = await withPgClient(async (client) => {
     if (isEmail) {
       const { rows } = await client.query(
@@ -297,22 +261,33 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action || "");
 
-    await ensureSingleOwnerAccountBaseline();
+    const rl = await enforceRateLimit({
+      bucket: `auth:member:${action || "unknown"}`,
+      identifier: getClientIp(request),
+      limit: 25,
+      windowSec: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfterSec);
+    }
 
     if (action === "purge_non_owner_accounts") {
       const caller = await getServerCaller();
+      const purgeEnabled =
+        process.env.CAPTENLY_ENABLE_OWNER_PURGE === "true" && OWNER_EMAIL.includes("@");
       const isAuthorizedOwner =
-        caller.isAdmin ||
-        (caller.authenticated && caller.email?.toLowerCase() === OWNER_EMAIL);
+        purgeEnabled &&
+        (caller.isAdmin ||
+          (caller.authenticated && caller.email?.toLowerCase() === OWNER_EMAIL));
       if (!isAuthorizedOwner) {
         return NextResponse.json(
-          { ok: false, error: "forbidden", messageAr: "غير مصرح بتصفية الحسابات إلا لصاحب المنصة." },
+          { ok: false, error: "forbidden", messageAr: "تصفية الحسابات غير مفعلة أو غير مصرح بها." },
           { status: 403 }
         );
       }
       const res = await purgeNonOwnerAccountsInDb({ forceAll: true });
       return NextResponse.json({
-        ok: true,
+        ok: res.ok,
         keptEmail: OWNER_EMAIL,
         purgedProfiles: res.purgedProfiles,
       });
@@ -390,7 +365,6 @@ export async function POST(request: Request) {
       }
 
       const passwordHash = hashPassword(password);
-      await ensureAuthSchemaViaPg();
 
       const admin = getSupabaseAdminClient();
       if (admin) {
@@ -604,20 +578,32 @@ export async function POST(request: Request) {
     }
 
     if (action === "google_login") {
+      // Security remediation (F-001): never trust client-supplied body.email or simulated preview flag.
+      if (body.isSimulatedPreview === true) {
+        return NextResponse.json(
+          {
+            ok: false,
+            reason: "preview_disabled",
+            messageAr: "وضع المعاينة غير مصرح به لتسجيل الدخول عبر Google.",
+          },
+          { status: 401 }
+        );
+      }
+
       const authInstance = getAuthInstance();
       const session = authInstance ? await authInstance.auth() : null;
       const sessionEmail = session?.user?.email?.trim().toLowerCase();
-      const bodyEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-      const cleanEmail = body.isSimulatedPreview
-        ? bodyEmail || sessionEmail
-        : sessionEmail || bodyEmail;
-
-      if (!cleanEmail || !cleanEmail.includes("@")) {
+      if (!sessionEmail || !sessionEmail.includes("@")) {
         return NextResponse.json(
-          { ok: false, reason: "missing_email", messageAr: "البريد الإلكتروني مطلوب لتسجيل الدخول." },
-          { status: 400 }
+          {
+            ok: false,
+            reason: "oauth_session_required",
+            messageAr: "تسجيل الدخول عبر Google يتطلب جلسة OAuth موثقة من الخادم.",
+          },
+          { status: 401 }
         );
       }
+      const cleanEmail = sessionEmail;
 
       const incomingName =
         (typeof body.fullNameAr === "string" ? body.fullNameAr.trim() : "") ||
@@ -629,7 +615,6 @@ export async function POST(request: Request) {
         session?.user?.image?.trim() ||
         null;
 
-      await ensureAuthSchemaViaPg();
       const existing = await findProfileByQuery(cleanEmail);
       if (!existing.dbAvailable) {
         return NextResponse.json(
@@ -1047,7 +1032,6 @@ export async function POST(request: Request) {
         );
       }
 
-      await ensureAuthSchemaViaPg();
       const admin = getSupabaseAdminClient();
       let saved = false;
       if (admin) {
@@ -1099,7 +1083,6 @@ export async function POST(request: Request) {
         }
         const memberCode = String(foundBySession.row.member_code || "");
         const newHash = hashPassword(newPassword);
-        await ensureAuthSchemaViaPg();
         const admin = getSupabaseAdminClient();
         let updated = false;
         if (admin) {

@@ -7,12 +7,12 @@ import {
   getSupabaseUrl,
 } from "./config";
 
-export function createSupabaseServerClient(): SupabaseClient | null {
+export async function createSupabaseServerClient(): Promise<SupabaseClient | null> {
   const url = getSupabaseUrl();
   const key = getSupabasePublishableKey();
   if (!url || !key) return null;
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   return createServerClient(url, key, {
     cookies: {
       getAll() {

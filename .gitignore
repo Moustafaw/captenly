@@ -18,8 +18,13 @@ Thumbs.db
 
 # Temporary verification screenshots & test output
 /public/*_view_full.png
+/public/**/*_view_full.png
 /public/clean_desktop_shot.png
 /public/current_view.png
 /public/current_view_full.png
 /public/reference_24_rendered.png
 /public/test-tw.css
+/public/**/test-tw.css
+/qa-reports/
+/playwright-report/
+/test-results/

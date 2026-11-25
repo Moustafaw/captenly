@@ -4,9 +4,20 @@ import React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
+import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 
 export default function Desktop5() {
-  const { currentPersona } = useCaptenly();
+  const { currentPersona, isAuthenticated } = useCaptenly();
+
+  if (!isAuthenticated || currentPersona.role === "guest") {
+    return (
+      <GuestAccountGateScreen
+        titleAr="صفحة الترحيب مخصصة للأعضاء المسجلين"
+        descriptionAr="سجّل دخولك أو أنشئ حسابك المجاني على كابتنلي لتفعيل كود العضوية وبدء متابعة التدريبات والمسابح."
+      />
+    );
+  }
+
   const isFacility = currentPersona.role === "facility_manager";
   const isCoach = currentPersona.role === "coach";
 

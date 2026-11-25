@@ -8,6 +8,7 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { isChromeless } from "./chromeRoutes";
 import { signOut } from "next-auth/react";
 import { GoogleMark, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export function MobileHeader() {
   const pathname = usePathname() || "/";
@@ -36,9 +37,12 @@ export function MobileHeader() {
       <header className="lg:hidden sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md shadow-[0_2px_10px_rgba(15,23,42,0.06)]">
         <div className="h-[58px] px-margin flex items-center justify-between gap-2">
           <Link href="/" className="relative z-10 shrink-0 flex items-center cursor-pointer">
-            <img
+            <CaptenlyImage
               src="/images/logo/captenly-logo-horizontal-dark.png"
               alt="كابتنلي"
+              width={136}
+              height={32}
+              priority
               className="h-8 w-auto object-contain"
             />
           </Link>
@@ -78,12 +82,15 @@ export function MobileHeader() {
 
                 <Link
                   href="/favorites"
-                  aria-label="المفضلة"
+                  aria-label={savedFavoriteIds.length > 0 ? `المفضلة (${savedFavoriteIds.length})` : "المفضلة"}
                   className="relative w-8 h-8 rounded-full bg-[#F7F9FA] text-[#0F172A] hover:bg-[#EAF4F8] hover:text-[#1D6E7D] flex items-center justify-center transition-colors"
                 >
                   <Icon name="bookmark" className="text-[17px]" />
                   {savedFavoriteIds.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center">
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center"
+                    >
                       {savedFavoriteIds.length}
                     </span>
                   )}
@@ -91,12 +98,15 @@ export function MobileHeader() {
 
                 <Link
                   href="/notifications"
-                  aria-label="الإشعارات"
+                  aria-label={unreadNotificationsCount > 0 ? `الإشعارات (${unreadNotificationsCount})` : "الإشعارات"}
                   className="relative w-8 h-8 rounded-full bg-[#F7F9FA] text-[#0F172A] hover:bg-[#EAF4F8] hover:text-[#1D6E7D] flex items-center justify-center transition-colors"
                 >
                   <Icon name="notifications" className="text-[17px]" />
                   {unreadNotificationsCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center">
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1D6E7D] text-white text-[9px] font-bold flex items-center justify-center"
+                    >
                       {unreadNotificationsCount}
                     </span>
                   )}
@@ -303,6 +313,8 @@ export function MobileHeader() {
               <span className="text-[11px] font-bold text-[#64748B] px-2 mb-1">أقسام المنصة</span>
               {[
                 { href: "/coaches", icon: "sports", label: "الكباتن الموثقون", gated: false },
+                { href: "/compare", icon: "compare_arrows", label: "قارن بين المنشآت", gated: false },
+                { href: "/dashboard/ledger", icon: "qr_code_2", label: "دفتر الحصص QR", gated: true },
                 { href: "/magazine", icon: "menu_book", label: "المجلة الرياضية", gated: false },
                 { href: "/favorites", icon: "bookmark", label: "المفضلة", gated: true },
                 { href: "/notifications", icon: "notifications", label: "مركز الإشعارات", gated: true },

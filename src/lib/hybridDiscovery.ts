@@ -13,6 +13,7 @@ export interface UserGeoContext {
   lng: number;
   city?: string;
   isSpecified?: boolean;
+  maxDistanceKm?: number;
 }
 
 function rotateArray<T>(items: T[], seed: number): T[] {
@@ -71,13 +72,23 @@ export function partitionFacilities3Tier(
     .trim();
 
   const hasSpecificLocation = Boolean(userGeo?.isSpecified);
+  const maxDistKm =
+    typeof userGeo?.maxDistanceKm === "number" && userGeo.maxDistanceKm > 0
+      ? userGeo.maxDistanceKm
+      : 28;
+  const hasExplicitRadius =
+    typeof userGeo?.maxDistanceKm === "number" && userGeo.maxDistanceKm > 0;
 
   const isLocalMatch = (f: Facility): boolean => {
+    if (userGeo && Number.isFinite(userGeo.lat) && Number.isFinite(userGeo.lng)) {
+      const dist = getFacilityDistanceKm(f, userGeo);
+      if (hasExplicitRadius) {
+        return dist <= maxDistKm;
+      }
+      if (dist <= maxDistKm) return true;
+    }
     if (cleanUserCity && facilityMatchesCity(f, cleanUserCity)) {
       return true;
-    }
-    if (userGeo && Number.isFinite(userGeo.lat) && Number.isFinite(userGeo.lng)) {
-      return getFacilityDistanceKm(f, userGeo) <= 28;
     }
     return false;
   };

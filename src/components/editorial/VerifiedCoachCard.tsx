@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Coach } from "@/types/captenly";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { ContactChannelsBar } from "@/components/editorial/ContactChannelsBar";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 interface VerifiedCoachCardProps {
   coach: Coach;
@@ -37,7 +38,9 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
         <div className="relative w-full flex justify-center">
           <Link href={`/c/${coach.slug}`} className="relative">
             {coach.avatarUrl ? (
-              <img
+              <CaptenlyImage
+                width={80}
+                height={80}
                 className="w-20 h-20 rounded-full object-cover ring-2 ring-[#EAF4F8] bg-[#F7F9FA]"
                 alt={coach.fullNameAr}
                 src={coach.avatarUrl}
@@ -73,7 +76,7 @@ export function VerifiedCoachCard({ coach }: VerifiedCoachCardProps) {
 
         <div className="flex flex-col">
           <Link href={`/c/${coach.slug}`} className="hover:text-[#1D6E7D] transition-colors">
-            <h4 className="font-card-title-sm text-card-title-sm text-[#0F172A]">{coach.fullNameAr}</h4>
+            <h3 className="font-card-title-sm text-card-title-sm text-[#0F172A]">{coach.fullNameAr}</h3>
           </Link>
           {coach.titleAr && (
             <span className="font-micro-caption text-micro-caption text-[#64748B]">{coach.titleAr}</span>

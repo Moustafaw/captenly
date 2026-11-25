@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "سياسة الخصوصية وحماية البيانات (القانون 151 لسنة 2020)",
+  description:
+    "سياسة الخصوصية على منصة كابتنلي، حماية بيانات القُصّر افتراضياً، وسجلات دفتر الحصص أوفلاين.",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

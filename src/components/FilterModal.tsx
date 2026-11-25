@@ -114,12 +114,6 @@ export function FilterModal() {
               )}
             </div>
           </div>
-          <button
-            onClick={resetFilters}
-            className="text-micro-caption font-bold text-[#64748B] hover:text-status-danger transition-colors whitespace-nowrap shrink-0"
-          >
-            إعادة ضبط
-          </button>
         </div>
 
         {/* Scrollable Content */}
@@ -170,7 +164,7 @@ export function FilterModal() {
                 <Icon name="thermostat" className="text-[#1D6E7D] text-[20px]" />
                 <div>
                   <span className="block font-bold text-body-compact text-[#0F172A]">
-                    مسبح مدفأ شتاءً (28°C–30°C)
+                    مسبح مدفأ شتاءً <span dir="ltr" className="inline-block">(28°C–30°C)</span>
                   </span>
                   <span className="block text-[11px] text-[#64748B]">
                     حرارة مياه معتمدة لحماية الجهاز التنفسي للأطفال

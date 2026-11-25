@@ -9,6 +9,7 @@ import type { AccountIntent } from "@/types/captenly";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { EGYPT_CITY_PRESETS } from "@/lib/maps";
 import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 function Desktop10Inner() {
   const pathname = usePathname() || "/auth/login";
@@ -155,10 +156,13 @@ function Desktop10Inner() {
     >
       {/* Mobile Full-Bleed Sunlit Olympic Pool Backdrop + Ocean Teal Gradient Scrim */}
       <div className="lg:hidden fixed inset-0 z-0 pointer-events-none">
-        <img
+        <CaptenlyImage
           src="/images/auth/olympic-pool-hero.jpg"
           alt="حوض سباحة أولمبي"
-          className="w-full h-full object-cover object-center"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
         />
         <div
           className="absolute inset-0"
@@ -184,14 +188,20 @@ function Desktop10Inner() {
         {/* Top Brand + Back to Home Bar */}
         <div className="flex items-center justify-between gap-3 px-1">
           <Link href="/" className="flex items-center gap-2.5">
-            <img
+            <CaptenlyImage
               src="/images/logo/captenly-logo-horizontal-light.png"
               alt="كابتنلي | Captenly"
+              width={160}
+              height={40}
+              priority
               className="lg:hidden h-10 w-auto object-contain drop-shadow-sm"
             />
-            <img
+            <CaptenlyImage
               src="/images/logo/captenly-logo-horizontal-dark.png"
               alt="كابتنلي | Captenly"
+              width={176}
+              height={44}
+              priority
               className="hidden lg:block h-11 w-auto object-contain"
             />
           </Link>
@@ -211,10 +221,13 @@ function Desktop10Inner() {
         <div className="w-full rounded-[28px] border border-white/15 lg:border-[#0F172A]/8 bg-[#0F172A]/75 backdrop-blur-xl lg:bg-white lg:backdrop-blur-none shadow-[0_24px_64px_rgba(15,23,42,0.45)] lg:shadow-[0_20px_60px_rgba(15,23,42,0.06)] overflow-hidden grid grid-cols-1 lg:grid-cols-12">
           {/* Desktop Side Framed Visual Panel (NOT full screen; hidden on mobile since mobile uses full-bleed backdrop) */}
           <div className="hidden lg:flex lg:col-span-5 lg:order-2 relative overflow-hidden min-h-full flex-col justify-between p-7">
-            <img
+            <CaptenlyImage
               src="/images/auth/olympic-pool-hero.jpg"
               alt="حوض سباحة أولمبي"
-              className="absolute inset-0 w-full h-full object-cover object-center"
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 440px"
+              className="object-cover object-center"
             />
             <div
               className="absolute inset-0 pointer-events-none"

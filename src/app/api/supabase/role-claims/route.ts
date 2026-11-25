@@ -3,11 +3,10 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getServerCaller } from "@/lib/memberSession";
 import { findExistingCoachById } from "@/lib/server/coachDb";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 import type { Coach, Facility, MemberRoleClaim, RoleClaimStatus } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
-
-let roleClaimsBootstrapped = false;
 
 const MEDICAL_KEYWORDS = [
   "علاج طبيعي",
@@ -27,38 +26,6 @@ function containsProhibitedMedicalWording(text?: string): boolean {
   if (!text) return false;
   const lower = text.toLowerCase();
   return MEDICAL_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()));
-}
-
-async function ensureRoleClaimsTableViaPg() {
-  if (roleClaimsBootstrapped) return;
-  const res = await withPgClient(async (client) => {
-    await client.query(`
-      create table if not exists public.captenly_role_claims (
-        id text primary key,
-        applicant_member_code text not null,
-        applicant_name_ar text not null default '',
-        applicant_phone text not null default '',
-        applicant_email text not null default '',
-        claim_type text not null check (claim_type in ('coach', 'facility')),
-        target_facility_id text,
-        target_facility_name_ar text,
-        city_ar text,
-        governorate_ar text,
-        proof_document_url text,
-        proof_notes_ar text,
-        proposed_payload jsonb not null default '{}'::jsonb,
-        status text not null default 'pending_review' check (status in ('pending_review', 'approved', 'rejected', 'withdrawn')),
-        reviewer_note_ar text,
-        reviewed_by text,
-        reviewed_at timestamptz,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      )
-    `);
-    await client.query(`alter table public.captenly_role_claims enable row level security`);
-    return true;
-  });
-  if (res.ok) roleClaimsBootstrapped = true;
 }
 
 function mapClaimRow(row: Record<string, unknown>): MemberRoleClaim {
@@ -108,7 +75,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ claims: [], error: "unauthorized" }, { status: 401 });
   }
 
-  await ensureRoleClaimsTableViaPg();
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status") || "";
   const mineOnly = searchParams.get("mine") === "1" || !caller.isAdmin;
@@ -168,6 +134,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rl = await enforceRateLimit({
+    bucket: "supabase:role-claims",
+    identifier: getClientIp(request),
+    limit: 20,
+    windowSec: 60,
+  });
+  if (!rl.allowed) {
+    return rateLimitExceededResponse(rl.retryAfterSec);
+  }
+
   const caller = await getServerCaller();
   if (!caller.authenticated || !caller.memberCode) {
     return NextResponse.json(
@@ -219,7 +195,6 @@ export async function POST(request: Request) {
       }
     }
 
-    await ensureRoleClaimsTableViaPg();
     const id =
       typeof body.id === "string" && body.id.trim().startsWith("claim-")
         ? body.id.trim()
@@ -739,7 +714,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
     }
 
-    await ensureRoleClaimsTableViaPg();
     const existing = await fetchClaimById(id);
     if (!existing) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

@@ -7,6 +7,8 @@ import { useCaptenly } from "@/context/CaptenlyContext";
 import { QrCodeBox } from "@/components/editorial/QrCodeBox";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
 import { QrCameraScannerModal } from "@/components/qr/QrCameraScannerModal";
+import { PrintableSwimmerCardModal } from "@/components/qr/PrintableSwimmerCardModal";
+import { LedgerPricingAuditBox } from "@/components/qr/LedgerPricingAuditBox";
 import { buildCaptenlyQrUrl } from "@/lib/qrPayload";
 import { useLedgerUrlScan } from "@/lib/useLedgerUrlScan";
 import { isMemberAccountRole } from "@/types/captenly";
@@ -61,6 +63,7 @@ export default function Desktop8() {
   const [newSessionsCount, setNewSessionsCount] = useState<8 | 12 | 24>(8);
   const [newFeeEgp, setNewFeeEgp] = useState("");
   const [enrollMsg, setEnrollMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [bagCardModalOpen, setBagCardModalOpen] = useState(false);
 
   const roleLedgers = useMemo(() => {
     if (isFacility) {
@@ -554,8 +557,10 @@ export default function Desktop8() {
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-[#0F172A]">المنشأة</label>
+                      <label htmlFor="d8-facility-select" className="text-[11px] font-bold text-[#0F172A]">المنشأة</label>
                       <select
+                        id="d8-facility-select"
+                        aria-label="المنشأة"
                         value={newFacilityId}
                         onChange={(e) => setNewFacilityId(e.target.value)}
                         className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-[#0F172A]/10"
@@ -571,14 +576,17 @@ export default function Desktop8() {
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-[#0F172A]">اسم الباقة والحصص</label>
+                      <label htmlFor="d8-pkg-title" className="text-[11px] font-bold text-[#0F172A]">اسم الباقة والحصص</label>
                       <div className="flex gap-1.5">
                         <input
+                          id="d8-pkg-title"
+                          aria-label="اسم الباقة"
                           value={newPkgTitle}
                           onChange={(e) => setNewPkgTitle(e.target.value)}
                           className="flex-1 min-w-0 rounded-xl bg-white px-2.5 py-2 text-xs outline-none border border-[#0F172A]/10"
                         />
                         <select
+                          aria-label="عدد الحصص"
                           value={newSessionsCount}
                           onChange={(e) => setNewSessionsCount(Number(e.target.value) as 8 | 12 | 24)}
                           className="w-20 rounded-xl bg-white px-2 py-2 text-xs outline-none border border-[#0F172A]/10"
@@ -590,9 +598,11 @@ export default function Desktop8() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-[#0F172A]">الرسوم ج.م وتفعيل</label>
+                      <label htmlFor="d8-fee-egp" className="text-[11px] font-bold text-[#0F172A]">الرسوم ج.م وتفعيل</label>
                       <div className="flex gap-1.5">
                         <input
+                          id="d8-fee-egp"
+                          aria-label="الرسوم بالجنيه المصري"
                           type="number"
                           value={newFeeEgp}
                           onChange={(e) => setNewFeeEgp(e.target.value)}
@@ -686,7 +696,7 @@ export default function Desktop8() {
                                 {l.subscriptionCode || l.ledgerCode}
                               </span>
                             </div>
-                            <div className="text-[11px] text-[#64748B] truncate mt-0.5">
+                            <div className="text-[11px] text-[#475569] truncate mt-0.5">
                               {l.facilityNameAr} {l.trackLabelAr ? `• ${l.trackLabelAr}` : ""}
                             </div>
                           </div>
@@ -731,7 +741,7 @@ export default function Desktop8() {
                                 : `${l.ledgerCode} • PIN ${l.pinCode}`}
                             </span>
                             <span className="font-extrabold text-[#1D6E7D]">
-                              {l.completedSessions} / {l.totalSessions} حصص
+                              {l.completedSessions} من {l.totalSessions} حصص
                             </span>
                           </div>
                         </div>
@@ -777,10 +787,10 @@ export default function Desktop8() {
                       </div>
 
                       <div className="text-right sm:text-left shrink-0 bg-[#F7F9FA] rounded-2xl px-4 py-2.5 border border-[#0F172A]/6">
-                        <div className="text-3xl font-black text-[#1D6E7D]">
-                          {activeLedger.completedSessions} / {activeLedger.totalSessions}
+                        <div className="text-2xl sm:text-3xl font-black text-[#1D6E7D]">
+                          {activeLedger.completedSessions} من {activeLedger.totalSessions}
                         </div>
-                        <div className="text-[11px] font-bold text-[#64748B]">حصة مكتملة</div>
+                        <div className="text-[11px] font-bold text-[#475569]">حصة مكتملة</div>
                       </div>
                     </div>
 
@@ -883,12 +893,30 @@ export default function Desktop8() {
                         activeLedger.checkins.map((c) => (
                           <div
                             key={c.sessionNumber}
-                            className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 px-4 py-3 flex items-center justify-between gap-2 text-xs"
+                            className="rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
                           >
-                            <div>
-                              <span className="font-bold text-[#0F172A]">حصة #{c.sessionNumber}</span>
-                              <span className="text-[#94A3B8] mx-2">•</span>
-                              <span className="text-[#475569]">{c.coachNoteAr}</span>
+                            <div className="space-y-0.5">
+                              <div>
+                                <span className="font-bold text-[#0F172A]">حصة #{c.sessionNumber}</span>
+                                <span className="text-[#94A3B8] mx-2">•</span>
+                                <span className="text-[#475569]">{c.coachNoteAr}</span>
+                              </div>
+                              {c.scannedByNameAr && (
+                                <div className="text-[11px] text-[#64748B] flex items-center gap-1.5 flex-wrap">
+                                  <span>بواسطة: {c.scannedByNameAr}</span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      c.scannedByRole === "delegated_coach"
+                                        ? "bg-indigo-50 text-indigo-700"
+                                        : "bg-[#EAF4F8] text-[#0F4C5C]"
+                                    }`}
+                                  >
+                                    {c.scannedByRole === "delegated_coach"
+                                      ? "كابتن مفوّض"
+                                      : "بوابة المنشأة"}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             <span
                               className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${
@@ -955,6 +983,11 @@ export default function Desktop8() {
                           : "يمكنك مسح الـ QR من هاتف السباح بالكاميرا أو إدخال كود الاشتراك أعلاه يدوياً لخصم الحصة."}
                       </p>
 
+                      <LedgerPricingAuditBox
+                        ledger={activeLedger}
+                        onPrintBagCard={() => setBagCardModalOpen(true)}
+                      />
+
                       <button
                         type="button"
                         onClick={() => {
@@ -992,6 +1025,11 @@ export default function Desktop8() {
                           ? "انتهت صلاحية هذا الكود بعد إتمام جميع حصص الباقة. عند التجديد سيصدر لك كود اشتراك جديد تلقائياً."
                           : "أظهر هذا الباركود للكابتن أو مسؤول البوابة — يقبل المسح بكاميرا المنصة أو بسكانر النظام في الموبايل، ويعمل كود الاشتراك يدوياً بدون إنترنت."}
                       </p>
+
+                      <LedgerPricingAuditBox
+                        ledger={activeLedger}
+                        onPrintBagCard={() => setBagCardModalOpen(true)}
+                      />
                     </div>
                   )}
 
@@ -1074,6 +1112,7 @@ export default function Desktop8() {
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <select
+                          aria-label="وسيلة الدفع"
                           value={receiptChannel}
                           onChange={(e) =>
                             setReceiptChannel(
@@ -1086,6 +1125,7 @@ export default function Desktop8() {
                           <option value="فودافون كاش (Vodafone Cash)">Vodafone Cash</option>
                         </select>
                         <input
+                          aria-label="المبلغ بالجنيه المصري"
                           type="number"
                           value={receiptAmount}
                           onChange={(e) => setReceiptAmount(e.target.value)}
@@ -1131,6 +1171,14 @@ export default function Desktop8() {
           });
         }}
       />
+
+      {activeLedger && (
+        <PrintableSwimmerCardModal
+          open={bagCardModalOpen}
+          onClose={() => setBagCardModalOpen(false)}
+          ledger={activeLedger}
+        />
+      )}
     </div>
   );
 }

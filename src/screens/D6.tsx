@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
 import { ShareButton } from "@/components/editorial/ShareButton";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 function renderInlineBold(line: string): React.ReactNode {
   const parts = line.split(/(\*\*[^*]+\*\*)/g);
@@ -207,8 +208,15 @@ export default function Desktop6() {
 
         {/* Optional Cover Image (never renders broken/empty box when article is text-only) */}
         {article.imageUrl && (
-          <div className="w-full h-[220px] sm:h-[320px] md:h-[380px] rounded-3xl overflow-hidden border border-[#E2E8F0] shadow-[0_12px_36px_rgba(11,28,46,0.07)]">
-            <img src={article.imageUrl} alt={article.titleAr} className="w-full h-full object-cover" />
+          <div className="relative w-full h-[220px] sm:h-[320px] md:h-[380px] rounded-3xl overflow-hidden border border-[#E2E8F0] shadow-[0_12px_36px_rgba(11,28,46,0.07)]">
+            <CaptenlyImage
+              src={article.imageUrl}
+              alt={article.titleAr}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 900px"
+              className="object-cover"
+            />
           </div>
         )}
 

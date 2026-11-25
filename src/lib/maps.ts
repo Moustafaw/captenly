@@ -245,3 +245,17 @@ export function loadGoogleMapsSdk(apiKey: string): Promise<any> {
 
   return googleMapsLoaderPromise;
 }
+
+/**
+ * Removes Google Plus Codes (e.g. "X529+F73", "8G2Q+9X") and cleans punctuation
+ * before rendering or indexing public addresses.
+ */
+export function cleanPublicAddressAr(raw?: string | null): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/\b[2-9CFGHJMPQRVWX]{4,8}\+[2-9CFGHJMPQRVWX]{2,4}\b/gi, " ")
+    .replace(/[،,]\s*[،,]+/g, "، ")
+    .replace(/^[\s،,\-•]+|[\s،,\-•]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}

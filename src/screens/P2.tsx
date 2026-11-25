@@ -411,62 +411,97 @@ export default function Phone2() {
                 setNewVal("");
                 setPrevVal("");
               }}
-              className="grid grid-cols-3 gap-2 pt-3 border-t border-[#E2E8F0]"
+              className="grid grid-cols-2 gap-2.5 pt-3 border-t border-[#E2E8F0]"
             >
               {canManageFamily && minorAthletes.length > 0 && (
-                <select
-                  value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
-                  onChange={(e) => setPbTargetAthleteId(e.target.value)}
-                  className="col-span-3 rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
-                >
-                  {!isParentOnlyIntent && (
-                    <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
-                  )}
-                  {minorAthletes.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      الابن: {child.fullNameAr}
-                    </option>
-                  ))}
-                </select>
+                <div className="col-span-2 flex flex-col gap-1">
+                  <label htmlFor="p2-pb-athlete" className="text-[11px] font-bold text-[#475569]">
+                    السبّاح المستهدف
+                  </label>
+                  <select
+                    id="p2-pb-athlete"
+                    aria-label="السبّاح المستهدف"
+                    value={pbTargetAthleteId || (effectiveAthleteId === currentPersona.id ? "self" : effectiveAthleteId)}
+                    onChange={(e) => setPbTargetAthleteId(e.target.value)}
+                    className="w-full rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
+                  >
+                    {!isParentOnlyIntent && (
+                      <option value="self">السبّاح: {currentPersona.fullNameAr} (حسابي)</option>
+                    )}
+                    {minorAthletes.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        الابن: {child.fullNameAr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-              <input
-                required
-                value={eventTitle}
-                onChange={(e) => setEventTitle(e.target.value)}
-                placeholder="السباق (50م حرة)"
-                className="col-span-2 rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
-              />
-              <select
-                value={pbUnitAr}
-                onChange={(e) => setPbUnitAr(e.target.value)}
-                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
-              >
-                <option value="ثانية">ثانية</option>
-                <option value="متر">متر</option>
-                <option value="لفة">لفة</option>
-                <option value="تكرار">تكرار</option>
-                <option value="نقطة">نقطة</option>
-              </select>
-              <input
-                required
-                type="number"
-                step="0.1"
-                value={newVal}
-                onChange={(e) => setNewVal(e.target.value)}
-                placeholder="الرقم الجديد"
-                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
-              />
-              <input
-                type="number"
-                step="0.1"
-                value={prevVal}
-                onChange={(e) => setPrevVal(e.target.value)}
-                placeholder="الرقم السابق"
-                className="rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
-              />
+              <div className="col-span-2 flex flex-col gap-1">
+                <label htmlFor="p2-pb-event" className="text-[11px] font-bold text-[#475569]">
+                  السباق أو التمرين *
+                </label>
+                <input
+                  id="p2-pb-event"
+                  aria-label="السباق أو التمرين"
+                  required
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="مثال: 50م سباحة حرة"
+                  className="w-full rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="p2-pb-unit" className="text-[11px] font-bold text-[#475569]">
+                  الوحدة
+                </label>
+                <select
+                  id="p2-pb-unit"
+                  aria-label="وحدة القياس"
+                  value={pbUnitAr}
+                  onChange={(e) => setPbUnitAr(e.target.value)}
+                  className="w-full rounded-2xl bg-[#F7F9FA] px-2.5 py-2.5 text-xs font-bold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
+                >
+                  <option value="ثانية">ثانية</option>
+                  <option value="متر">متر</option>
+                  <option value="لفة">لفة</option>
+                  <option value="تكرار">تكرار</option>
+                  <option value="نقطة">نقطة</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="p2-pb-new" className="text-[11px] font-bold text-[#475569]">
+                  الرقم الجديد ({pbUnitAr}) *
+                </label>
+                <input
+                  id="p2-pb-new"
+                  aria-label={`الرقم الجديد (${pbUnitAr})`}
+                  required
+                  type="number"
+                  step="0.1"
+                  value={newVal}
+                  onChange={(e) => setNewVal(e.target.value)}
+                  placeholder="مثال: 29.5"
+                  className="w-full rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
+                />
+              </div>
+              <div className="col-span-2 flex flex-col gap-1">
+                <label htmlFor="p2-pb-prev" className="text-[11px] font-bold text-[#475569]">
+                  الرقم السابق (اختياري)
+                </label>
+                <input
+                  id="p2-pb-prev"
+                  aria-label="الرقم السابق للمقارنة (اختياري)"
+                  type="number"
+                  step="0.1"
+                  value={prevVal}
+                  onChange={(e) => setPrevVal(e.target.value)}
+                  placeholder="مثال: 31.0"
+                  className="w-full rounded-2xl bg-[#F7F9FA] px-3 py-2.5 text-xs font-semibold text-[#0B1C2E] outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"
+                />
+              </div>
               <button
                 type="submit"
-                className="px-3.5 py-2.5 rounded-2xl bg-[#1D6E7D] hover:bg-[#165966] text-white text-xs font-black transition cursor-pointer"
+                className="col-span-2 px-3.5 py-2.5 rounded-2xl bg-[#1D6E7D] hover:bg-[#165966] text-white text-xs font-black transition cursor-pointer"
               >
                 + سجل
               </button>

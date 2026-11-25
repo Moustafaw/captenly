@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "شروط الاستخدام وميثاق التوثيق الرياضي",
+  description:
+    "الشروط والأحكام، معايير التزام التدريب الرياضي المهني، وشفافية الأسعار والباقات الموثقة على كابتنلي.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

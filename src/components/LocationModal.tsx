@@ -16,11 +16,20 @@ export function LocationModal() {
     requestAutoGeolocation,
     locationModalOpen,
     setLocationModalOpen,
+    smartFilters,
     updateSmartFilters,
   } = useCaptenly();
 
-  const [selectedRadius, setSelectedRadius] = useState<number>(10);
+  const [selectedRadius, setSelectedRadius] = useState<number>(
+    smartFilters.maxDistanceKm > 0 ? smartFilters.maxDistanceKm : 10
+  );
   const [isLocating, setIsLocating] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (locationModalOpen && smartFilters.maxDistanceKm > 0) {
+      setSelectedRadius(smartFilters.maxDistanceKm);
+    }
+  }, [locationModalOpen, smartFilters.maxDistanceKm]);
 
   useEffect(() => {
     if (!locationModalOpen) return;
@@ -47,7 +56,11 @@ export function LocationModal() {
 
   const handleCitySelect = (city: string, gov: string) => {
     setUserCity(city, gov);
-    updateSmartFilters({ city: "الكل", sortBy: "nearest" });
+    updateSmartFilters({
+      city: "الكل",
+      sortBy: "nearest",
+      maxDistanceKm: selectedRadius,
+    });
   };
 
   const handlePickMapPoint = (lat: number, lng: number) => {
@@ -81,6 +94,7 @@ export function LocationModal() {
 
   return (
     <div
+      data-testid="location-modal"
       role="dialog"
       aria-modal="true"
       aria-label="تحديد النطاق والموقع الجغرافي"
@@ -119,6 +133,7 @@ export function LocationModal() {
           {/* Smart Google Places / City Search */}
           <LocationAutocompleteInput
             initialValue=""
+            hideQuickCities
             onSelectLocation={(loc) => {
               setUserCoordinates({
                 city: loc.city,
@@ -193,7 +208,7 @@ export function LocationModal() {
             <label className="block text-body-compact font-bold text-dark-slate mb-2">
               اختر مدينتك مباشرة:
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div data-testid="quick-cities-grid" className="grid grid-cols-3 gap-2">
               {CITIES_LIST.map((c) => {
                 const isSelected = userLocation.city.includes(c.name);
                 return (
@@ -230,7 +245,10 @@ export function LocationModal() {
                 <button
                   key={rad}
                   type="button"
-                  onClick={() => setSelectedRadius(rad)}
+                  onClick={() => {
+                    setSelectedRadius(rad);
+                    updateSmartFilters({ maxDistanceKm: rad, sortBy: "nearest" });
+                  }}
                   className={`py-1.5 rounded-lg text-micro-caption font-bold border transition-all ${
                     selectedRadius === rad
                       ? "bg-deep-olive text-white border-deep-olive"
@@ -258,7 +276,10 @@ export function LocationModal() {
           </button>
           <button
             type="button"
-            onClick={() => setLocationModalOpen(false)}
+            onClick={() => {
+              updateSmartFilters({ maxDistanceKm: selectedRadius, sortBy: "nearest" });
+              setLocationModalOpen(false);
+            }}
             className="px-6 py-2.5 rounded-full bg-deep-olive text-white font-bold text-body-compact hover:brightness-105 transition-all shadow-sm"
           >
             تطبيق وحفظ النطاق

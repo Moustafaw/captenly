@@ -3,6 +3,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { withPgClient } from "@/lib/supabase/pgFallback";
 import { attachMemberSessionCookie, getServerCaller } from "@/lib/memberSession";
 import { resolveGovernorateFromCity } from "@/lib/facilityPricing";
+import { cleanPublicAddressAr } from "@/lib/maps";
 import type { AccountRole, Facility, FacilityLocation, MemberRoleClaim } from "@/types/captenly";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ function sanitizeLocations(raw: unknown): FacilityLocation[] {
     const district = String(item.district || "").trim();
     const streetAr = String(item.streetAr || "").trim();
     const addressAr =
-      String(item.addressAr || "").trim() ||
+      cleanPublicAddressAr(String(item.addressAr || "").trim()) ||
       [streetAr, district, city, governorate].filter(Boolean).join("، ");
     const labelAr = String(item.labelAr || "").trim();
     out.push({
@@ -117,6 +118,28 @@ export async function POST(request: Request) {
     const managerName = String(body.managerName || "").trim() || "مسؤول المنشأة";
     const roleTitleAr = String(body.roleTitleAr || "").trim() || "إدارة المنشأة";
     const publicDescriptionAr = String(body.publicDescriptionAr || "").trim() || undefined;
+
+    const medicalCheckText = `${nameAr} ${publicDescriptionAr || ""} ${roleTitleAr}`.toLowerCase();
+    const PROHIBITED_TERMS = [
+      "علاج طبيعي",
+      "علاج طبي",
+      "تأهيل طبي",
+      "تشخيص",
+      "وصفة طبية",
+      "rehabilitation therapy",
+      "medical therapy",
+    ];
+    if (PROHIBITED_TERMS.some((kw) => medicalCheckText.includes(kw.toLowerCase()))) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "law_3_1985_prohibited_medical_claims",
+          messageAr:
+            "مخالف لقانون 3 لسنة 1985: يُمنع إدراج مصطلحات العلاج الطبي أو التأهيل الطبي بدون ترخيص علاج طبيعي موثق.",
+        },
+        { status: 400 }
+      );
+    }
     const instapayHandle = String(body.instapayHandle || "").trim();
     const heroImageInput = String(body.heroImage || "").trim();
     const updatedBasePriceEgp = Number(body.updatedBasePriceEgp) || 0;
@@ -371,7 +394,7 @@ export async function POST(request: Request) {
       await admin
         .from("captenly_profiles")
         .update({
-          role: "facility_manager",
+          role: nextRole,
           needs_onboarding: false,
           social_links: { ...existingLinks, _linkedFacilityId: facility.id },
           updated_at: new Date().toISOString(),

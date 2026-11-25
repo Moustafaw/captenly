@@ -7,11 +7,13 @@ const screenTokensPath = path.resolve(process.cwd(), "src/screens/_tw.json");
 const screenTokens = JSON.parse(fs.readFileSync(screenTokensPath, "utf-8"));
 
 const fontVar = (families: string[]) =>
-  families.map((f) => (f === "Cairo" ? "Cairo" : f === "Inter" ? "Inter" : f)).concat("sans-serif");
+  families
+    .map((f) => (f === "Cairo" ? "var(--font-cairo)" : f === "Inter" ? "var(--font-inter)" : f))
+    .concat(["Cairo", "sans-serif"]);
 
 const fontFamily: Record<string, string[]> = {
-  cairo: ["Cairo", "sans-serif"],
-  inter: ["Inter", "sans-serif"],
+  cairo: ["var(--font-cairo)", "Cairo", "sans-serif"],
+  inter: ["var(--font-inter)", "Inter", "sans-serif"],
 };
 for (const [k, v] of Object.entries((screenTokens.fontFamily || {}) as Record<string, string[]>)) {
   fontFamily[k] = fontVar(v);

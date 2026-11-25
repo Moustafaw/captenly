@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { EGYPT_CITY_PRESETS, calculateDistanceKm } from "@/lib/maps";
+import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -284,6 +285,16 @@ async function fetchOsmPredictions(
 }
 
 export async function GET(request: Request) {
+  const rl = await enforceRateLimit({
+    bucket: "places:autocomplete",
+    identifier: getClientIp(request),
+    limit: 60,
+    windowSec: 60,
+  });
+  if (!rl.allowed) {
+    return rateLimitExceededResponse(rl.retryAfterSec);
+  }
+
   const apiKey = process.env.GOOGLE_PLACES_SERVER_API_KEY?.trim();
   const { searchParams } = new URL(request.url);
   const placeId = (searchParams.get("placeId") || "").trim();

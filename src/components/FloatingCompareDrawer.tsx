@@ -10,7 +10,14 @@ export function FloatingCompareDrawer() {
   const pathname = usePathname();
   const { compareFacilityIds, facilities, clearComparison } = useCaptenly();
 
-  if (compareFacilityIds.length === 0 || pathname === "/compare") {
+  const isDiscoveryRoute =
+    pathname === "/" ||
+    pathname.startsWith("/explore") ||
+    pathname.startsWith("/pools") ||
+    pathname.startsWith("/academy") ||
+    pathname.startsWith("/favorites");
+
+  if (compareFacilityIds.length === 0 || !isDiscoveryRoute) {
     return null;
   }
 
@@ -21,7 +28,8 @@ export function FloatingCompareDrawer() {
   if (selectedCount === 0) return null;
 
   return (
-    <div
+    <aside
+      aria-label="أداة مقارنة المنشآت"
       className="fixed bottom-24 left-4 lg:bottom-8 lg:left-8 z-40 pointer-events-none"
       dir="rtl"
     >
@@ -52,6 +60,6 @@ export function FloatingCompareDrawer() {
           <Icon name="close" className="text-[12px]" />
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

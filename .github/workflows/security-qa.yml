@@ -1,0 +1,64 @@
+name: Captenly Security & QA Pipeline
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  static-security-and-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run qa:deps
+      - run: npm run qa:duplication
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: OSV-Scanner Vulnerability Scan
+        uses: google/osv-scanner-action/osv-scanner-action@v1.9.2
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
+
+      - name: Semgrep SAST Scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/typescript
+            p/react
+            p/nextjs
+            p/owasp-top-ten
+
+  e2e-and-zap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run qa:e2e
+
+      - name: OWASP ZAP Baseline Scan (Local Production Build)
+        run: |
+          nohup npx next start -p 3000 > /tmp/next.log 2>&1 &
+          sleep 5
+          docker run --network host -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:3000 -I

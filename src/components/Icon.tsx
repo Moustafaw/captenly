@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Activity,
+  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   ArrowLeftRight,
@@ -11,6 +12,7 @@ import {
   BadgeAlert,
   BadgeCheck,
   Bell,
+  BellRing,
   BookOpen,
   Bookmark,
   Briefcase,
@@ -27,6 +29,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleDot,
+  ClipboardCheck,
   Clock,
   Compass,
   Copy,
@@ -41,6 +44,7 @@ import {
   FileEdit,
   FilePlus2,
   FileText,
+  FileUp,
   Gauge,
   Gavel,
   Globe,
@@ -53,6 +57,7 @@ import {
   KeyRound,
   Keyboard,
   Layers,
+  Link2,
   Lock,
   LogIn,
   LogOut,
@@ -64,10 +69,12 @@ import {
   Minus,
   MousePointerClick,
   Navigation,
+  Network,
   PersonStanding,
   Phone,
   Plus,
   PlusCircle,
+  Printer,
   QrCode,
   Radar,
   ReceiptText,
@@ -81,13 +88,16 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  ShieldX,
   SlidersHorizontal,
   SlidersVertical,
   Sparkles,
   Square,
   Star,
   Stethoscope,
+  SwitchCamera,
   Thermometer,
+  Ticket,
   Timer,
   Trash2,
   TrendingUp,
@@ -97,17 +107,22 @@ import {
   UserCog,
   UserPlus,
   Users,
+  Video,
+  VideoOff,
   Wallet,
   Waves,
+  Wifi,
   WifiOff,
   Wrench,
   X,
   Zap,
+  ZapOff,
   type LucideIcon,
 } from "lucide-react";
 
 export interface IconProps {
   name: string;
+  size?: number;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -296,12 +311,32 @@ const ICON_MAP: Record<string, LucideIcon> = {
   engineering: Wrench,
   keyboard: Keyboard,
   touch_app: MousePointerClick,
+  print: Printer,
+  videocam: Video,
+  videocam_off: VideoOff,
+  flip_camera_ios: SwitchCamera,
+  flash_on: Zap,
+  flash_off: ZapOff,
+  upload_file: FileUp,
+  fact_check: ClipboardCheck,
+  autorenew: RefreshCw,
+  gpp_bad: ShieldX,
+  add_link: Link2,
+  hub: Network,
+  water_drop: Droplets,
+  confirmation_number: Ticket,
+  notification_important: BellRing,
+  add_business: Building2,
+  error_outline: AlertCircle,
+  offline_pin: Wifi,
+  cloud_sync: UploadCloud,
 };
 
-export function Icon({ name, className = "", style }: IconProps) {
+export function Icon({ name, size, className = "", style }: IconProps) {
   const IconComponent = ICON_MAP[name] ?? CircleDot;
   const shouldFill =
     name === "star" || (className.includes("fill-1") && name !== "bookmark_border");
+  const mergedStyle = size ? { fontSize: size, ...style } : style;
 
   return (
     <IconComponent
@@ -311,7 +346,7 @@ export function Icon({ name, className = "", style }: IconProps) {
       strokeWidth={1.75}
       fill={shouldFill ? "currentColor" : "none"}
       className={`inline-block shrink-0 ${className}`.trim()}
-      style={style}
+      style={mergedStyle}
     />
   );
 }

@@ -7,30 +7,48 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "qa:e2e": "playwright test",
+    "qa:lighthouse": "node scripts/qa-lighthouse.mjs",
+    "qa:deps": "node scripts/qa-deps.mjs",
+    "qa:duplication": "jscpd src --reporters console,json --output qa-reports/jscpd --ignore \"**/*.d.ts,**/*.json\"",
+    "qa:security": "node scripts/qa-security.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
-    "@types/leaflet": "^1.9.22",
     "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.460.0",
-    "next": "^14.2.18",
+    "next": "15.5.29",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.32"
+    }
+  },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20.17.6",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.29",
+    "jscpd": "^5.4.3",
+    "lighthouse": "^13.6.0",
+    "madge": "^8.0.0",
     "node-html-parser": "^9.0.7",
+    "playwright": "^1.65.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3"
