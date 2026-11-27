@@ -40,17 +40,25 @@ export default function FacilityDashboardPage() {
     memberRegistry,
     facilityLinks,
     enrollSwimmerByMemberCode,
+    enrollSwimmerByMemberCodeAsync,
     checkInSession,
+    checkInSessionAsync,
     checkInBySubscriptionCode,
+    checkInBySubscriptionCodeAsync,
     lookupStaffCandidatesRemote,
     recordCoachSkillAndPB,
     renewSwimmerSubscription,
+    renewSwimmerSubscriptionAsync,
     confirmReceiptByProvider,
+    confirmReceiptByProviderAsync,
     currentPersona,
     isAuthenticated,
     effectiveOffline,
     offlineQueue,
+    syncStatusSummary,
     syncOfflineQueue,
+    syncOfflineQueueAsync,
+    retryFailedOfflineQueue,
     syncLedgersFromServer,
     roleClaims,
     myStaffAssignments,
@@ -444,13 +452,41 @@ export default function FacilityDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            {pendingOfflineCount > 0 && (
+            {(pendingOfflineCount > 0 || (syncStatusSummary?.failedCount ?? 0) > 0) && (
               <button
                 type="button"
-                onClick={() => syncOfflineQueue()}
-                className="px-4 py-2.5 rounded-full bg-amber-400 text-[#0F4C5C] text-xs font-black cursor-pointer"
+                onClick={async () => {
+                  if ((syncStatusSummary?.failedCount ?? 0) > 0 && retryFailedOfflineQueue) {
+                    const r = await retryFailedOfflineQueue();
+                    setFeedback({
+                      ok: r.failedCount === 0 && !r.stoppedReason,
+                      msg:
+                        r.failedCount === 0 && !r.stoppedReason
+                          ? `تمت مزامنة ${r.syncedCount} عملية بنجاح ✓`
+                          : r.lastErrorAr || `نجحت ${r.syncedCount} وفشلت ${r.failedCount} عمليات.`,
+                    });
+                  } else if (syncOfflineQueueAsync) {
+                    const r = await syncOfflineQueueAsync();
+                    setFeedback({
+                      ok: r.failedCount === 0 && !r.stoppedReason,
+                      msg:
+                        r.failedCount === 0 && !r.stoppedReason
+                          ? `تمت مزامنة ${r.syncedCount} عملية بنجاح ✓`
+                          : r.lastErrorAr || `تمت مزامنة ${r.syncedCount} وتعثرت ${r.failedCount} عمليات.`,
+                    });
+                  } else {
+                    syncOfflineQueue();
+                  }
+                }}
+                className={`px-4 py-2.5 rounded-full text-xs font-black cursor-pointer ${
+                  (syncStatusSummary?.failedCount ?? 0) > 0
+                    ? "bg-rose-500 text-white hover:bg-rose-600"
+                    : "bg-amber-400 text-[#0F4C5C] hover:bg-amber-300"
+                }`}
               >
-                مزامنة {pendingOfflineCount} عملية أوفلاين ↻
+                {(syncStatusSummary?.failedCount ?? 0) > 0
+                  ? `إعادة محاولة (${syncStatusSummary?.failedCount}) عملية متعثرة ↻`
+                  : `مزامنة ${pendingOfflineCount} عملية أوفلاين ↻`}
               </button>
             )}
 
@@ -575,17 +611,35 @@ export default function FacilityDashboardPage() {
             facility={facility}
             ledgers={facilityLedgers}
             offlineQueue={offlineQueue}
+            staffRole={staffRole}
             onSyncOffline={() => {
-              syncOfflineQueue();
+              if (syncOfflineQueueAsync) {
+                void syncOfflineQueueAsync().then((r) => {
+                  setFeedback({
+                    ok: r.failedCount === 0 && !r.stoppedReason,
+                    msg:
+                      r.failedCount === 0 && !r.stoppedReason
+                        ? `تمت مزامنة ${r.syncedCount} عملية بنجاح ✓`
+                        : r.lastErrorAr || `تمت مزامنة ${r.syncedCount} وتعثرت ${r.failedCount} عمليات.`,
+                  });
+                });
+              } else {
+                syncOfflineQueue();
+              }
               return pendingOfflineCount;
             }}
-            onExceptionalCheckin={(ledgerId, noteAr) => {
+            onExceptionalCheckin={async (ledgerId, noteAr) => {
               const target = facilityLedgers.find((l) => l.id === ledgerId);
               if (!target) return;
-              const res = checkInSession(target.id, target.pinCode, "qr_scan", noteAr, {
-                overrideDuplicate3h: true,
-                scanSource: "dashboard_manual",
-              });
+              const res = checkInSessionAsync
+                ? await checkInSessionAsync(target.id, target.pinCode, "qr_scan", noteAr, {
+                    overrideDuplicate3h: true,
+                    scanSource: "dashboard_manual",
+                  })
+                : checkInSession(target.id, target.pinCode, "qr_scan", noteAr, {
+                    overrideDuplicate3h: true,
+                    scanSource: "dashboard_manual",
+                  });
               setFeedback({ ok: res.ok, msg: res.messageAr });
             }}
           />
@@ -613,22 +667,33 @@ export default function FacilityDashboardPage() {
                 setSyncingCloud(false);
               }
             }}
-            onManualSubCheckin={(subCode, noteAr) => {
-              const res = checkInBySubscriptionCode(
-                subCode,
-                facility.id,
-                noteAr || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المنشأة",
-                undefined,
-                { scanSource: "dashboard_manual" }
-              );
+            onManualSubCheckin={async (subCode, noteAr) => {
+              const res = checkInBySubscriptionCodeAsync
+                ? await checkInBySubscriptionCodeAsync(
+                    subCode,
+                    facility.id,
+                    noteAr || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المنشأة",
+                    undefined,
+                    { scanSource: "dashboard_manual" }
+                  )
+                : checkInBySubscriptionCode(
+                    subCode,
+                    facility.id,
+                    noteAr || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المنشأة",
+                    undefined,
+                    { scanSource: "dashboard_manual" }
+                  );
+              setFeedback({ ok: res.ok, msg: res.messageAr });
+              return { ok: res.ok, msg: res.messageAr };
+            }}
+            onConfirmReceipt={async (ledgerId, receiptId) => {
+              const res = confirmReceiptByProviderAsync
+                ? await confirmReceiptByProviderAsync(ledgerId, receiptId)
+                : confirmReceiptByProvider(ledgerId, receiptId);
               setFeedback({ ok: res.ok, msg: res.messageAr });
             }}
-            onConfirmReceipt={(ledgerId, receiptId) => {
-              const res = confirmReceiptByProvider(ledgerId, receiptId);
-              setFeedback({ ok: res.ok, msg: res.messageAr });
-            }}
-            onEnroll={(payload) => {
-              const res = enrollSwimmerByMemberCode({
+            onEnroll={async (payload) => {
+              const enrollPayload = {
                 memberCode: payload.memberCode,
                 athleteNameAr: payload.athleteNameAr,
                 facilityId: facility.id,
@@ -642,7 +707,10 @@ export default function FacilityDashboardPage() {
                 agreementTypeAtEnroll: payload.agreementTypeAtEnroll,
                 pricingSnapshot: payload.pricingSnapshot,
                 promoCodeUsed: payload.promoCodeUsed,
-              });
+              };
+              const res = enrollSwimmerByMemberCodeAsync
+                ? await enrollSwimmerByMemberCodeAsync(enrollPayload)
+                : enrollSwimmerByMemberCode(enrollPayload);
               setFeedback({ ok: res.ok, msg: res.messageAr });
               if (res.ok) {
                 setPrefillMemberCode("");
@@ -650,22 +718,33 @@ export default function FacilityDashboardPage() {
               }
               return { ok: res.ok, msg: res.messageAr };
             }}
-            onLedgerCheckin={(ledgerId, pinCode) => {
-              const res = checkInSession(
-                ledgerId,
-                pinCode,
-                "qr_scan",
-                "خصم حصة من قائمة المشتركين والفرق",
-                { scanSource: "dashboard_manual" }
-              );
+            onLedgerCheckin={async (ledgerId, pinCode) => {
+              const res = checkInSessionAsync
+                ? await checkInSessionAsync(
+                    ledgerId,
+                    pinCode,
+                    "qr_scan",
+                    "خصم حصة من قائمة المشتركين والفرق",
+                    { scanSource: "dashboard_manual" }
+                  )
+                : checkInSession(
+                    ledgerId,
+                    pinCode,
+                    "qr_scan",
+                    "خصم حصة من قائمة المشتركين والفرق",
+                    { scanSource: "dashboard_manual" }
+                  );
               setFeedback({ ok: res.ok, msg: res.messageAr });
             }}
-            onRenewLedger={(ledger) => {
-              const res = renewSwimmerSubscription({
+            onRenewLedger={async (ledger) => {
+              const renewPayload = {
                 ledgerId: ledger.id,
                 totalSessions: ledger.totalSessions,
                 packageTitleAr: ledger.packageTitleAr,
-              });
+              };
+              const res = renewSwimmerSubscriptionAsync
+                ? await renewSwimmerSubscriptionAsync(renewPayload)
+                : renewSwimmerSubscription(renewPayload);
               setFeedback({ ok: res.ok, msg: res.messageAr });
             }}
             onRecordPBAndSkills={(payload) => {

@@ -357,6 +357,24 @@ export interface CaptenlyContextType {
     isMinor?: boolean;
     parentNameAr?: string;
   }) => { ok: boolean; ledger?: SessionLedger; messageAr: string };
+  enrollSwimmerByMemberCodeAsync?: (payload: {
+    memberCode: string;
+    athleteNameAr?: string;
+    facilityId: string;
+    coachId?: string;
+    linkedEntityId?: string;
+    linkedEntityNameAr?: string;
+    agreementTypeAtEnroll?: "per_swimmer_water" | "fixed_monthly";
+    pricingSnapshot?: LedgerPricingSnapshot;
+    promoCodeUsed?: string;
+    trackType?: "school" | "buds" | "prep" | "team" | "ladies";
+    trackLabelAr?: string;
+    packageTitleAr: string;
+    totalSessions: 8 | 12 | 24;
+    amountEgp: number;
+    isMinor?: boolean;
+    parentNameAr?: string;
+  }) => Promise<{ ok: boolean; ledger?: SessionLedger; messageAr: string; syncResult?: SyncResult }>;
 
   checkInSession: (
     ledgerId: string,
@@ -368,6 +386,23 @@ export interface CaptenlyContextType {
       scanSource?: SessionCheckin["scanSource"];
     }
   ) => { ok: boolean; duplicateBlocked?: boolean; messageAr: string };
+  checkInSessionAsync?: (
+    ledgerId: string,
+    enteredPinOrQr: string,
+    method: "pin_4digit" | "qr_scan" | "offline_sync",
+    coachNoteAr?: string,
+    options?: {
+      overrideDuplicate3h?: boolean;
+      scanSource?: SessionCheckin["scanSource"];
+    }
+  ) => Promise<{
+    ok: boolean;
+    duplicateBlocked?: boolean;
+    expired?: boolean;
+    ledger?: SessionLedger;
+    messageAr: string;
+    syncResult?: SyncResult;
+  }>;
 
   checkInBySubscriptionCode: (
     codeInput: string,
@@ -386,6 +421,46 @@ export interface CaptenlyContextType {
     ledger?: SessionLedger;
     messageAr: string;
   };
+  checkInBySubscriptionCodeAsync?: (
+    codeInput: string,
+    facilityId?: string,
+    coachNoteAr?: string,
+    coachId?: string,
+    options?: {
+      overrideDuplicate3h?: boolean;
+      scanSource?: SessionCheckin["scanSource"];
+      allowedLinkedEntityId?: string;
+    }
+  ) => Promise<{
+    ok: boolean;
+    expired?: boolean;
+    duplicateBlocked?: boolean;
+    ambiguousPin?: boolean;
+    rateLimited?: boolean;
+    ledger?: SessionLedger;
+    messageAr: string;
+    syncResult?: SyncResult;
+  }>;
+  checkInByPinAsync?: (
+    pinCode: string,
+    options?: {
+      ledgerId?: string;
+      facilityId?: string;
+      coachId?: string;
+      coachNoteAr?: string;
+      overrideDuplicate3h?: boolean;
+      scanSource?: SessionCheckin["scanSource"];
+    }
+  ) => Promise<{
+    ok: boolean;
+    expired?: boolean;
+    duplicateBlocked?: boolean;
+    ambiguousPin?: boolean;
+    rateLimited?: boolean;
+    ledger?: SessionLedger;
+    messageAr: string;
+    syncResult?: SyncResult;
+  }>;
 
   renewSwimmerSubscription: (
     ledgerIdOrPayload:

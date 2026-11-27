@@ -40,8 +40,11 @@ interface FacilitySubscribersTabProps {
   staffRole: string | null;
   onOpenScanner: () => void;
   onSyncCloud: () => Promise<void>;
-  onManualSubCheckin: (subCode: string, noteAr: string) => void;
-  onConfirmReceipt: (ledgerId: string, receiptId: string) => void;
+  onManualSubCheckin: (
+    subCode: string,
+    noteAr: string
+  ) => void | { ok: boolean; msg?: string } | Promise<void | { ok: boolean; msg?: string }>;
+  onConfirmReceipt: (ledgerId: string, receiptId: string) => void | Promise<void>;
   onEnroll: (payload: {
     memberCode: string;
     athleteNameAr: string;
@@ -54,9 +57,9 @@ interface FacilitySubscribersTabProps {
     agreementTypeAtEnroll?: "per_swimmer_water" | "fixed_monthly";
     pricingSnapshot?: ReturnType<typeof toPricingSnapshot>;
     promoCodeUsed?: string;
-  }) => { ok: boolean; msg: string };
-  onLedgerCheckin: (ledgerId: string, pinCode: string) => void;
-  onRenewLedger: (ledger: SessionLedger) => void;
+  }) => { ok: boolean; msg: string } | Promise<{ ok: boolean; msg: string }>;
+  onLedgerCheckin: (ledgerId: string, pinCode: string) => void | Promise<void>;
+  onRenewLedger: (ledger: SessionLedger) => void | Promise<void>;
   onRecordPBAndSkills: (payload: {
     athleteId: string;
     swimmerNameAr: string;
@@ -135,6 +138,8 @@ export function FacilitySubscribersTab({
     poolConfig.openDiscountReasonsAr?.[0] || "خصم إخوة"
   );
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [isManualCheckingIn, setIsManualCheckingIn] = useState(false);
+  const [busyLedgerActionId, setBusyLedgerActionId] = useState<string | null>(null);
 
   // Roster filters
   const [trackFilter, setTrackFilter] = useState<"all" | "school" | "buds" | "prep" | "team" | "ladies">("all");
@@ -234,7 +239,7 @@ export function FacilitySubscribersTab({
     });
   }, [ledgers, trackFilter, subSearchQuery]);
 
-  const handleEnrollSubmit = (e: React.FormEvent) => {
+  const handleEnrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isEnrolling) return;
     setIsEnrolling(true);
@@ -255,7 +260,7 @@ export function FacilitySubscribersTab({
         "paid"
       );
 
-      const res = onEnroll({
+      const res = await onEnroll({
         memberCode: memberCodeInput.trim() || `CAP-M-${Math.floor(1000 + Math.random() * 8999)}`,
         athleteNameAr: athleteNameInput.trim() || matchedMember?.fullNameAr || "سباح مشترك",
         trackType: selectedTrack,
@@ -286,15 +291,22 @@ export function FacilitySubscribersTab({
       <div className="rounded-2xl bg-white p-4 border border-[#E2E8F0] shadow-[0_4px_20px_rgba(15,23,42,0.03)] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {(!isStaffMode || staffRole !== "accounts_manager") && (
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              if (!manualSubCode.trim()) return;
-              onManualSubCheckin(
-                manualSubCode.trim(),
-                manualSubNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المشتركين"
-              );
-              setManualSubCode("");
-              setManualSubNote("");
+              if (!manualSubCode.trim() || isManualCheckingIn) return;
+              setIsManualCheckingIn(true);
+              try {
+                const res = await onManualSubCheckin(
+                  manualSubCode.trim(),
+                  manualSubNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً من لوحة المشتركين"
+                );
+                if (!res || res.ok) {
+                  setManualSubCode("");
+                  setManualSubNote("");
+                }
+              } finally {
+                setIsManualCheckingIn(false);
+              }
             }}
             className="flex-1 flex flex-wrap sm:flex-nowrap items-center gap-2"
           >
@@ -310,7 +322,7 @@ export function FacilitySubscribersTab({
               required
               value={manualSubCode}
               onChange={(e) => setManualSubCode(e.target.value)}
-              placeholder="إدخال كود الاشتراك يدوياً SUB-XXXX-XX..."
+              placeholder="إدخال كود الاشتراك SUB-XXXX-XX أو PIN..."
               className="flex-1 min-w-[170px] rounded-xl bg-[#F7F9FA] px-3.5 py-2.5 text-xs font-mono text-[#0F172A] border border-[#E2E8F0] focus:border-[#1D6E7D] outline-none"
             />
             <input
@@ -321,9 +333,10 @@ export function FacilitySubscribersTab({
             />
             <button
               type="submit"
-              className="px-4 py-2.5 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shrink-0 transition-colors"
+              disabled={isManualCheckingIn}
+              className="px-4 py-2.5 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shrink-0 disabled:opacity-60 transition-colors"
             >
-              خصم حصة ✓
+              {isManualCheckingIn ? "جاري التحقق..." : "خصم حصة ✓"}
             </button>
           </form>
         )}
@@ -396,13 +409,26 @@ export function FacilitySubscribersTab({
                     مؤكد ✓
                   </span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => onConfirmReceipt(l.id, r.id)}
-                    className="px-3.5 py-1.5 rounded-full bg-[#1D6E7D] text-white text-[11px] font-bold shrink-0 hover:bg-[#155460]"
-                  >
-                    تأكيد الاستلام ✓
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                      بانتظار التأكيد
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busyLedgerActionId === r.id}
+                      onClick={async () => {
+                        setBusyLedgerActionId(r.id);
+                        try {
+                          await onConfirmReceipt(l.id, r.id);
+                        } finally {
+                          setBusyLedgerActionId(null);
+                        }
+                      }}
+                      className="px-3.5 py-1.5 rounded-full bg-[#1D6E7D] text-white text-[11px] font-bold hover:bg-[#155460] disabled:opacity-60"
+                    >
+                      تأكيد الاستلام ✓
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -1070,8 +1096,16 @@ export function FacilitySubscribersTab({
                       {!isExpired && (!isStaffMode || staffRole !== "accounts_manager") && (
                         <button
                           type="button"
-                          onClick={() => onLedgerCheckin(l.id, l.pinCode)}
-                          className="px-3.5 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold transition-colors"
+                          disabled={busyLedgerActionId === l.id}
+                          onClick={async () => {
+                            setBusyLedgerActionId(l.id);
+                            try {
+                              await onLedgerCheckin(l.id, l.pinCode);
+                            } finally {
+                              setBusyLedgerActionId(null);
+                            }
+                          }}
+                          className="px-3.5 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold disabled:opacity-60 transition-colors"
                         >
                           خصم حصة ({l.completedSessions + 1}/{l.totalSessions}) ✓
                         </button>
@@ -1079,8 +1113,16 @@ export function FacilitySubscribersTab({
                       {(!isStaffMode || staffRole !== "accounts_manager") && (
                         <button
                           type="button"
-                          onClick={() => onRenewLedger(l)}
-                          className={`px-3 py-2 rounded-full text-xs font-bold border ${
+                          disabled={busyLedgerActionId === `renew-${l.id}`}
+                          onClick={async () => {
+                            setBusyLedgerActionId(`renew-${l.id}`);
+                            try {
+                              await onRenewLedger(l);
+                            } finally {
+                              setBusyLedgerActionId(null);
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-full text-xs font-bold border disabled:opacity-60 ${
                             isExpired
                               ? "bg-[#1D6E7D] text-white border-[#1D6E7D]"
                               : "bg-white text-[#0F172A] border-[#E2E8F0] hover:bg-[#EAF4F8]"
