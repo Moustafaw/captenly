@@ -177,34 +177,68 @@ async function findProfileByQuery(queryRaw: string): Promise<{
   return { row: null, dbAvailable: false };
 }
 
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 8000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendExternalOtpIfConfigured(params: {
   email?: string;
   phone?: string;
   fullNameAr: string;
   otp: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<{ delivered: boolean; channel?: "email" | "sms"; detailAr?: string }> {
+  const fetchImpl = params.fetchImpl || fetch;
+  const timeoutMs = params.timeoutMs ?? 8000;
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey && params.email && params.email.includes("@")) {
     try {
       const fromEmail = process.env.RESEND_FROM_EMAIL || "Captenly <no-reply@captenly.com>";
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: [params.email],
-          subject: "رمز التحقق لاستعادة حساب كابتنلي — Captenly",
-          html: `<div dir="rtl" style="font-family:sans-serif;line-height:1.8">
-            <h2>مرحباً ${params.fullNameAr}</h2>
+      const safeName = escapeHtml(params.fullNameAr);
+      const res = await fetchWithTimeout(
+        "https://api.resend.com/emails",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [params.email],
+            subject: "رمز التحقق لاستعادة حساب كابتنلي — Captenly",
+            html: `<div dir="rtl" style="font-family:sans-serif;line-height:1.8">
+            <h2>مرحباً ${safeName}</h2>
             <p>رمز التحقق الخاص باستعادة حسابك في كابتنلي هو:</p>
             <p style="font-size:28px;font-weight:900;letter-spacing:4px">${params.otp}</p>
             <p>صلاحية الرمز 10 دقائق فقط. لا تشاركه مع أي شخص.</p>
           </div>`,
-        }),
-      });
+          }),
+        },
+        fetchImpl,
+        timeoutMs
+      );
       if (res.ok) {
         return {
           delivered: true,
@@ -230,7 +264,7 @@ async function sendExternalOtpIfConfigured(params: {
         Body: `رمز التحقق الخاص بحسابك في كابتنلي (Captenly): ${params.otp} — صالح لمدة 10 دقائق.`,
       });
       const authHeader = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
         {
           method: "POST",
@@ -239,7 +273,9 @@ async function sendExternalOtpIfConfigured(params: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: form.toString(),
-        }
+        },
+        fetchImpl,
+        timeoutMs
       );
       if (res.ok) {
         return {
@@ -1042,13 +1078,25 @@ export async function POST(request: Request) {
         saved = !error;
       }
       if (!saved) {
-        await withPgClient(async (client) => {
-          await client.query(
+        const pgSave = await withPgClient(async (client) => {
+          const res = await client.query(
             `update public.captenly_profiles set otp_code_hash = $2, otp_expires_at = $3 where member_code = $1`,
             [memberCode, otpHash, expiresAt]
           );
-          return true;
+          return (res.rowCount ?? 0) > 0;
         });
+        saved = pgSave.ok && Boolean(pgSave.value);
+      }
+
+      if (!saved) {
+        return NextResponse.json(
+          {
+            ok: false,
+            deliveryUnavailable: true,
+            messageAr: "تعذر حفظ رمز التحقق على الخادم حالياً.",
+          },
+          { status: 503 }
+        );
       }
 
       return NextResponse.json({

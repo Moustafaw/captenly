@@ -8,6 +8,10 @@ import {
   DEFAULT_OPEN_DISCOUNT_REASONS,
   getFacilityPoolDeskConfig,
 } from "@/lib/poolDeskPricing";
+import {
+  getFacilityRoleCapabilities,
+  resolveFacilityUiAccessRole,
+} from "@/lib/facilityPermissions";
 import type {
   AcademyAgreementType,
   Coach,
@@ -148,8 +152,18 @@ export function FacilitySettingsDeskTab({
 }: FacilitySettingsDeskTabProps) {
   const poolConfig = useMemo(() => getFacilityPoolDeskConfig(facility), [facility]);
 
-  const canManagePermissions = !isStaffMode || staffRole === "general_staff";
-  const canManagePricing = !isStaffMode || staffRole === "general_staff" || staffRole === "accounts_manager";
+  const accessRole = useMemo(
+    () => resolveFacilityUiAccessRole({ isStaffMode, staffRole }),
+    [isStaffMode, staffRole]
+  );
+  const capabilities = useMemo(
+    () => getFacilityRoleCapabilities(accessRole),
+    [accessRole]
+  );
+  const canManagePermissions = capabilities.manage_linked_entities;
+  const canEditLinkedCollections = capabilities.edit_linked_entity_collections;
+  const canManagePricing = capabilities.manage_pricing;
+  const canManageStaff = capabilities.manage_staff;
 
   const [sectionFilter, setSectionFilter] = useState<"all" | "pricing" | "academies" | "staff">(
     initialFocusSection
@@ -974,13 +988,14 @@ export function FacilitySettingsDeskTab({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         <select
                           value={chosenAgreement}
+                          disabled={!canManagePermissions}
                           onChange={(e) =>
                             setPendingAgreementOverride((prev) => ({
                               ...prev,
                               [req.id]: e.target.value as AcademyAgreementType,
                             }))
                           }
-                          className="rounded-xl border border-sand-border bg-[#F7F9FA] px-2.5 py-2 text-xs font-bold"
+                          className="rounded-xl border border-sand-border bg-[#F7F9FA] px-2.5 py-2 text-xs font-bold disabled:opacity-60"
                         >
                           <option value="per_swimmer_water">حسب استهلاك المية للحصة</option>
                           <option value="fixed_monthly">اتفاق شهري ثابت للمجموعة</option>
@@ -990,13 +1005,14 @@ export function FacilitySettingsDeskTab({
                           <input
                             type="checkbox"
                             checked={chosenScan}
+                            disabled={!canManagePermissions}
                             onChange={(e) =>
                               setPendingScanOverride((prev) => ({
                                 ...prev,
                                 [req.id]: e.target.checked,
                               }))
                             }
-                            className="accent-[#0F4C5C]"
+                            className="accent-[#0F4C5C] disabled:opacity-60"
                           />
                           <span className="text-[11px] font-bold text-ink-deep">
                             منح صلاحية مسح QR
@@ -1203,6 +1219,16 @@ export function FacilitySettingsDeskTab({
             </form>
           )}
 
+          {!canEditLinkedCollections && approvedLinks.length > 0 && (
+            <div className="rounded-2xl bg-amber-50/80 border border-amber-200 px-3.5 py-2.5 text-xs font-bold text-amber-900 flex items-center gap-2">
+              <Icon name="lock" size={16} />
+              <span>
+                حقول التحصيل الشهري وتعديل ربط الأكاديميات المستضيفة في وضع القراءة فقط — التعديل
+                مقصور على مالك المنشأة أو المشرف العام.
+              </span>
+            </div>
+          )}
+
           {/* Approved Linked Academies & Governance List */}
           <div className="space-y-3">
             {approvedLinks.length === 0 ? (
@@ -1259,7 +1285,8 @@ export function FacilitySettingsDeskTab({
                         <input
                           type="number"
                           min={0}
-                          disabled={!canManagePricing}
+                          readOnly={!canEditLinkedCollections}
+                          disabled={!canEditLinkedCollections}
                           value={collectedVal}
                           onChange={(e) =>
                             setCollectedDraftByLink((prev) => ({
@@ -1267,9 +1294,9 @@ export function FacilitySettingsDeskTab({
                               [link.id]: e.target.value,
                             }))
                           }
-                          className="w-20 text-xs font-black text-[#0F4C5C] tabular-nums bg-transparent focus:outline-none"
+                          className="w-20 text-xs font-black text-[#0F4C5C] tabular-nums bg-transparent focus:outline-none disabled:opacity-60"
                         />
-                        {canManagePricing && (
+                        {canEditLinkedCollections ? (
                           <button
                             type="button"
                             onClick={async () => {
@@ -1285,6 +1312,14 @@ export function FacilitySettingsDeskTab({
                           >
                             حفظ
                           </button>
+                        ) : (
+                          <span
+                            title="تعديل المحصّل الشهري للأكاديميات المستضيفة مقصور على مالك المنشأة والمشرف العام"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold"
+                          >
+                            <Icon name="lock" size={12} />
+                            للقراءة فقط (صلاحية المالك / المشرف العام)
+                          </span>
                         )}
                       </div>
 
@@ -1411,7 +1446,7 @@ export function FacilitySettingsDeskTab({
             </div>
           </div>
 
-          {canManagePermissions && onAddStaffMember && (
+          {canManageStaff && onAddStaffMember ? (
             <form
               onSubmit={handleAssignStaff}
               className="rounded-2xl bg-[#F7F9FA] border border-sand-border p-4 space-y-3"
@@ -1515,6 +1550,14 @@ export function FacilitySettingsDeskTab({
                 </button>
               </div>
             </form>
+          ) : (
+            <div className="rounded-2xl bg-amber-50/80 border border-amber-200 px-3.5 py-2.5 text-xs font-bold text-amber-900 flex items-center gap-2">
+              <Icon name="lock" size={16} />
+              <span>
+                إضافة موظفين جدد أو إلغاء صلاحيات الطاقم مقصورة على مالك المنشأة فقط (وضع القراءة
+                فقط).
+              </span>
+            </div>
           )}
 
           {/* Assigned staff cards */}
@@ -1571,7 +1614,7 @@ export function FacilitySettingsDeskTab({
                           معاينة واجهة الموظف
                         </button>
                       )}
-                    {canManagePermissions && onRemoveStaffMember && (
+                    {canManageStaff && onRemoveStaffMember && (
                       <button
                         type="button"
                         onClick={() => onRemoveStaffMember(st.id)}
