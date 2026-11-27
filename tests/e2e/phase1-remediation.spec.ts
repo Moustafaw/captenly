@@ -121,6 +121,38 @@ test.describe("Phase 1 Security & Functional Remediation Verification", () => {
   test("F-003 & F-006: Pool gate kiosk accepts CAP-SUB-*, SUB-*, CAP-M-*, CAP-JR-* & enforces 3h duplicate guard", async ({
     page,
   }) => {
+    await page.route("**/api/supabase/session-ledgers*", async (route) => {
+      if (route.request().method() === "POST") {
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = (route.request().postDataJSON() as Record<string, unknown>) || {};
+        } catch {
+          parsed = {};
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            persisted: true,
+            ledger: parsed.ledger || null,
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ persisted: true, ledgers: [], hasMore: false }),
+      });
+    });
+    await page.route("**/api/supabase/notifications*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, persisted: true, notifications: [] }),
+      });
+    });
     await page.addInitScript(() => {
       const facility = {
         id: "fac-phase1-test",
