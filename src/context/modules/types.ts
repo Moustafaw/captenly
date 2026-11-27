@@ -25,11 +25,13 @@ import type {
   SessionLedger,
   SkillEvaluation5Point,
   SmartFiltersState,
+  SyncStatusSummary,
   UserLocation,
   VerificationBadge,
   VerifiedLeadItem,
   WorkspaceContextMode,
 } from "@/types/captenly";
+import type { SyncResult } from "./storageHelpers";
 import type {
   ClaimFacilityPayload,
   RegisterCoachPayload,
@@ -250,7 +252,22 @@ export interface CaptenlyContextType {
   verifiedLeads: VerifiedLeadItem[];
   demandRadar: DemandRadarEntry[];
   offlineQueue: OfflineCheckinQueueItem[];
+  syncStatusSummary?: SyncStatusSummary;
   syncOfflineQueue: () => number;
+  syncOfflineQueueAsync?: () => Promise<{
+    attempted: number;
+    syncedCount: number;
+    failedCount: number;
+    stoppedReason?: "offline" | "auth" | "forbidden" | "conflict";
+    lastErrorAr?: string;
+  }>;
+  retryFailedOfflineQueue?: () => Promise<{
+    attempted: number;
+    syncedCount: number;
+    failedCount: number;
+    stoppedReason?: "offline" | "auth" | "forbidden" | "conflict";
+    lastErrorAr?: string;
+  }>;
 
   // Comparison State (up to 4 facilities - MVP-04)
   compareFacilityIds: string[];
@@ -383,6 +400,19 @@ export interface CaptenlyContextType {
     totalSessions?: 8 | 12 | 24,
     amountEgp?: number
   ) => { ok: boolean; ledger?: SessionLedger; messageAr: string };
+  renewSwimmerSubscriptionAsync?: (
+    ledgerIdOrPayload:
+      | string
+      | {
+          ledgerId: string;
+          totalSessions?: 8 | 12 | 24;
+          packageTitleAr?: string;
+          amountEgp?: number;
+          pricingSnapshot?: LedgerPricingSnapshot;
+        },
+    totalSessions?: 8 | 12 | 24,
+    amountEgp?: number
+  ) => Promise<{ ok: boolean; ledger?: SessionLedger; messageAr: string; syncResult?: SyncResult }>;
 
   uploadInstaPayReceipt: (
     ledgerId: string,
@@ -393,11 +423,24 @@ export interface CaptenlyContextType {
       packageTitleAr: string;
     }
   ) => void;
+  uploadInstaPayReceiptAsync?: (
+    ledgerId: string,
+    payload: {
+      referenceNumber: string;
+      channel: "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)";
+      amountEgp: number;
+      packageTitleAr: string;
+    }
+  ) => Promise<{ ok: boolean; ledger?: SessionLedger; messageAr: string; syncResult?: SyncResult }>;
 
   confirmReceiptByProvider: (
     ledgerId: string,
     receiptId: string
   ) => { ok: boolean; messageAr: string };
+  confirmReceiptByProviderAsync?: (
+    ledgerId: string,
+    receiptId: string
+  ) => Promise<{ ok: boolean; messageAr: string; syncResult?: SyncResult }>;
 
   lookupRemoteLedgersOrProfile: (query: {
     memberCode?: string;
