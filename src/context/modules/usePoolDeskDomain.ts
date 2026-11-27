@@ -171,32 +171,59 @@ export function usePoolDeskDomain({
     if (!params.toString()) return { ledgers: [], profile: null };
 
     try {
-      const res = await fetch(`/api/supabase/session-ledgers?${params.toString()}`);
-      if (!res.ok) return { ledgers: [], profile: null };
-      const data = await res.json();
-      const ledgers = Array.isArray(data?.ledgers) ? (data.ledgers as SessionLedger[]) : [];
-      if (ledgers.length > 0) mergeRemoteLedgers(ledgers);
+      const collected: SessionLedger[] = [];
+      let profile: {
+        memberCode: string;
+        fullNameAr: string;
+        phone: string;
+        city: string;
+        role: string;
+        avatarUrl?: string;
+      } | null = null;
+      let offset = 0;
+      const limit = 200;
 
-      const profile = data?.profile || null;
+      for (let page = 0; page < 5; page += 1) {
+        const pagedParams = new URLSearchParams(params);
+        pagedParams.set("limit", String(limit));
+        if (offset > 0) pagedParams.set("offset", String(offset));
+        const res = await fetch(`/api/supabase/session-ledgers?${pagedParams.toString()}`);
+        if (!res.ok) break;
+        const data = await res.json();
+        const pageLedgers = Array.isArray(data?.ledgers) ? (data.ledgers as SessionLedger[]) : [];
+        if (pageLedgers.length > 0) {
+          collected.push(...pageLedgers);
+        }
+        if (!profile && data?.profile) {
+          profile = data.profile;
+        }
+        if (!data?.hasMore || typeof data?.nextOffset !== "number" || data.nextOffset <= offset) {
+          break;
+        }
+        offset = data.nextOffset;
+      }
+
+      if (collected.length > 0) mergeRemoteLedgers(collected);
+
       if (profile?.memberCode && profile?.fullNameAr) {
         depsRef.current.setMemberRegistry((prev) => {
-          if (prev.some((m) => m.memberCode.toUpperCase() === profile.memberCode.toUpperCase())) {
+          if (prev.some((m) => m.memberCode.toUpperCase() === profile!.memberCode.toUpperCase())) {
             return prev;
           }
           return [
             {
-              memberCode: profile.memberCode,
-              athleteId: `member-${profile.memberCode}`,
-              fullNameAr: profile.fullNameAr,
-              phone: profile.phone || "",
-              city: profile.city || "مصر",
-              role: profile.role === "parent" ? "parent" : "adult_athlete",
+              memberCode: profile!.memberCode,
+              athleteId: `member-${profile!.memberCode}`,
+              fullNameAr: profile!.fullNameAr,
+              phone: profile!.phone || "",
+              city: profile!.city || "مصر",
+              role: profile!.role === "parent" ? "parent" : "adult_athlete",
             },
             ...prev,
           ];
         });
       }
-      return { ledgers, profile };
+      return { ledgers: collected, profile };
     } catch {
       return { ledgers: [], profile: null };
     }
