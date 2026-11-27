@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   GUEST_PERSONA,
   INITIAL_ARTICLES,
@@ -225,7 +225,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     if (!storageHydrated) return;
     if (skipInitialPersistRef.current) {
       skipInitialPersistRef.current = false;
-      if (!hadSavedStateRef.current && !auth.isAuthenticated) return;
+      return;
     }
     const hasGuestUserPrefs =
       discovery.savedFavoriteIds.length > 0 ||
@@ -300,7 +300,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     roleStaff.activeWorkspaceContext,
   ]);
 
-  const resetDemoData = () => {
+  const resetDemoData = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     auth.setAllPersonas(PERSONA_ACCOUNTS);
     auth.setCurrentPersona(GUEST_PERSONA);
@@ -321,7 +321,8 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     telemetry.setNotifications(INITIAL_NOTIFICATIONS);
     supply.setArticles(INITIAL_ARTICLES);
     roleStaff.setActiveStaffAssignmentId(null);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo<CaptenlyContextType>(
     () => ({

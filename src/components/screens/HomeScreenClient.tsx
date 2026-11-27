@@ -140,8 +140,12 @@ export function HomeScreenClient({
     const mq = window.matchMedia("(min-width: 1024px)");
     const sync = () => setViewport(mq.matches ? "desktop" : "phone");
     sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", sync);
+      return () => mq.removeEventListener("change", sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
   }, []);
 
   if (viewport === "phone") {
@@ -160,5 +164,9 @@ export function HomeScreenClient({
     );
   }
 
-  return <HomeSsrShell />;
+  return (
+    <div className="w-full">
+      <HomeSsrShell />
+    </div>
+  );
 }
