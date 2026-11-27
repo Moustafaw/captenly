@@ -184,8 +184,8 @@ export function useTelemetrySyncEffects(input: TelemetrySyncInput) {
                 requestedSpecialtyAr: item.packageNameAr || "استفسار باقة تدريب",
                 preferredScheduleAr: item.notes || "عبر واتساب كابتنلي",
                 createdAtAr: item.createdAt ? item.createdAt.slice(0, 10) : "سحابي",
-                repliedWithin2h: true,
-                replyMinutes: 15,
+                repliedWithin2h: false,
+                replyMinutes: undefined,
                 convertedToLedger: false,
               });
             }

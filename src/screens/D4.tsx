@@ -54,7 +54,7 @@ export default function Desktop4() {
 
   return (
     <div className="screen-root bg-canvas-alabaster font-body-default text-body-default text-on-surface antialiased">
-      <main className="w-full pt-6 bg-canvas-alabaster min-h-screen pb-16">
+      <div className="w-full pt-6 bg-canvas-alabaster min-h-screen pb-16">
         <div className="max-w-[1280px] mx-auto px-margin lg:px-margin-desktop py-space-lg flex flex-col gap-space-lg">
           {/* Header Banner */}
           <section className="rounded-[20px] bg-dark-slate text-surface-card p-8 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
@@ -151,7 +151,7 @@ export default function Desktop4() {
             ))}
           </section>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -27,6 +27,10 @@ export default function FamilySettingsPage() {
   const [childSport, setChildSport] = useState<"swimming" | "fitness">("swimming");
   const [law151Consent, setLaw151Consent] = useState(true);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [pendingDeleteChild, setPendingDeleteChild] = useState<{
+    id: string;
+    fullNameAr: string;
+  } | null>(null);
 
   if (!isAuthenticated) {
     return (
@@ -252,11 +256,9 @@ export default function FamilySettingsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (typeof window === "undefined" || window.confirm(`حذف ملف ${athlete.fullNameAr}؟`)) {
-                    removeMinorAthlete(athlete.id);
-                  }
-                }}
+                onClick={() =>
+                  setPendingDeleteChild({ id: athlete.id, fullNameAr: athlete.fullNameAr })
+                }
                 className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-status-danger text-micro-caption font-bold transition-colors"
                 title="حذف ملف الطفل"
               >
@@ -267,6 +269,53 @@ export default function FamilySettingsPage() {
           );
         })}
       </div>
+
+      {pendingDeleteChild && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-child-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in"
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-surface-card border border-border-hairline shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border-hairline pb-3">
+              <h3 id="delete-child-modal-title" className="font-bold text-card-title text-dark-slate">
+                تأكيد حذف ملف الابن
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPendingDeleteChild(null)}
+                aria-label="إغلاق"
+                className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center"
+              >
+                <Icon name="close" className="text-[18px]" />
+              </button>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              هل تريد بالتأكيد حذف ملف <strong className="text-dark-slate">{pendingDeleteChild.fullNameAr}</strong> من قائمة الأبناء؟
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteChild(null)}
+                className="px-4 py-2 rounded-xl bg-surface-snow text-text-muted hover:text-dark-slate text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeMinorAthlete(pendingDeleteChild.id);
+                  setPendingDeleteChild(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+              >
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Child Modal */}
       {modalOpen && (

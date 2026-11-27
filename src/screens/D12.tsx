@@ -15,6 +15,7 @@ export default function Desktop12() {
     clearComparison,
     createStructuredWhatsappLead,
     currentPersona,
+    isAuthenticated,
     minorAthletes,
   } = useCaptenly();
 
@@ -357,9 +358,11 @@ export default function Desktop12() {
                         <button
                           type="button"
                           onClick={() => openWhatsapp(f)}
-                          className="px-3 py-1.5 rounded-full bg-[#15803D] hover:bg-[#166534] text-white text-[11px] font-bold"
+                          title={!isAuthenticated ? "يتطلب تسجيل الدخول للتواصل المباشر" : undefined}
+                          className="px-3 py-1.5 rounded-full bg-[#15803D] hover:bg-[#166534] text-white text-[11px] font-bold inline-flex items-center gap-1"
                         >
-                          واتساب
+                          {!isAuthenticated && <Icon name="lock" className="text-[12px]" />}
+                          <span>{isAuthenticated ? "واتساب" : "واتساب (تسجيل)"}</span>
                         </button>
                       </div>
                     </div>
@@ -442,8 +445,10 @@ export default function Desktop12() {
                             onClick={() => openWhatsapp(f)}
                             className="px-4 py-2.5 rounded-xl bg-[#15803D] hover:bg-[#166534] text-white text-xs font-bold text-center inline-flex items-center justify-center gap-1.5 shadow-sm transition-colors"
                           >
-                            <Icon name="chat" className="text-[14px]" />
-                            <span>واتساب المنشأة</span>
+                            <Icon name={isAuthenticated ? "chat" : "lock"} className="text-[14px]" />
+                            <span>
+                              {isAuthenticated ? "واتساب المنشأة" : "سجّل للتواصل عبر واتساب"}
+                            </span>
                           </button>
                           <Link
                             href={`/academy/${f.slug}`}

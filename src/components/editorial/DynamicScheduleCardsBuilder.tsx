@@ -56,14 +56,96 @@ export function DynamicScheduleCardsBuilder({
 }: DynamicScheduleCardsBuilderProps) {
   const {
     addFacilitySchoolProgram,
+    updateFacilitySchoolProgram,
     removeFacilitySchoolProgram,
     addCoachSessionOffer,
+    updateCoachSessionOffer,
     removeCoachSessionOffer,
   } = useCaptenly();
 
   const [drafts, setDrafts] = useState<DraftCardItem[]>([makeEmptyDraft()]);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishProgress, setPublishProgress] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<DraftCardItem | null>(null);
+  const [localFeedback, setLocalFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const reportFeedback = (fb: { ok: boolean; msg: string }) => {
+    setLocalFeedback(fb);
+    onFeedback?.(fb);
+  };
+
+  const startEditFacilityProgram = (prog: FacilitySchoolProgram) => {
+    setEditingId(prog.id);
+    setEditDraft({
+      tempId: prog.id,
+      trackType: prog.trackType || "school",
+      titleAr: prog.titleAr || "",
+      ageRangeAr: prog.ageRangeAr || "",
+      sessionTimeAr: prog.sessionTimeAr || prog.scheduleAr || "",
+      durationMinutes: String(prog.durationMinutes || 60),
+      priceEgp: String(prog.priceEgp || ""),
+      sessionsCount: String(prog.sessionsPerMonth || 8),
+      notesAr: prog.notesAr || "",
+    });
+    setLocalFeedback(null);
+  };
+
+  const startEditCoachOffer = (offer: CoachSessionOffer) => {
+    setEditingId(offer.id);
+    setEditDraft({
+      tempId: offer.id,
+      trackType: "school",
+      titleAr: offer.titleAr || "",
+      ageRangeAr: "",
+      sessionTimeAr: offer.sessionTimeAr || "",
+      durationMinutes: String(offer.durationMinutes || 60),
+      priceEgp: String(offer.priceEgp || ""),
+      sessionsCount: String(offer.sessionsCount || 8),
+      notesAr: offer.notesAr || "",
+    });
+    setLocalFeedback(null);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetId || !editingId || !editDraft) return;
+    if (!editDraft.titleAr.trim() || !editDraft.sessionTimeAr.trim() || Number(editDraft.priceEgp) <= 0) {
+      reportFeedback({
+        ok: false,
+        msg: "يرجى إدخال العنوان وساعة الحصة والسعر (ج.م) لحفظ التعديلات.",
+      });
+      return;
+    }
+    const duration = Math.max(15, Number(editDraft.durationMinutes) || 60);
+    const price = Math.max(0, Number(editDraft.priceEgp) || 0);
+    const sessions = Math.max(1, Number(editDraft.sessionsCount) || 8);
+
+    const res =
+      mode === "facility"
+        ? updateFacilitySchoolProgram(targetId, editingId, {
+            trackType: editDraft.trackType,
+            trackLabelAr: TRACK_LABELS[editDraft.trackType],
+            titleAr: editDraft.titleAr.trim(),
+            ageRangeAr: editDraft.ageRangeAr.trim() || undefined,
+            sessionsPerMonth: sessions,
+            sessionTimeAr: editDraft.sessionTimeAr.trim(),
+            durationMinutes: duration,
+            priceEgp: price,
+            scheduleAr: editDraft.sessionTimeAr.trim(),
+            notesAr: editDraft.notesAr.trim() || undefined,
+          })
+        : updateCoachSessionOffer(targetId, editingId, {
+            titleAr: editDraft.titleAr.trim(),
+            sessionsCount: sessions,
+            priceEgp: price,
+            sessionTimeAr: editDraft.sessionTimeAr.trim(),
+            durationMinutes: duration,
+            notesAr: editDraft.notesAr.trim() || undefined,
+          });
+
+    setEditingId(null);
+    setEditDraft(null);
+    reportFeedback({ ok: res.ok, msg: res.messageAr });
+  };
 
   const updateDraft = (tempId: string, patch: Partial<DraftCardItem>) => {
     setDrafts((prev) => prev.map((d) => (d.tempId === tempId ? { ...d, ...patch } : d)));
@@ -79,9 +161,8 @@ export function DynamicScheduleCardsBuilder({
 
   const handlePublishAll = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPublishing) return;
     if (!targetId) {
-      onFeedback?.({
+      reportFeedback({
         ok: false,
         msg:
           mode === "coach"
@@ -96,65 +177,50 @@ export function DynamicScheduleCardsBuilder({
     );
 
     if (validDrafts.length === 0) {
-      onFeedback?.({
+      reportFeedback({
         ok: false,
         msg: "يرجى إدخال العنوان وساعة/توقيت الحصة والسعر (ج.م) لبطاقة واحدة على الأقل.",
       });
       return;
     }
 
-    setIsPublishing(true);
-    setPublishProgress(20);
-    const step1 = setTimeout(() => setPublishProgress(58), 550);
-    const step2 = setTimeout(() => setPublishProgress(88), 1150);
+    let createdCount = 0;
+    for (const d of validDrafts) {
+      const duration = Math.max(15, Number(d.durationMinutes) || 60);
+      const price = Math.max(0, Number(d.priceEgp) || 0);
+      const sessions = Math.max(1, Number(d.sessionsCount) || 8);
 
-    setTimeout(() => {
-      clearTimeout(step1);
-      clearTimeout(step2);
-      setPublishProgress(100);
-
-      let createdCount = 0;
-      for (const d of validDrafts) {
-        const duration = Math.max(15, Number(d.durationMinutes) || 60);
-        const price = Math.max(0, Number(d.priceEgp) || 0);
-        const sessions = Math.max(1, Number(d.sessionsCount) || 8);
-
-        if (mode === "facility") {
-          addFacilitySchoolProgram(targetId, {
-            trackType: d.trackType,
-            trackLabelAr: TRACK_LABELS[d.trackType],
-            titleAr: d.titleAr.trim(),
-            ageRangeAr: d.ageRangeAr.trim() || undefined,
-            sessionsPerMonth: sessions,
-            sessionTimeAr: d.sessionTimeAr.trim(),
-            durationMinutes: duration,
-            priceEgp: price,
-            scheduleAr: d.sessionTimeAr.trim(),
-            notesAr: d.notesAr.trim() || undefined,
-          });
-        } else {
-          addCoachSessionOffer(targetId, {
-            titleAr: d.titleAr.trim(),
-            sessionsCount: sessions,
-            priceEgp: price,
-            sessionTimeAr: d.sessionTimeAr.trim(),
-            durationMinutes: duration,
-            notesAr: d.notesAr.trim() || undefined,
-          });
-        }
-        createdCount += 1;
-      }
-
-      setTimeout(() => {
-        setIsPublishing(false);
-        setPublishProgress(0);
-        setDrafts([makeEmptyDraft()]);
-        onFeedback?.({
-          ok: true,
-          msg: `تم نشر ${createdCount} ${createdCount === 1 ? "بطاقة" : "بطاقات"} مواعيد وأسعار بنجاح — ويمكنك إضافة أي عدد آخر بلا قيود!`,
+      if (mode === "facility") {
+        addFacilitySchoolProgram(targetId, {
+          trackType: d.trackType,
+          trackLabelAr: TRACK_LABELS[d.trackType],
+          titleAr: d.titleAr.trim(),
+          ageRangeAr: d.ageRangeAr.trim() || undefined,
+          sessionsPerMonth: sessions,
+          sessionTimeAr: d.sessionTimeAr.trim(),
+          durationMinutes: duration,
+          priceEgp: price,
+          scheduleAr: d.sessionTimeAr.trim(),
+          notesAr: d.notesAr.trim() || undefined,
         });
-      }, 220);
-    }, 1700);
+      } else {
+        addCoachSessionOffer(targetId, {
+          titleAr: d.titleAr.trim(),
+          sessionsCount: sessions,
+          priceEgp: price,
+          sessionTimeAr: d.sessionTimeAr.trim(),
+          durationMinutes: duration,
+          notesAr: d.notesAr.trim() || undefined,
+        });
+      }
+      createdCount += 1;
+    }
+
+    setDrafts([makeEmptyDraft()]);
+    reportFeedback({
+      ok: true,
+      msg: `تم حفظ ونشر ${createdCount} ${createdCount === 1 ? "بطاقة" : "بطاقات"} ومزامنتها مع الصفحة العامة بنجاح.`,
+    });
   };
 
   const existingCount = mode === "facility" ? facilityPrograms.length : coachOffers.length;
@@ -191,13 +257,28 @@ export function DynamicScheduleCardsBuilder({
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-bold text-deep-olive">{prog.trackLabelAr}</span>
                         {targetId && (
-                          <button
-                            type="button"
-                            onClick={() => removeFacilitySchoolProgram(targetId, prog.id)}
-                            className="text-[11px] font-bold text-status-danger hover:underline"
-                          >
-                            حذف
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditFacilityProgram(prog)}
+                              className="text-[11px] font-bold text-[#1D6E7D] hover:underline"
+                            >
+                              تعديل
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeFacilitySchoolProgram(targetId, prog.id);
+                                if (editingId === prog.id) {
+                                  setEditingId(null);
+                                  setEditDraft(null);
+                                }
+                              }}
+                              className="text-[11px] font-bold text-status-danger hover:underline"
+                            >
+                              حذف
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="font-card-title-sm text-dark-slate">{prog.titleAr}</div>
@@ -232,13 +313,28 @@ export function DynamicScheduleCardsBuilder({
                           {offer.sessionsCount} حصة
                         </span>
                         {targetId && (
-                          <button
-                            type="button"
-                            onClick={() => removeCoachSessionOffer(targetId, offer.id)}
-                            className="text-[11px] font-bold text-status-danger hover:underline"
-                          >
-                            حذف
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditCoachOffer(offer)}
+                              className="text-[11px] font-bold text-[#1D6E7D] hover:underline"
+                            >
+                              تعديل
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeCoachSessionOffer(targetId, offer.id);
+                                if (editingId === offer.id) {
+                                  setEditingId(null);
+                                  setEditDraft(null);
+                                }
+                              }}
+                              className="text-[11px] font-bold text-status-danger hover:underline"
+                            >
+                              حذف
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="font-card-title-sm text-dark-slate">{offer.titleAr}</div>
@@ -422,44 +518,150 @@ export function DynamicScheduleCardsBuilder({
           ))}
         </div>
 
-        {isPublishing && (
-          <div className="rounded-2xl bg-lime-tint/70 border border-electric-volt p-3.5 flex flex-col gap-2 animate-captenly-enter">
-            <div className="flex items-center justify-between text-xs font-extrabold text-deep-olive">
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-deep-olive border-t-transparent animate-spin" />
-                جاري حفظ البطاقات وتحديث الصفحة العامة...
+        {localFeedback && (
+          <div
+            className={`rounded-2xl p-3 text-xs font-bold border flex items-center justify-between gap-2 ${
+              localFeedback.ok
+                ? "bg-[#EAF4F8] text-[#1D6E7D] border-[#1D6E7D]/25"
+                : "bg-red-50 text-red-800 border-red-200"
+            }`}
+          >
+            <span>{localFeedback.msg}</span>
+            <button
+              type="button"
+              onClick={() => setLocalFeedback(null)}
+              className="text-[11px] underline shrink-0"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
+        {editingId && editDraft && (
+          <form
+            onSubmit={handleSaveEdit}
+            className="rounded-2xl bg-[#EAF4F8]/70 border border-[#1D6E7D]/30 p-4 flex flex-col gap-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-extrabold text-[#1D6E7D]">
+                تعديل البطاقة: {editDraft.titleAr}
               </span>
-              <span dir="ltr">{publishProgress}%</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setEditDraft(null);
+                }}
+                className="text-[11px] font-bold text-red-700 hover:underline"
+              >
+                إلغاء التعديل
+              </button>
             </div>
-            <div className="w-full h-2 rounded-full bg-surface-card overflow-hidden">
-              <div
-                className="h-full bg-deep-olive rounded-full transition-all duration-300"
-                style={{ width: `${publishProgress}%` }}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {mode === "facility" && (
+                <select
+                  value={editDraft.trackType}
+                  onChange={(e) =>
+                    setEditDraft((prev) =>
+                      prev
+                        ? { ...prev, trackType: e.target.value as DraftCardItem["trackType"] }
+                        : prev
+                    )
+                  }
+                  className="rounded-xl bg-white px-3 py-2 text-xs font-bold outline-none border border-surface-container"
+                >
+                  <option value="school">مدرسة سباحة / مستوى</option>
+                  <option value="buds">البراعم والتأسيس</option>
+                  <option value="prep">التجهيزي</option>
+                  <option value="team">الفريق والسباقات</option>
+                  <option value="ladies">مواعيد السيدات</option>
+                </select>
+              )}
+              <input
+                required
+                value={editDraft.titleAr}
+                onChange={(e) =>
+                  setEditDraft((prev) => (prev ? { ...prev, titleAr: e.target.value } : prev))
+                }
+                placeholder="اسم البطاقة / الفئة *"
+                className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                required
+                value={editDraft.sessionTimeAr}
+                onChange={(e) =>
+                  setEditDraft((prev) => (prev ? { ...prev, sessionTimeAr: e.target.value } : prev))
+                }
+                placeholder="الساعة وتوقيت الحصة *"
+                className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                required
+                type="number"
+                min={15}
+                max={240}
+                value={editDraft.durationMinutes}
+                onChange={(e) =>
+                  setEditDraft((prev) => (prev ? { ...prev, durationMinutes: e.target.value } : prev))
+                }
+                placeholder="المدة (دقيقة)"
+                className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                required
+                type="number"
+                min={1}
+                value={editDraft.priceEgp}
+                onChange={(e) =>
+                  setEditDraft((prev) => (prev ? { ...prev, priceEgp: e.target.value } : prev))
+                }
+                placeholder="السعر (ج.م) *"
+                className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
+              />
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={editDraft.sessionsCount}
+                onChange={(e) =>
+                  setEditDraft((prev) => (prev ? { ...prev, sessionsCount: e.target.value } : prev))
+                }
+                placeholder="عدد الحصص"
+                className="rounded-xl bg-white px-3 py-2 text-xs outline-none border border-surface-container"
               />
             </div>
-          </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-full bg-[#1D6E7D] text-white text-xs font-bold hover:bg-[#155460]"
+              >
+                حفظ التعديلات ✓
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setEditDraft(null);
+                }}
+                className="px-4 py-2 rounded-full bg-white text-text-muted text-xs font-bold border border-surface-container"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
         )}
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="submit"
-            disabled={isPublishing}
-            className="flex-1 sm:flex-none px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95 disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none px-6 py-3 rounded-full bg-dark-slate text-electric-volt font-bold text-xs shadow-sm hover:opacity-95 flex items-center justify-center gap-2"
           >
-            {isPublishing ? (
-              <>
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-electric-volt border-t-transparent animate-spin" />
-                <span>جاري النشر ({publishProgress}%)...</span>
-              </>
-            ) : (
-              <span>نشر {drafts.length > 1 ? `البطاقات (${drafts.length})` : "البطاقة"} في الصفحة العامة ✓</span>
-            )}
+            <span>نشر {drafts.length > 1 ? `البطاقات (${drafts.length})` : "البطاقة"} في الصفحة العامة ✓</span>
           </button>
           <button
             type="button"
-            disabled={isPublishing}
             onClick={addAnotherDraftRow}
-            className="px-4 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold hover:bg-lime-tint disabled:opacity-50"
+            className="px-4 py-3 rounded-full bg-surface-snow border border-surface-container text-dark-slate text-xs font-bold hover:bg-lime-tint"
           >
             + توليد بطاقة إضافية
           </button>

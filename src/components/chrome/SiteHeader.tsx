@@ -72,8 +72,12 @@ export function SiteHeader() {
       match: (p: string) =>
         p.startsWith("/explore") ||
         p.startsWith("/pools") ||
-        p.startsWith("/academy") ||
-        (isAuthenticated && (p.startsWith("/coaches") || p.startsWith("/c/"))),
+        p.startsWith("/academy"),
+    },
+    {
+      href: "/coaches",
+      label: "الكباتن الموثقون",
+      match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
     },
     {
       href: "/compare",
@@ -119,13 +123,7 @@ export function SiteHeader() {
     match: (p: string) => boolean;
     gated?: boolean;
   }> = !storageHydrated || !isAuthenticated
-    ? [
-        {
-          href: "/coaches",
-          label: "الكباتن الموثقون",
-          match: (p: string) => p.startsWith("/coaches") || p.startsWith("/c/"),
-        },
-      ]
+    ? []
     : verifiedStaffAssignment
     ? [
         {

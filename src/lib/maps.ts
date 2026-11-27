@@ -247,15 +247,29 @@ export function loadGoogleMapsSdk(apiKey: string): Promise<any> {
 }
 
 /**
+ * Strips Google Open Location (Plus) Codes such as "X529+F73", "8G2Q+9X",
+ * or "8G2P8G2Q+9X" even when adjacent to Arabic text or punctuation.
+ */
+export function stripPlusCode(raw?: string | null): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(
+      /(?<![A-Za-z0-9+])[02-9CFGHJMPQRVWX]{4,8}\s*\+\s*[02-9CFGHJMPQRVWX]{2,5}(?![A-Za-z0-9])/gi,
+      " "
+    )
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
  * Removes Google Plus Codes (e.g. "X529+F73", "8G2Q+9X") and cleans punctuation
  * before rendering or indexing public addresses.
  */
 export function cleanPublicAddressAr(raw?: string | null): string {
   if (typeof raw !== "string") return "";
-  return raw
-    .replace(/\b[2-9CFGHJMPQRVWX]{4,8}\+[2-9CFGHJMPQRVWX]{2,4}\b/gi, " ")
+  return stripPlusCode(raw)
     .replace(/[،,]\s*[،,]+/g, "، ")
-    .replace(/^[\s،,\-•]+|[\s،,\-•]+$/g, "")
+    .replace(/^[\s،,\-•·/]+|[\s،,\-•·/]+$/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

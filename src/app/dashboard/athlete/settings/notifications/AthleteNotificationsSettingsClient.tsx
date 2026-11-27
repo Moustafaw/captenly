@@ -56,17 +56,24 @@ export default function NotificationSettingsPage() {
         </nav>
 
         <h1 className="font-cairo font-bold text-section-title text-dark-slate">
-          تفضيلات التنبيهات المباشرة ورسائل واتساب
+          تفضيلات التنبيهات ورسائل واتساب
         </h1>
         <p className="text-body-compact text-text-muted">
-          تحكم في التذكيرات الفورية بمواعيد الحصص وأكواد الحضور وتنبيهات تجديد الباقة
+          تحكم في تفضيلات الحساب للتذكيرات بمواعيد الحصص وتنبيهات تجديد الباقة والنشرة الرياضية
         </p>
+      </div>
+
+      <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs font-semibold leading-relaxed flex items-start gap-2.5">
+        <Icon name="info" className="text-[18px] text-amber-700 shrink-0 mt-0.5" />
+        <span>
+          تُحفظ هذه الخيارات كتفضيلات لحسابك فقط؛ الإرسال التلقائي للتنبيهات عبر واتساب والبريد الإلكتروني غير مفعّل بعد على الخادم، بينما تظهر التنبيهات داخل المنصة عند الاستخدام.
+        </span>
       </div>
 
       {savedSuccess && (
         <div className="p-3 rounded-xl bg-status-success/15 border border-status-success/30 text-deep-olive text-body-compact font-bold flex items-center gap-2 animate-fade-in">
           <Icon name="check_circle" className="text-[18px]" />
-          <span>تم حفظ التفضيلات بنجاح!</span>
+          <span>تم حفظ تفضيلات الحساب بنجاح!</span>
         </div>
       )}
 
@@ -80,10 +87,10 @@ export default function NotificationSettingsPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-card-title-sm text-dark-slate">
-                  رقم واتساب المرتبط بالتنبيهات
+                  رقم واتساب المحفوظ بالحساب
                 </span>
                 {currentPersona.phone ? (
-                  <span className="text-deep-olive text-[11px] font-extrabold">نشط ✓</span>
+                  <span className="text-deep-olive text-[11px] font-extrabold">محفوظ ✓ (الإرسال التلقائي غير مفعّل بعد)</span>
                 ) : (
                   <span className="text-amber-700 text-[11px] font-extrabold">غير مضاف</span>
                 )}
@@ -132,10 +139,10 @@ export default function NotificationSettingsPage() {
         <div className="p-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <span className="font-bold text-card-title-sm text-dark-slate block">
-              تذكير الحصة القادمة قبل موعدها بساعتين
+              تفضيل تذكير الحصة القادمة (عند تفعيل التنبيهات الآلية)
             </span>
             <p className="text-micro-caption text-text-muted leading-relaxed">
-              إرسال رسالة تذكير فورية مع كود الـ QR الخاص بالحضور ورقم المسار المخصص للسباح بمسبح النادي.
+              تفضيل محفوظ بحسابك لاستلام تذكير بموعد الحصة وكود الحضور فور تفعيل خدمة التنبيهات الآلية عبر واتساب.
             </p>
           </div>
           <button
@@ -157,10 +164,10 @@ export default function NotificationSettingsPage() {
         <div className="p-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <span className="font-bold text-card-title-sm text-dark-slate block">
-              تنبيهات تجديد الباقة الشهرية (عند تبقي حصتين)
+              تفضيل تنبيهات تجديد الباقة الشهرية (عند تبقي حصتين)
             </span>
             <p className="text-micro-caption text-text-muted leading-relaxed">
-              إشعار مسبق قبل انتهاء رصيد دفتر الحصص لتجنب انقطاع الطفل عن مواعيده التدريبية وتأكيد حجز الشهر الجديد.
+              تفضيل محفوظ بحسابك لتلقي تنبيهات التجديد داخل الحساب ومستقبلاً عبر واتساب عند انخفاض رصيد الحصص.
             </p>
           </div>
           <button
@@ -182,10 +189,10 @@ export default function NotificationSettingsPage() {
         <div className="p-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <span className="font-bold text-card-title-sm text-dark-slate block">
-              نشرة مجلة كابتنلي الرياضية الأسبوعية
+              تفضيل نشرة مجلة كابتنلي الرياضية (قريباً)
             </span>
             <p className="text-micro-caption text-text-muted leading-relaxed">
-              تلقي أحدث مقالات واستشارات الأمان المائي وتغذية السباحين وتكنيك السباقات الصادرة من الأطباء الرياضيين.
+              تفضيل محفوظ بحسابك لتلقي ملخص مقالات الأمان المائي وتغذية السباحين عند تفعيل خدمة النشرة البريدية.
             </p>
           </div>
           <button

@@ -381,12 +381,12 @@ export default function Desktop21() {
               <Icon name="mail" className="text-[22px]" />
             </span>
             <div className="flex flex-col gap-1">
-              <span className="font-bold text-xs text-[#1D6E7D]">نشرة كابتنلي الأسبوعية</span>
+              <span className="font-bold text-xs text-[#1D6E7D]">نشرة مجلة كابتنلي (قائمة الاهتمام)</span>
               <h2 className="font-section-title text-lg md:text-2xl font-black text-[#0B1C2E]">
-                اشترك في نشرة كابتنلي الأسبوعية للسباحة
+                سجّل بريدك لقائمة نشرة كابتنلي القادمة
               </h2>
               <p className="text-xs text-[#64748B]">
-                أدلة اختيار الأكاديميات الآمنة وبرامج تغذية الناشئين مجاناً مباشرة في بريدك.
+                أدلة اختيار الأكاديميات الآمنة وبرامج تغذية الناشئين. يتم حفظ بريدك محلياً كتفضيل حساب فقط — خدمة الإرسال البريدي الأسبوعي التلقائي غير مفعلة بعد.
               </p>
             </div>
           </div>
@@ -410,7 +410,7 @@ export default function Desktop21() {
                   type="submit"
                   className="px-6 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs sm:text-sm shrink-0 shadow-sm transition cursor-pointer"
                 >
-                  اشترك الآن
+                  حفظ البريد للتحديثات المستقبلية
                 </button>
               </form>
             )}

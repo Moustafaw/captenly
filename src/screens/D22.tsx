@@ -209,8 +209,10 @@ export default function Desktop22() {
                 <span className="text-xs font-extrabold text-[#1D6E7D] inline-flex items-center gap-1">
                   <Icon name="location_on" className="text-[14px]" />
                   <span>
-                    {facility.governorate} • {facility.city}
-                    {facility.district ? ` • ${facility.district}` : ""}
+                    {cleanPublicAddressAr(facility.governorate)} • {cleanPublicAddressAr(facility.city)}
+                    {cleanPublicAddressAr(facility.district)
+                      ? ` • ${cleanPublicAddressAr(facility.district)}`
+                      : ""}
                   </span>
                 </span>
                 {facility.rating > 0 ? (
@@ -227,7 +229,11 @@ export default function Desktop22() {
               </h1>
               <p className="font-body-default text-[#475569]">
                 {cleanPublicAddressAr(activeBranch ? activeBranch.addressAr : facility.addressAr) ||
-                  `${facility.city}${facility.district ? ` • ${facility.district}` : ""}`}
+                  `${cleanPublicAddressAr(facility.city)}${
+                    cleanPublicAddressAr(facility.district)
+                      ? ` • ${cleanPublicAddressAr(facility.district)}`
+                      : ""
+                  }`}
               </p>
               {branchLocations.length > 0 && (
                 <div className="flex flex-col gap-1.5 pt-1">

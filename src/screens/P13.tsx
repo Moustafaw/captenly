@@ -224,8 +224,10 @@ export default function Phone13() {
           <span className="font-black text-[#1D6E7D] inline-flex items-center gap-1">
             <Icon name="location_on" className="text-[14px] text-[#00ACC1]" />
             <span>
-              {facility.city}
-              {facility.district ? ` • ${facility.district}` : ""}
+              {cleanPublicAddressAr(facility.city)}
+              {cleanPublicAddressAr(facility.district)
+                ? ` • ${cleanPublicAddressAr(facility.district)}`
+                : ""}
             </span>
           </span>
           {facility.rating > 0 ? (
@@ -241,7 +243,11 @@ export default function Phone13() {
         <h1 className="font-section-title-mobile text-[#0B1C2E] font-black leading-snug">{facility.nameAr}</h1>
         <p className="text-xs text-[#64748B] font-semibold">
           {cleanPublicAddressAr(activeBranch ? activeBranch.addressAr : facility.addressAr) ||
-            `${facility.city}${facility.district ? ` • ${facility.district}` : ""}`}
+            `${cleanPublicAddressAr(facility.city)}${
+              cleanPublicAddressAr(facility.district)
+                ? ` • ${cleanPublicAddressAr(facility.district)}`
+                : ""
+            }`}
         </p>
         {branchLocations.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">

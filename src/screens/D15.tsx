@@ -129,9 +129,10 @@ export default function Desktop15() {
   const handleAddChild = (e: React.FormEvent) => {
     e.preventDefault();
     if (!childName.trim() || !canManageFamily) return;
+    const clampedAge = Math.min(17, Math.max(3, Number(childAge) || 8));
     addMinorAthlete({
       fullNameAr: childName.trim(),
-      age: Number(childAge) || 8,
+      age: clampedAge,
       gender: "male",
       primarySport: "swimming",
     });
@@ -391,20 +392,42 @@ export default function Desktop15() {
             <span className="text-xs font-bold text-[#64748B] ml-1">عرض تطور وتقييم:</span>
             <button
               type="button"
-              onClick={() => setSelectedAthleteId("")}
+              onClick={() => {
+                setSelectedAthleteId("");
+                setPbTargetAthleteId("");
+              }}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
                 !selectedAthleteId
                   ? "bg-[#1D6E7D] text-white"
                   : "bg-[#F7F9FA] text-[#0F172A] border border-[#0F172A]/8 hover:bg-[#EAF4F8]"
               }`}
             >
-              جميع سجلات الأسرة / حسابي
+              كل الأسرة
             </button>
+            {!isParentOnlyIntent && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAthleteId("self");
+                  setPbTargetAthleteId("self");
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  selectedAthleteId === "self"
+                    ? "bg-[#1D6E7D] text-white"
+                    : "bg-[#F7F9FA] text-[#0F172A] border border-[#0F172A]/8 hover:bg-[#EAF4F8]"
+                }`}
+              >
+                حسابي ({currentPersona.fullNameAr.split(" ")[0]})
+              </button>
+            )}
             {minorAthletes.map((child) => (
               <button
                 key={child.id}
                 type="button"
-                onClick={() => setSelectedAthleteId(child.id)}
+                onClick={() => {
+                  setSelectedAthleteId(child.id);
+                  setPbTargetAthleteId(child.id);
+                }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
                   selectedAthleteId === child.id
                     ? "bg-[#1D6E7D] text-white"
@@ -686,7 +709,7 @@ export default function Desktop15() {
               <div>
                 <h2 className="font-section-title text-[#0F172A]">متابعة الأبناء والأسرة (اختياري)</h2>
                 <p className="text-xs text-[#64748B] mt-0.5">
-                  إذا كنت ولي أمر وتتابع سبّاحين صغاراً (تحت 14 سنة)، يمكنك إضافة ملفاتهم هنا لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك الموحد (قانون 151 لسنة 2020).
+                  إذا كنت ولي أمر وتتابع سبّاحين صغاراً (من 3 إلى 17 سنة)، يمكنك إضافة ملفاتهم هنا لمتابعة حضورهم وأرقامهم القياسية من نفس حسابك الموحد (قانون 151 لسنة 2020).
                 </p>
               </div>
               <Link
@@ -748,8 +771,8 @@ export default function Desktop15() {
                 />
                 <input
                   type="number"
-                  min={4}
-                  max={14}
+                  min={3}
+                  max={17}
                   value={childAge}
                   onChange={(e) => setChildAge(e.target.value)}
                   className="w-20 rounded-xl bg-[#F7F9FA] px-3 py-2 text-xs outline-none border border-[#0F172A]/10"

@@ -3,18 +3,25 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
 import {
   buildAcademySettlementSummary,
   evaluateLedgerGateStatus,
   getFacilityPoolDeskConfig,
   isSameLocalCalendarDay,
 } from "@/lib/poolDeskPricing";
-import type { Facility, OfflineCheckinQueueItem, SessionLedger } from "@/types/captenly";
+import type {
+  Facility,
+  FacilityStaffRole,
+  OfflineCheckinQueueItem,
+  SessionLedger,
+} from "@/types/captenly";
 
 interface FacilityOpsAuditTabProps {
   facility: Facility;
   ledgers: SessionLedger[];
   offlineQueue: OfflineCheckinQueueItem[];
+  staffRole?: FacilityStaffRole | null;
   onSyncOffline: () => number;
   onExceptionalCheckin: (ledgerId: string, noteAr: string) => void;
   onOpenGateKiosk?: () => void;
@@ -33,9 +40,13 @@ export function FacilityOpsAuditTab({
   facility,
   ledgers,
   offlineQueue,
+  staffRole,
   onSyncOffline,
   onExceptionalCheckin,
 }: FacilityOpsAuditTabProps) {
+  const { activeStaffAssignment } = useCaptenly();
+  const effectiveStaffRole = staffRole ?? activeStaffAssignment?.role ?? null;
+  const isGeneralStaff = effectiveStaffRole === "general_staff";
   const poolConfig = getFacilityPoolDeskConfig(facility);
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [scannerFilter, setScannerFilter] = useState<"all" | "facility_gate" | "delegated_coach">("all");
@@ -475,15 +486,27 @@ export function FacilityOpsAuditTab({
                         >
                           <Icon name="chat" className="text-[15px]" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onExceptionalCheckin(l.id, "تسجيل حضور استثنائي من غرفة العمليات")
-                          }
-                          className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/25 text-[10px] font-bold"
-                        >
-                          تحضير
-                        </button>
+                        {!isGeneralStaff ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onExceptionalCheckin(l.id, "تسجيل حضور استثنائي من غرفة العمليات")
+                            }
+                            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/25 text-[10px] font-bold"
+                          >
+                            تحضير
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            title="التحضير الاستثنائي (تجاوز حد الـ 3 ساعات) متاح للمالك أو مسؤول الاشتراكات فقط"
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold cursor-not-allowed"
+                          >
+                            تحضير مقيّد
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

@@ -28,6 +28,7 @@ export default function Phone12() {
     validateAndSaveCoachBio,
     recordCoachSkillAndPB,
     requestCoachHostClubLink,
+    verifiedLeads,
     currentPersona,
     updateCurrentPersonaProfile,
     isAuthenticated,
@@ -44,6 +45,7 @@ export default function Phone12() {
   const [rosterGroupFilter, setRosterGroupFilter] = useState<string>("all");
 
   const [manualSubCode, setManualSubCode] = useState("");
+  const [manualSubNote, setManualSubNote] = useState("");
   const [memberCode, setMemberCode] = useState("");
   const [athleteNameInput, setAthleteNameInput] = useState("");
   const [facId, setFacId] = useState(currentPersona.linkedFacilityId || facilities[0]?.id || "");
@@ -270,12 +272,15 @@ export default function Phone12() {
               const res = checkInBySubscriptionCode(
                 manualSubCode.trim(),
                 undefined,
-                "حضور مسجل بواسطة الكابتن بكود الاشتراك",
+                manualSubNote.trim() || "حضور مسجل بواسطة الكابتن بكود الاشتراك",
                 linkedCoachId,
                 { scanSource: "coach_poolside" }
               );
               setFeedback({ ok: res.ok, msg: res.messageAr });
-              if (res.ok) setManualSubCode("");
+              if (res.ok) {
+                setManualSubCode("");
+                setManualSubNote("");
+              }
             }}
             className="rounded-3xl bg-[#0F4C5C] text-white p-4 flex flex-col gap-2.5 shadow-soft-luxury"
           >
@@ -292,6 +297,12 @@ export default function Phone12() {
                 <span>فتح الكاميرا</span>
               </button>
             </div>
+            <input
+              value={manualSubNote}
+              onChange={(e) => setManualSubNote(e.target.value)}
+              placeholder="ملاحظة الحصة (اختياري)"
+              className="w-full rounded-xl bg-white/10 text-white placeholder:text-white/60 px-3 py-2 text-xs border border-white/20 outline-none"
+            />
             <div className="flex gap-1.5">
               <input
                 required
@@ -441,7 +452,7 @@ export default function Phone12() {
         <div className="flex flex-col gap-4">
           <section className="bg-white rounded-3xl p-4 shadow-soft-luxury border border-sand-border flex flex-col gap-3">
             <h3 className="font-black text-sm text-[#0F4C5C]">
-              قائمة المتدربين وأكواد اشتراكاتهم ({visibleLedgers.length})
+              قائمة المتدربين وأكواد اشتراكاتهم ({visibleLedgers.length}) • استفسارات واتساب ({verifiedLeads.length})
             </h3>
 
             {myApprovedLinks.length > 0 && (

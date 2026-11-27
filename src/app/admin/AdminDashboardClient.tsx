@@ -62,6 +62,48 @@ export default function FounderAdminPage() {
   const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
   const [adminAuthBusy, setAdminAuthBusy] = useState(false);
 
+  const [demandRadarRows, setDemandRadarRows] = useState<
+    Array<{
+      id: string;
+      fullNameAr: string;
+      phone: string;
+      city: string;
+      governorate: string;
+      targetSport: string;
+      targetFacilityId: string | null;
+      targetFacilityNameAr: string | null;
+      createdAt: string | null;
+    }>
+  >([]);
+  const [demandRadarLoading, setDemandRadarLoading] = useState(false);
+  const [demandRadarError, setDemandRadarError] = useState<string | null>(null);
+
+  const loadDemandRadar = async () => {
+    setDemandRadarLoading(true);
+    setDemandRadarError(null);
+    try {
+      const res = await fetch("/api/supabase/demand-radar", { cache: "no-store" });
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        items?: typeof demandRadarRows;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.ok || !Array.isArray(data.items)) {
+        setDemandRadarError(
+          res.status === 401 || res.status === 403
+            ? "صلاحية الإدارة مطلوبة لعرض طلبات رادار الطلب."
+            : "تعذر تحميل بيانات رادار الطلب حالياً."
+        );
+        return;
+      }
+      setDemandRadarRows(data.items);
+    } catch {
+      setDemandRadarError("تعذر الاتصال بالخادم لجلب طلبات رادار الطلب.");
+    } finally {
+      setDemandRadarLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     fetch("/api/auth/admin-verify", { cache: "no-store" })
@@ -77,6 +119,7 @@ export default function FounderAdminPage() {
         });
         if (authOk) {
           refreshRoleClaims(true).catch(() => undefined);
+          loadDemandRadar().catch(() => undefined);
         }
       })
       .catch(() => {
@@ -117,6 +160,7 @@ export default function FounderAdminPage() {
       });
       setAdminKeyInput("");
       await refreshRoleClaims(true).catch(() => undefined);
+      await loadDemandRadar().catch(() => undefined);
     } catch {
       setAdminAuthError("تعذر الاتصال بخادم التحقق من صلاحية الإدارة.");
     } finally {
@@ -391,9 +435,16 @@ export default function FounderAdminPage() {
                 </p>
                 <button
                   onClick={() => {
+                    const targetLedger = sessionLedgers[0];
+                    if (!targetLedger) {
+                      setSimResultText(
+                        "لا توجد دفاتر حصص نشطة حالياً للمحاكاة — أنشئ دفتراً من لوحة المنشأة أو الكابتن أولاً."
+                      );
+                      return;
+                    }
                     const res = checkInSession(
-                      sessionLedgers[0].id,
-                      sessionLedgers[0].pinCode,
+                      targetLedger.id,
+                      targetLedger.pinCode,
                       "offline_sync",
                       "تسجيل حصة في طابور المزامنة التلقائي"
                     );
@@ -486,7 +537,7 @@ export default function FounderAdminPage() {
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black bg-dark-slate text-electric-volt px-2.5 py-1 rounded-lg">
-                    سيناريو 4 • التبديل بين الحسابات الـ 6
+                    سيناريو 4 • التبديل بين الحسابات ({allPersonas.length})
                   </span>
                   <Users className="w-5 h-5 text-deep-olive" />
                 </div>
@@ -1023,6 +1074,82 @@ export default function FounderAdminPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-black text-dark-slate">
+                  رادار الطلب والتوسع الميداني ({demandRadarRows.length})
+                </h3>
+                <p className="text-xs text-slate-600">
+                  الطلبات المسجلة فعلياً من قاعدة البيانات (captenly_demand_radar) — متاحة للإدارة فقط.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={demandRadarLoading}
+                onClick={loadDemandRadar}
+                className="px-3.5 py-1.5 rounded-full bg-lime-tint text-deep-olive text-xs font-extrabold disabled:opacity-60"
+              >
+                {demandRadarLoading ? "جاري التحديث..." : "تحديث الطلبات ↻"}
+              </button>
+            </div>
+
+            {demandRadarError && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-bold text-red-800">
+                {demandRadarError}
+              </div>
+            )}
+
+            {demandRadarLoading && demandRadarRows.length === 0 ? (
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600">
+                جاري تحميل طلبات رادار الطلب...
+              </div>
+            ) : demandRadarRows.length === 0 ? (
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600">
+                لا توجد طلبات مسجلة في رادار الطلب حالياً.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse min-w-[640px] text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[11px] font-extrabold text-slate-500">
+                      <th className="pb-2.5 pr-2">مقدم الطلب</th>
+                      <th className="pb-2.5">التواصل / الكود</th>
+                      <th className="pb-2.5">المدينة / المحافظة</th>
+                      <th className="pb-2.5">الرياضة</th>
+                      <th className="pb-2.5">المنشأة المستهدفة</th>
+                      <th className="pb-2.5 pl-2">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {demandRadarRows.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 pr-2 font-bold text-dark-slate">{row.fullNameAr}</td>
+                        <td className="py-2.5 font-mono text-slate-700" dir="ltr">
+                          {row.phone}
+                        </td>
+                        <td className="py-2.5 text-slate-700">
+                          {row.city} ({row.governorate})
+                        </td>
+                        <td className="py-2.5">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                            {row.targetSport}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-slate-700">
+                          {row.targetFacilityNameAr || "توسع مدينة"}
+                        </td>
+                        <td className="py-2.5 pl-2 font-mono text-[11px] text-slate-500">
+                          {row.createdAt ? row.createdAt.slice(0, 10) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -163,8 +163,10 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
         <div className="p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between text-[#64748B] font-micro-caption text-micro-caption">
             <span className="font-bold text-[#0F172A]">
-              {facility.city}
-              {facility.district ? ` • ${facility.district}` : ""}
+              {cleanPublicAddressAr(facility.city)}
+              {cleanPublicAddressAr(facility.district)
+                ? ` • ${cleanPublicAddressAr(facility.district)}`
+                : ""}
               {facility.locations && facility.locations.length > 1
                 ? ` • +${facility.locations.length - 1} مواقع`
                 : ""}
@@ -233,7 +235,8 @@ export function FacilityCard({ facility, onSelectCompareFeedback }: FacilityCard
                 دليل المواقع والسباحة
               </span>
               <span className="font-badge-label text-xs text-[#0F172A]">
-                {facility.district} • {facility.city}
+                {cleanPublicAddressAr(facility.district) || cleanPublicAddressAr(facility.city)}
+                {cleanPublicAddressAr(facility.district) ? ` • ${cleanPublicAddressAr(facility.city)}` : ""}
               </span>
             </div>
           )}

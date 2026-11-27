@@ -129,7 +129,7 @@ export function useTelemetryDomain({
     if (!newsletterEmails.includes(clean)) setNewsletterEmails((prev) => [clean, ...prev]);
     return {
       ok: true,
-      messageAr: "تم اشتراكك في نشرة كابتنلي الأسبوعية بنجاح! سيصلك دليل الخميس القادم.",
+      messageAr: "تم حفظ بريدك كاهتمام متابعة محلياً — خدمة النشرة البريدية الأسبوعية ليست مفعلة بعد.",
     };
   };
 
@@ -208,8 +208,8 @@ export function useTelemetryDomain({
       requestedSpecialtyAr: payload.requestedSpecialtyAr,
       preferredScheduleAr: payload.preferredScheduleAr,
       createdAtAr: "الآن",
-      repliedWithin2h: true,
-      replyMinutes: 15,
+      repliedWithin2h: false,
+      replyMinutes: undefined,
       convertedToLedger: false,
     };
 

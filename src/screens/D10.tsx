@@ -100,9 +100,12 @@ function Desktop10Inner() {
         return;
       }
       if (effectiveParent && addFirstChild && firstChildName.trim()) {
+        // Wait for React state commit so depsRef.current.currentPersona has the new memberCode before addMinorAthlete reads it.
+        await new Promise<void>((resolve) => setTimeout(resolve, 60));
+        const clampedAge = Math.min(17, Math.max(3, Number(firstChildAge) || 8));
         addMinorAthlete({
           fullNameAr: firstChildName.trim(),
-          age: Number(firstChildAge) || 8,
+          age: clampedAge,
           gender: firstChildGender,
           primarySport: "swimming",
         });
