@@ -20,7 +20,7 @@ import type {
   WorkspaceContextMode,
 } from "@/types/captenly";
 import { GUEST_PERSONA, PERSONA_ACCOUNTS } from "@/data/seedData";
-import type { AccountActivitySnapshot, UserSettingsState } from "./types";
+import type { AccountActivitySnapshot, UserSettingsState } from "./payloadTypes";
 
 export const STORAGE_KEY = "captenly_platform_state_v6";
 export const LEGACY_STORAGE_KEY_V5 = "captenly_platform_state_v5";
