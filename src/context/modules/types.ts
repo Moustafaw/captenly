@@ -188,6 +188,9 @@ export interface CaptenlyContextType {
   ) => { ok: boolean; article?: EditorialArticle; messageAr: string };
   deleteEditorialArticle: (articleId: string) => void;
   subscribeNewsletter: (email: string) => { ok: boolean; messageAr: string };
+  subscribeNewsletterAsync: (
+    email: string
+  ) => Promise<{ ok: boolean; persisted?: boolean; messageAr: string }>;
 
   // Facility Staff Role Switching & Academy Coach Roster
   myStaffAssignments: FacilityStaffMember[];

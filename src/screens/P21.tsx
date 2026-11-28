@@ -17,11 +17,15 @@ type MobileCat = "all" | "swimming" | "kids" | "heated" | "ladies";
 interface Phone21Props {
   initialFacilities?: Facility[];
   initialCoaches?: Coach[];
+  omitHero?: boolean;
+  controlledCat?: MobileCat;
 }
 
 export default function Phone21({
   initialFacilities = [],
   initialCoaches = [],
+  omitHero = false,
+  controlledCat,
 }: Phone21Props = {}) {
   const router = useRouter();
   const {
@@ -47,7 +51,8 @@ export default function Phone21({
     (currentPersona.role === "adult_athlete" || currentPersona.role === "parent");
 
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState<MobileCat>("all");
+  const [catState, setCat] = useState<MobileCat>("all");
+  const cat = controlledCat ?? catState;
   const [toast, setToast] = useState<string | null>(null);
   const [rotationSeed, setRotationSeed] = useState<number>(0);
 
@@ -173,107 +178,117 @@ export default function Phone21({
   };
 
   return (
-    <div className="screen-root bg-[#F7F9FA] font-body-default text-[#0F172A] min-h-screen px-margin pt-4 pb-24 flex flex-col gap-5">
-      {/* Mobile Search + Filter Pill */}
-      <form
-        onSubmit={handleSearch}
-        className="flex items-center gap-2 bg-white rounded-full px-3.5 py-2 shadow-[0_2px_10px_rgba(15,23,42,0.04)] border border-[#0F172A]/8"
-      >
-        <Icon name="search" className="text-[#64748B] text-[18px] shrink-0" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="ابحث عن كابتن سباحة، نادي، أو مسبح..."
-          className="flex-1 min-w-0 bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#64748B]"
-        />
-        <button
-          type="button"
-          onClick={() => setFilterModalOpen(true)}
-          aria-label="فلاتر البحث"
-          className="w-8 h-8 rounded-full bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center shrink-0"
-        >
-          <Icon name="tune" className="text-[16px]" />
-        </button>
-      </form>
-
-      {/* Scrollable Category Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-margin px-margin">
-        {cats.map((item) => {
-          const active = cat === item.key;
-          return (
+    <div
+      className={
+        omitHero
+          ? "font-body-default text-[#0F172A] px-margin pb-24 flex flex-col gap-5"
+          : "screen-root bg-[#F7F9FA] font-body-default text-[#0F172A] min-h-screen px-margin pt-4 pb-24 flex flex-col gap-5"
+      }
+    >
+      {!omitHero && (
+        <>
+          {/* Mobile Search + Filter Pill */}
+          <form
+            onSubmit={handleSearch}
+            className="flex items-center gap-2 bg-white rounded-full px-3.5 py-2 shadow-[0_2px_10px_rgba(15,23,42,0.04)] border border-[#0F172A]/8"
+          >
+            <Icon name="search" className="text-[#64748B] text-[18px] shrink-0" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="ابحث عن كابتن سباحة، نادي، أو مسبح..."
+              className="flex-1 min-w-0 bg-transparent outline-none text-xs text-[#0F172A] placeholder:text-[#64748B]"
+            />
             <button
-              key={item.key}
               type="button"
-              onClick={() => setCat(item.key)}
-              className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1 transition-all border ${
-                active
-                  ? "bg-[#1D6E7D] border-[#1D6E7D] text-white shadow-sm"
-                  : "bg-white border-[#0F172A]/8 text-[#475569] hover:text-[#1D6E7D]"
-              }`}
+              onClick={() => setFilterModalOpen(true)}
+              aria-label="فلاتر البحث"
+              className="w-8 h-8 rounded-full bg-[#EAF4F8] text-[#1D6E7D] flex items-center justify-center shrink-0"
             >
-              {item.icon && <Icon name={item.icon} className="text-[14px]" />}
-              <span>{item.label}</span>
+              <Icon name="tune" className="text-[16px]" />
             </button>
-          );
-        })}
-      </div>
+          </form>
 
-      {/* Bright Photo-First Mobile Hero Card — Option B Luxury */}
-      <section className="rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] flex flex-col">
-        <div className="relative h-44 w-full overflow-hidden bg-[#EAF4F8]">
-          <CaptenlyImage
-            src="/screens/2c0d763d9374.jpg"
-            alt="حوض سباحة أولمبي معتمد"
-            fill
-            priority
-            sizes="(max-width: 1024px) 100vw, 480px"
-            className="object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/25 via-transparent to-transparent pointer-events-none" />
-          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#1D6E7D] text-[11px] font-bold shadow-sm inline-flex items-center gap-1">
-            <Icon name="thermostat" className="text-[13px]" />
-            <span>فحص 28.5°C شتاءً</span>
-          </span>
-        </div>
-
-        <div className="p-4 flex flex-col gap-3">
-          <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-[#0F172A] leading-snug">
-            اكتشف أفضل الأندية والمدارس الرياضية حولك
-          </h1>
-          <p className="text-xs text-[#475569] leading-relaxed">
-            أسعار واضحة، كباتن مسجلون ومعتمدون، ودفتر حصص QR يعمل أوفلاين عند المسبح.
-          </p>
-          <div className="flex flex-col gap-2 pt-1">
-            <Link
-              href="/explore"
-              className="w-full py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
-            >
-              <span>استكشف المنشآت القريبة منك</span>
-              <Icon name="arrow_back" className="text-[15px]" />
-            </Link>
-            <Link
-              href={
-                isFacilityManager
-                  ? "/dashboard/facility"
-                  : isCoachRole
-                  ? "/dashboard/coach"
-                  : isAthleteOrParent
-                  ? "/dashboard/athlete"
-                  : "/claim"
-              }
-              className="w-full py-2.5 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] text-xs font-bold text-center hover:border-[#1D6E7D] hover:text-[#1D6E7D] transition-colors"
-            >
-              {isFacilityManager
-                ? "لوحة إدارة منشأتك"
-                : isCoachRole
-                ? "لوحة الكابتن والشهادات"
-                : isAthleteOrParent
-                ? "حسابي ودفتر الحصص"
-                : "وثّق ناديك أو سجّل ككابتن"}
-            </Link>
+          {/* Scrollable Category Chips */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-margin px-margin">
+            {cats.map((item) => {
+              const active = cat === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setCat(item.key)}
+                  className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1 transition-all border ${
+                    active
+                      ? "bg-[#1D6E7D] border-[#1D6E7D] text-white shadow-sm"
+                      : "bg-white border-[#0F172A]/8 text-[#475569] hover:text-[#1D6E7D]"
+                  }`}
+                >
+                  {item.icon && <Icon name={item.icon} className="text-[14px]" />}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      </section>
+
+          {/* Bright Photo-First Mobile Hero Card — Option B Luxury */}
+          <section className="rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] flex flex-col">
+            <div className="relative h-44 w-full overflow-hidden bg-[#EAF4F8]">
+              <CaptenlyImage
+                src="/screens/2c0d763d9374.jpg"
+                alt="حوض سباحة أولمبي معتمد"
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 480px"
+                className="object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/25 via-transparent to-transparent pointer-events-none" />
+              <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#1D6E7D] text-[11px] font-bold shadow-sm inline-flex items-center gap-1">
+                <Icon name="thermostat" className="text-[13px]" />
+                <span>فحص 28.5°C شتاءً</span>
+              </span>
+            </div>
+
+            <div className="p-4 flex flex-col gap-3">
+              <h1 className="font-hero-headline-mobile text-hero-headline-mobile text-[#0F172A] leading-snug">
+                اكتشف أفضل الأندية والمدارس الرياضية حولك
+              </h1>
+              <p className="text-xs text-[#475569] leading-relaxed">
+                أسعار واضحة، كباتن مسجلون ومعتمدون، ودفتر حصص QR يعمل أوفلاين عند المسبح.
+              </p>
+              <div className="flex flex-col gap-2 pt-1">
+                <Link
+                  href="/explore"
+                  className="w-full py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <span>استكشف المنشآت القريبة منك</span>
+                  <Icon name="arrow_back" className="text-[15px]" />
+                </Link>
+                <Link
+                  href={
+                    isFacilityManager
+                      ? "/dashboard/facility"
+                      : isCoachRole
+                      ? "/dashboard/coach"
+                      : isAthleteOrParent
+                      ? "/dashboard/athlete"
+                      : "/claim"
+                  }
+                  className="w-full py-2.5 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] text-xs font-bold text-center hover:border-[#1D6E7D] hover:text-[#1D6E7D] transition-colors"
+                >
+                  {isFacilityManager
+                    ? "لوحة إدارة منشأتك"
+                    : isCoachRole
+                    ? "لوحة الكابتن والشهادات"
+                    : isAthleteOrParent
+                    ? "حسابي ودفتر الحصص"
+                    : "وثّق ناديك أو سجّل ككابتن"}
+                </Link>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {/* Facilities Section */}
       <section className="flex flex-col gap-3">

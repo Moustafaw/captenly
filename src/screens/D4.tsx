@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { FacilityCard } from "@/components/editorial/FacilityCard";
+import { CaptenlyImage } from "@/components/CaptenlyImage";
 import { facilityMatchesCity } from "@/lib/maps";
 
 export default function Desktop4() {
@@ -70,10 +71,13 @@ export default function Desktop4() {
               </p>
             </div>
             <div className="lg:col-span-4 h-44 rounded-2xl overflow-hidden relative">
-              <img
+              <CaptenlyImage
                 src="/screens/20b781f698f9.jpg"
                 alt="مسبح مدفأ"
-                className="w-full h-full object-cover"
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 420px"
+                className="object-cover"
               />
               <div className="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-dark-slate/90 text-electric-volt text-xs font-bold">
                 {poolFacilities.length} حمام سباحة متاح

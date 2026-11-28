@@ -456,4 +456,106 @@ test.describe("Remediation Regression Suite (GAP-001..GAP-021 & GAP-008)", () =>
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(page.getByText("تم الحفظ ✓")).toHaveCount(0);
   });
+
+  test("8. /dashboard/athlete/settings/notifications loads WhatsApp status, test action & delivery log", async ({
+    page,
+  }) => {
+    await page.route("**/api/notifications/whatsapp**", async (route, request) => {
+      if (request.method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            providerStatus: {
+              configured: false,
+              provider: "meta_whatsapp_cloud",
+              mode: "test_sandbox",
+              templateLang: "ar",
+              webhookConfigured: false,
+              cronConfigured: false,
+              freeTierNoteAr: "محرك إشعارات واتساب وسجلات الإرسال مفعّل على الخادم.",
+            },
+            dispatches: [
+              {
+                id: "wa-1",
+                dedupeKey: "attendance_checkin:CAP-M-7701:led-1:2026-11-28",
+                eventType: "attendance_checkin",
+                recipientMemberCode: "CAP-M-7701",
+                recipientPhoneMasked: "****5678",
+                messagePreviewAr: "كابتنلي: تم تسجيل حضور السبّاح سيف محمود في أكاديمية الموج الأزرق",
+                deliveryStatus: "delivered",
+                attemptCount: 1,
+                createdAt: "2026-11-28T10:00:00.000Z",
+              },
+            ],
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          deliveryStatus: "sent",
+          messageAr: "تم إرسال إشعار واتساب عبر الخادم بنجاح ✓",
+        }),
+      });
+    });
+
+    await page.addInitScript(
+      ({ persona, facilities }) => {
+        localStorage.setItem(
+          "captenly_platform_state_v6",
+          JSON.stringify({
+            personaId: persona.id,
+            allPersonas: [persona],
+            facilities,
+          })
+        );
+      },
+      { persona: SEED_ATHLETE_PERSONA, facilities: [SEED_FACILITY] }
+    );
+
+    await page.goto("/dashboard/athlete/settings/notifications", { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("سجل إشعارات واتساب وحالة التسليم")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("تم التسليم ✓")).toBeVisible();
+
+    await page.getByRole("button", { name: "إرسال رسالة تجريبية" }).click();
+    await expect(page.getByText("تم إرسال إشعار واتساب عبر الخادم بنجاح ✓")).toBeVisible();
+  });
+
+  test("9. /magazine persists newsletter subscription to /api/supabase/newsletter (GAP-017)", async ({
+    page,
+  }) => {
+    let submittedEmail = "";
+    await page.route("**/api/supabase/newsletter", async (route, request) => {
+      const payload = request.postDataJSON() as { email?: string };
+      submittedEmail = payload?.email || "";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          persisted: true,
+          messageAr: "تم تسجيل بريدك الإلكتروني بنجاح في قائمة نشرة كابتنلي الرياضية ✓",
+        }),
+      });
+    });
+
+    await page.goto("/magazine", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("load");
+    const emailInput = page.getByPlaceholder("أدخل بريدك الإلكتروني...");
+    await expect(emailInput).toBeVisible({ timeout: 15_000 });
+    await emailInput.fill("swimmer.test@example.com");
+    await page.getByRole("button", { name: "حفظ البريد للتحديثات المستقبلية" }).click();
+
+    await expect(
+      page.getByText(/تم تسجيل بريدك الإلكتروني بنجاح في قائمة نشرة كابتنلي الرياضية/)
+    ).toBeVisible({ timeout: 10_000 });
+    expect(submittedEmail).toBe("swimmer.test@example.com");
+  });
 });

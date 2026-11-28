@@ -9,8 +9,14 @@ import { ShareButton } from "@/components/editorial/ShareButton";
 import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export default function Desktop21() {
-  const { articles, facilities, isFavorite, toggleFavorite, subscribeNewsletter, currentPersona } =
-    useCaptenly();
+  const {
+    articles,
+    facilities,
+    isFavorite,
+    toggleFavorite,
+    subscribeNewsletterAsync,
+    currentPersona,
+  } = useCaptenly();
   const [selectedCat, setSelectedCat] = useState("الكل");
   const [searchQ, setSearchQ] = useState("");
   const [email, setEmail] = useState("");
@@ -36,9 +42,9 @@ export default function Desktop21() {
       ? filteredArticles.filter((a) => a.id !== featured.id)
       : filteredArticles;
 
-  const handleNewsletter = (e: React.FormEvent) => {
+  const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = subscribeNewsletter(email);
+    const res = await subscribeNewsletterAsync(email);
     setNewsletterMsg(res.messageAr);
     if (res.ok) setEmail("");
   };
@@ -386,7 +392,7 @@ export default function Desktop21() {
                 سجّل بريدك لقائمة نشرة كابتنلي القادمة
               </h2>
               <p className="text-xs text-[#64748B]">
-                أدلة اختيار الأكاديميات الآمنة وبرامج تغذية الناشئين. يتم حفظ بريدك محلياً كتفضيل حساب فقط — خدمة الإرسال البريدي الأسبوعي التلقائي غير مفعلة بعد.
+                أدلة اختيار الأكاديميات الآمنة وبرامج تغذية الناشئين — يُحفظ بريدك في قاعدة بيانات كابتنلي لتلقي ملخصات المجلة فور إرسال الأعداد الجديدة.
               </p>
             </div>
           </div>

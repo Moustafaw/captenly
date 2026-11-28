@@ -110,6 +110,7 @@ export function useSupplyDomain({
       }
     }
     const shouldDeferSupply =
+      pathname === "/" ||
       pathname.startsWith("/auth") ||
       pathname === "/welcome" ||
       pathname === "/privacy" ||

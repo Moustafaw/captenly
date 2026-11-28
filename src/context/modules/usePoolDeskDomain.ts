@@ -245,8 +245,13 @@ export function usePoolDeskDomain({
   };
 
   // GAP-006: Hydrate sessionLedgers from IndexedDB on mount when localStorage sessionLedgers is empty
-  // (never overwrites newer server state when online).
+  // (skipped for unauthenticated guests on public catalog routes to keep public TBT fast).
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = window.location.pathname || "/";
+    if (!isAuthenticated && !p.startsWith("/dashboard")) {
+      return;
+    }
     let cancelled = false;
     void readAllOfflineShiftSnapshots().then((snapshots) => {
       if (cancelled || snapshots.length === 0) return;
@@ -269,7 +274,7 @@ export function usePoolDeskDomain({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Normalize any queue items interrupted mid-sync before a reload
   useEffect(() => {

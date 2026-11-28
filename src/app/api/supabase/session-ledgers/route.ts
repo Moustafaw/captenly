@@ -6,6 +6,7 @@ import { withPgClient } from "@/lib/supabase/pgFallback";
 import { checkCoachDelegatedQrAccess } from "@/lib/server/facilityLinksDb";
 import { getDeterministicCoachId } from "@/lib/coachProvisioning";
 import { enforceRateLimit, rateLimitExceededResponse } from "@/lib/server/rateLimit";
+import { dispatchWhatsAppNotification } from "@/lib/server/whatsappNotifications";
 import {
   getCallerAuthorizedFacilityIds,
   getCallerFacilityAccessRole,
@@ -1008,6 +1009,41 @@ async function handlePinCheckinPost(
       ? ` — تنبيه: متبقي ${remaining} حصة فقط في هذا الكود.`
       : "";
 
+  if (storedLedger.memberCode) {
+    try {
+      await dispatchWhatsAppNotification({
+        eventType: "attendance_checkin",
+        recipientMemberCode: storedLedger.memberCode,
+        facilityId: storedLedger.facilityId || null,
+        ledgerId: storedLedger.id,
+        athleteNameAr: storedLedger.athleteNameAr,
+        facilityNameAr: storedLedger.facilityNameAr,
+        completedSessions: storedLedger.completedSessions,
+        totalSessions: storedLedger.totalSessions,
+        remainingSessions: remaining,
+        dedupeScope: `${storedLedger.id}-s${nextNum}`,
+        actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+      });
+      if (remaining > 0 && remaining <= 2) {
+        await dispatchWhatsAppNotification({
+          eventType: "subscription_expiring",
+          recipientMemberCode: storedLedger.memberCode,
+          facilityId: storedLedger.facilityId || null,
+          ledgerId: storedLedger.id,
+          athleteNameAr: storedLedger.athleteNameAr,
+          facilityNameAr: storedLedger.facilityNameAr,
+          completedSessions: storedLedger.completedSessions,
+          totalSessions: storedLedger.totalSessions,
+          remainingSessions: remaining,
+          dedupeScope: `${storedLedger.id}-rem-${remaining}`,
+          actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+        });
+      }
+    } catch {
+      // Never block check-in response on notification dispatch
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     persisted: true,
@@ -1649,6 +1685,41 @@ export async function POST(request: Request) {
           reason: casRes.reason || "db_error",
         });
       }
+      if (storedLedger.memberCode) {
+        const remaining = Math.max(0, storedLedger.totalSessions - storedLedger.completedSessions);
+        try {
+          await dispatchWhatsAppNotification({
+            eventType: "attendance_checkin",
+            recipientMemberCode: storedLedger.memberCode,
+            facilityId: storedLedger.facilityId || null,
+            ledgerId: storedLedger.id,
+            athleteNameAr: storedLedger.athleteNameAr,
+            facilityNameAr: storedLedger.facilityNameAr,
+            completedSessions: storedLedger.completedSessions,
+            totalSessions: storedLedger.totalSessions,
+            remainingSessions: remaining,
+            dedupeScope: `${storedLedger.id}-s${storedLedger.completedSessions}`,
+            actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+          });
+          if (remaining > 0 && remaining <= 2) {
+            await dispatchWhatsAppNotification({
+              eventType: "subscription_expiring",
+              recipientMemberCode: storedLedger.memberCode,
+              facilityId: storedLedger.facilityId || null,
+              ledgerId: storedLedger.id,
+              athleteNameAr: storedLedger.athleteNameAr,
+              facilityNameAr: storedLedger.facilityNameAr,
+              completedSessions: storedLedger.completedSessions,
+              totalSessions: storedLedger.totalSessions,
+              remainingSessions: remaining,
+              dedupeScope: `${storedLedger.id}-rem-${remaining}`,
+              actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+            });
+          }
+        } catch {
+          // Never block check-in response on notification dispatch
+        }
+      }
       return NextResponse.json({ ok: true, persisted: true, ledger: responseLedger });
     }
 
@@ -1668,6 +1739,47 @@ export async function POST(request: Request) {
         promoIncrementTarget.facilityPayload,
         admin
       );
+    }
+
+    if (storedLedger.memberCode && existingPayload) {
+      try {
+        if (storedLedger.totalSessions > (existingPayload.totalSessions || 0)) {
+          await dispatchWhatsAppNotification({
+            eventType: "subscription_renewal",
+            recipientMemberCode: storedLedger.memberCode,
+            facilityId: storedLedger.facilityId || null,
+            ledgerId: storedLedger.id,
+            athleteNameAr: storedLedger.athleteNameAr,
+            facilityNameAr: storedLedger.facilityNameAr,
+            completedSessions: storedLedger.completedSessions,
+            totalSessions: storedLedger.totalSessions,
+            remainingSessions: Math.max(0, storedLedger.totalSessions - storedLedger.completedSessions),
+            dedupeScope: `${storedLedger.id}-t${storedLedger.totalSessions}`,
+            actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+          });
+        }
+        const prevConfirmed = new Set(
+          (existingPayload.receipts || []).filter((r) => r.confirmedByProvider).map((r) => r.id)
+        );
+        const newlyConfirmed = (storedLedger.receipts || []).find(
+          (r) => r.confirmedByProvider && !prevConfirmed.has(r.id)
+        );
+        if (newlyConfirmed) {
+          await dispatchWhatsAppNotification({
+            eventType: "receipt_confirmed",
+            recipientMemberCode: storedLedger.memberCode,
+            facilityId: storedLedger.facilityId || null,
+            ledgerId: storedLedger.id,
+            athleteNameAr: storedLedger.athleteNameAr,
+            facilityNameAr: storedLedger.facilityNameAr,
+            amountEgp: newlyConfirmed.amountEgp,
+            dedupeScope: `${storedLedger.id}-rcpt-${newlyConfirmed.id}`,
+            actionHref: `/dashboard/ledger?id=${encodeURIComponent(storedLedger.id)}`,
+          });
+        }
+      } catch {
+        // Best-effort notification
+      }
     }
 
     return NextResponse.json({ ok: true, persisted: true, ledger: responseLedger });

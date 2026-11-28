@@ -127,10 +127,48 @@ export function useTelemetryDomain({
       return { ok: false, messageAr: "يرجى إدخال بريد إلكتروني صحيح." };
     }
     if (!newsletterEmails.includes(clean)) setNewsletterEmails((prev) => [clean, ...prev]);
+    postSupabaseSync("/api/supabase/newsletter", { email: clean, source: "magazine" });
     return {
       ok: true,
-      messageAr: "تم حفظ بريدك كاهتمام متابعة محلياً — خدمة النشرة البريدية الأسبوعية ليست مفعلة بعد.",
+      messageAr: "تم استلام بريدك الإلكتروني لقائمة نشرة كابتنلي.",
     };
+  };
+
+  const subscribeNewsletterAsync: CaptenlyContextType["subscribeNewsletterAsync"] = async (
+    email: string
+  ) => {
+    const clean = email.trim().toLowerCase();
+    if (!clean || !clean.includes("@")) {
+      return { ok: false, persisted: false, messageAr: "يرجى إدخال بريد إلكتروني صحيح." };
+    }
+    if (!newsletterEmails.includes(clean)) setNewsletterEmails((prev) => [clean, ...prev]);
+    try {
+      const res = await fetch("/api/supabase/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clean, source: "magazine" }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        return {
+          ok: true,
+          persisted: Boolean(data?.persisted),
+          messageAr:
+            data?.messageAr || "تم تسجيل بريدك الإلكتروني بنجاح في قائمة نشرة كابتنلي الرياضية ✓",
+        };
+      }
+      return {
+        ok: false,
+        persisted: false,
+        messageAr: data?.messageAr || "تعذر حفظ البريد الإلكتروني في قاعدة البيانات حالياً.",
+      };
+    } catch {
+      return {
+        ok: false,
+        persisted: false,
+        messageAr: "تعذر الاتصال بالخادم لحفظ البريد الإلكتروني.",
+      };
+    }
   };
 
   const subscribeDemandRadar: CaptenlyContextType["subscribeDemandRadar"] = (entry) => {
@@ -467,6 +505,7 @@ export function useTelemetryDomain({
     unreadNotificationsCount,
     updateUserSettings,
     subscribeNewsletter,
+    subscribeNewsletterAsync,
     subscribeDemandRadar,
     createStructuredWhatsappLead,
     getSkillEvaluationForAthlete,

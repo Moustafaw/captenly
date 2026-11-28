@@ -366,6 +366,34 @@ export async function POST(request: Request) {
 
     if (body.type === "minor_upsert" && body.minorAthlete?.id) {
       const child = body.minorAthlete;
+      const logMinorConsent = async () => {
+        if (!child.parentConsentVerified) return;
+        const consentText =
+          "موافقة ولي الأمر على إنشاء ملف الرياضي الناشئ وإدارة سجلاته وفق قانون حماية البيانات 151/2020.";
+        if (admin) {
+          try {
+            await admin.from("captenly_consent_logs").insert({
+              parent_member_code: memberCode,
+              child_athlete_id: child.id,
+              child_member_code: child.childMemberCode || null,
+              consent_text_ar: consentText,
+              granted: true,
+            });
+            return;
+          } catch {
+            // best-effort audit table
+          }
+        }
+        await withPgClient(async (client) => {
+          await client.query(
+            `insert into public.captenly_consent_logs (parent_member_code, child_athlete_id, child_member_code, consent_text_ar, granted)
+             values ($1, $2, $3, $4, true)`,
+            [memberCode, child.id, child.childMemberCode || null, consentText]
+          );
+          return true;
+        });
+      };
+
       if (admin) {
         const { error } = await admin.from("captenly_minor_athletes").upsert(
           {
@@ -378,7 +406,10 @@ export async function POST(request: Request) {
           },
           { onConflict: "id" }
         );
-        if (!error) return NextResponse.json({ persisted: true });
+        if (!error) {
+          await logMinorConsent().catch(() => undefined);
+          return NextResponse.json({ persisted: true });
+        }
       }
       const pg = await withUserStatePg(async (client) => {
         await client.query(
@@ -394,6 +425,9 @@ export async function POST(request: Request) {
         );
         return true;
       });
+      if (pg.ok) {
+        await logMinorConsent().catch(() => undefined);
+      }
       return NextResponse.json({ persisted: pg.ok });
     }
 

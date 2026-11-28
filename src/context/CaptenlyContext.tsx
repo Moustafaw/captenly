@@ -379,6 +379,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
       saveEditorialArticle: supply.saveEditorialArticle,
       deleteEditorialArticle: supply.deleteEditorialArticle,
       subscribeNewsletter: telemetry.subscribeNewsletter,
+      subscribeNewsletterAsync: telemetry.subscribeNewsletterAsync,
       userSettings: telemetry.userSettings,
       updateUserSettings: telemetry.updateUserSettings,
       subscribeDemandRadar: telemetry.subscribeDemandRadar,
