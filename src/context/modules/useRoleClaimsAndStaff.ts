@@ -391,49 +391,107 @@ export function useRoleClaimsAndStaff({
     }
   };
 
-  const respondToStaffInvitation: CaptenlyContextType["respondToStaffInvitation"] = (
+  const respondToStaffInvitation: CaptenlyContextType["respondToStaffInvitation"] = async (
     facilityId,
     staffId,
     decision
   ) => {
-    const { facilities: facList, currentPersona: persona, updateFacilityAndSync, pushNotification } =
-      depsRef.current;
+    const {
+      facilities: facList,
+      currentPersona: persona,
+      setFacilities,
+      pushNotification,
+    } = depsRef.current;
     const targetFac = facList.find((f) => f.id === facilityId);
     const targetStaff = targetFac?.staffMembers?.find((s) => s.id === staffId);
-    if (!targetFac || !targetStaff) return;
-
-    updateFacilityAndSync(facilityId, (f) => ({
-      ...f,
-      staffMembers: (f.staffMembers || []).map((st) =>
-        st.id === staffId
-          ? {
-              ...st,
-              invitationStatus: decision,
-              assignedDateAr:
-                decision === "accepted" ? "اليوم — دعوة مقبولة ✓" : "تم رفض الدعوة",
-            }
-          : st
-      ),
-    }));
-
-    if (decision === "declined" && activeStaffAssignmentId === staffId) {
-      setActiveStaffAssignmentId(null);
-      setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(persona));
+    if (!targetFac || !targetStaff) {
+      pushNotification({
+        titleAr: "تعذر العثور على الدعوة",
+        messageAr: "لم يتم العثور على بيانات الدعوة أو المنشأة المطلوبة.",
+        type: "system",
+      });
+      return;
     }
 
-    pushNotification({
-      titleAr:
-        decision === "accepted"
-          ? `تم قبول الانضمام لطاقم ${targetFac.nameAr}`
-          : `تم رفض دعوة ${targetFac.nameAr}`,
-      messageAr:
-        decision === "accepted"
-          ? `يمكنك الآن التبديل إلى وضع موظف (${targetStaff.roleTitleAr}) في أي وقت.`
-          : `تم تحديث حالة الدعوة الخاصة بـ ${targetFac.nameAr}.`,
-      type: "system",
-      actionLabelAr: decision === "accepted" ? "تبديل وضع العمل" : undefined,
-      actionHref: decision === "accepted" ? "/dashboard/athlete/settings" : undefined,
-    });
+    try {
+      const res = await fetch("/api/supabase/staff-invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityId, staffId, decision }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        pushNotification({
+          titleAr: `تعذر تحديث دعوة ${targetFac.nameAr}`,
+          messageAr:
+            data?.messageAr ||
+            (res.status === 401
+              ? "يرجى تسجيل الدخول أولاً للرد على دعوة العمل."
+              : res.status === 403
+                ? "غير مصرح لك بالرد على هذه الدعوة."
+                : res.status === 409
+                  ? "تم الرد على هذه الدعوة مسبقاً."
+                  : res.status === 410
+                    ? "انتهت صلاحية هذه الدعوة أو تم إلغاؤها."
+                    : "تعذر حفظ الرد على الدعوة في الخادم حالياً. حاول مرة أخرى."),
+          type: "system",
+        });
+        return;
+      }
+
+      const returnedStaffList = Array.isArray(data?.facility?.staffMembers)
+        ? (data.facility.staffMembers as FacilityStaffMember[])
+        : null;
+      const updatedRemoteStaff = returnedStaffList?.find((s) => s.id === staffId);
+
+      setFacilities((prev) =>
+        prev.map((f) => {
+          if (f.id !== facilityId) return f;
+          return {
+            ...f,
+            staffMembers: (f.staffMembers || []).map((st) =>
+              st.id === staffId
+                ? {
+                    ...st,
+                    ...(updatedRemoteStaff || {}),
+                    role: updatedRemoteStaff?.role || st.role,
+                    invitationStatus: decision,
+                    assignedDateAr:
+                      updatedRemoteStaff?.assignedDateAr ||
+                      (decision === "accepted" ? "اليوم — دعوة مقبولة ✓" : "تم رفض الدعوة"),
+                  }
+                : st
+            ),
+          };
+        })
+      );
+
+      if (decision === "declined" && activeStaffAssignmentId === staffId) {
+        setActiveStaffAssignmentId(null);
+        setActiveWorkspaceContextState(getDefaultWorkspaceContextForPersona(persona));
+      }
+
+      pushNotification({
+        titleAr:
+          decision === "accepted"
+            ? `تم قبول الانضمام لطاقم ${targetFac.nameAr}`
+            : `تم رفض دعوة ${targetFac.nameAr}`,
+        messageAr:
+          decision === "accepted"
+            ? `يمكنك الآن التبديل إلى وضع موظف (${targetStaff.roleTitleAr}) في أي وقت.`
+            : `تم تحديث حالة الدعوة الخاصة بـ ${targetFac.nameAr}.`,
+        type: "system",
+        actionLabelAr: decision === "accepted" ? "تبديل وضع العمل" : undefined,
+        actionHref: decision === "accepted" ? "/dashboard/athlete/settings" : undefined,
+      });
+    } catch {
+      pushNotification({
+        titleAr: `تعذر الاتصال بالخادم لدعوة ${targetFac.nameAr}`,
+        messageAr: "تحقق من اتصال الإنترنت ثم أعد المحاولة — لم يتم تغيير حالة الدعوة.",
+        type: "system",
+      });
+    }
   };
 
   const addFacilityStaffMember: CaptenlyContextType["addFacilityStaffMember"] = (

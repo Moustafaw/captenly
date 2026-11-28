@@ -2,34 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Material Symbols font is loaded via <link> in app/layout.tsx (a CSS @import after @tailwind is dropped). */
-
-@font-face {
-  font-family: 'Material Symbols Outlined';
-  font-style: normal;
-  font-weight: 100 700;
-  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
-  font-display: block;
-}
-
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined' !important;
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-feature-settings: 'liga';
-  font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  vertical-align: middle;
-}
-
 :root {
   --captenly-slate: #0f172a;
   --captenly-carbon: #0b1220;

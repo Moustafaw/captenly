@@ -336,6 +336,7 @@ export interface SessionCheckin {
   verifiedByAr: string;
   coachNoteAr?: string;
   wasOffline?: boolean;
+  clientEventId?: string;
   scannedAtIso?: string;
   scannedByNameAr?: string;
   scannedByMemberCode?: string;
@@ -585,6 +586,19 @@ export interface OfflineCheckinQueueItem {
   coachNoteAr?: string;
   queuedAtIso: string;
   synced: boolean;
+  clientEventId?: string;
+  syncStatus?: "pending" | "syncing" | "synced" | "failed";
+  retryCount?: number;
+  lastErrorCode?: string;
+  lastErrorAr?: string;
+}
+
+export interface SyncStatusSummary {
+  pendingCount: number;
+  syncingCount: number;
+  failedCount: number;
+  lastErrorAr?: string;
+  lastSyncedAtIso?: string;
 }
 
 export interface SmartFiltersState {

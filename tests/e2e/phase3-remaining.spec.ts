@@ -213,8 +213,9 @@ test.describe("F-021: Zero critical or serious axe-core violations & semantic <m
       await page.locator("main").first().waitFor({ state: "visible", timeout: 15_000 });
       await page.locator("h1").first().waitFor({ state: "visible", timeout: 15_000 });
 
-      // Every page must expose a semantic <main> landmark
-      expect(await page.locator("main").count(), `Expected <main> on ${route}`).toBeGreaterThanOrEqual(1);
+      // Every page must expose exactly one semantic <main> landmark
+      const mainCount = await page.locator("main").count();
+      expect(mainCount, `Expected single <main> landmark on ${route}`).toBe(1);
 
       const results = await new AxeBuilder({ page }).analyze();
       const severe = results.violations.filter(

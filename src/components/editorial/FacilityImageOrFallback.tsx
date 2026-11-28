@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { Facility } from "@/types/captenly";
+import { Icon } from "@/components/Icon";
 import { CaptenlyImage } from "@/components/CaptenlyImage";
 
 export function resolveFacilityImage(heroImage?: string): string {
@@ -83,7 +84,7 @@ export function FacilityImageOrFallback({
         />
         {compact ? (
           <div className="relative z-10 flex flex-col items-center justify-center gap-0.5 px-1.5 text-white/85">
-            <span className="material-symbols-outlined text-lg text-[#a3ff00]">pool</span>
+            <Icon name="pool" className="text-lg text-[#a3ff00]" />
             <span className="text-[9px] font-bold leading-tight text-white/75 line-clamp-1">
               دليل عام
             </span>
@@ -91,7 +92,7 @@ export function FacilityImageOrFallback({
         ) : (
           <div className="relative z-10 flex flex-col items-center justify-center gap-1.5 px-4 max-w-xs">
             <div className="w-10 h-10 rounded-full bg-white/10 border border-white/15 backdrop-blur-sm flex items-center justify-center text-[#a3ff00]">
-              <span className="material-symbols-outlined text-[20px]">pool</span>
+              <Icon name="pool" className="text-[20px]" />
             </div>
             <span className="text-[11px] font-extrabold text-white tracking-tight">
               مدرج من الدليل العام

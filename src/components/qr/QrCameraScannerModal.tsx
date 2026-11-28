@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import jsQR from "jsqr";
 import { Icon } from "@/components/Icon";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { parseCaptenlyQr } from "@/lib/qrPayload";
@@ -47,6 +46,15 @@ export function QrCameraScannerModal({
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const busyHandlingRef = useRef(false);
+  const jsQrRef = useRef<typeof import("jsqr")["default"] | null>(null);
+
+  const loadJsQr = useCallback(async () => {
+    if (jsQrRef.current) return jsQrRef.current;
+    const mod = await import("jsqr");
+    const fn = (mod.default ?? mod) as typeof import("jsqr")["default"];
+    jsQrRef.current = fn;
+    return fn;
+  }, []);
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -273,6 +281,11 @@ export function QrCameraScannerModal({
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+        const jsQR = await loadJsQr();
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -318,7 +331,7 @@ export function QrCameraScannerModal({
       cancelled = true;
       stopCamera();
     };
-  }, [open, stopCamera, handleDecodedPayload]);
+  }, [open, stopCamera, handleDecodedPayload, loadJsQr]);
 
   const handleImageFileScan = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -326,7 +339,7 @@ export function QrCameraScannerModal({
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement("canvas");
         canvas.width = img.width;
         canvas.height = img.height;
@@ -334,14 +347,23 @@ export function QrCameraScannerModal({
         if (!ctx) return;
         ctx.drawImage(img, 0, 0);
         const imgData = ctx.getImageData(0, 0, img.width, img.height);
-        const decoded = jsQR(imgData.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
-        if (decoded?.data) {
-          handleDecodedPayload(decoded.data);
-        } else {
+        try {
+          const jsQR = await loadJsQr();
+          const decoded = jsQR(imgData.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
+          if (decoded?.data) {
+            handleDecodedPayload(decoded.data);
+          } else {
+            setScanStatus({
+              type: "error",
+              titleAr: "لم يتم اكتشاف باركود QR واضح في الصورة",
+              detailAr: "تأكد من وضوح الـ QR وقربه داخل الإطار.",
+            });
+          }
+        } catch {
           setScanStatus({
             type: "error",
-            titleAr: "لم يتم اكتشاف باركود QR واضح في الصورة",
-            detailAr: "تأكد من وضوح الـ QR وقربه داخل الإطار.",
+            titleAr: "تعذر تحميل قارئ QR",
+            detailAr: "تأكد من اتصالك بالشبكة ثم أعد المحاولة.",
           });
         }
       };

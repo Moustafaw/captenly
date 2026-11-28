@@ -19,7 +19,13 @@ import {
   getFacilityPoolDeskConfig,
   resolveCoachScanPermission,
 } from "@/lib/poolDeskPricing";
-import { postSupabaseSync } from "./storageHelpers";
+import {
+  mergeSessionLedgers,
+  readAllOfflineShiftSnapshots,
+  readOfflineShiftSnapshot,
+  upsertLedgerInOfflineShiftSnapshot,
+} from "@/lib/offlineShiftDb";
+import { syncToSupabase, type SyncResult } from "./storageHelpers";
 import type { CaptenlyContextType } from "./types";
 import { createPoolDeskRenewalsAndReceipts } from "./usePoolDeskRenewalsAndReceipts";
 
@@ -28,6 +34,29 @@ function generateSubscriptionCode(): string {
   const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
   const digit = Math.floor(1 + Math.random() * 9);
   return `SUB-${rand4}-${letter}${digit}`;
+}
+
+function createClientEventId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function mergeServerLedgerPreservingPin(
+  localLedger: SessionLedger | undefined,
+  serverLedger: SessionLedger | undefined
+): SessionLedger | undefined {
+  if (!serverLedger || typeof serverLedger !== "object") return localLedger;
+  return {
+    ...serverLedger,
+    pinCode:
+      serverLedger.pinCode === "****" &&
+      localLedger?.pinCode &&
+      localLedger.pinCode !== "****"
+        ? localLedger.pinCode
+        : serverLedger.pinCode,
+  };
 }
 
 export interface PoolDeskCheckinsInput {
@@ -70,14 +99,24 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
     getDeps,
   } = input;
 
-  const enrollSwimmerByMemberCode: CaptenlyContextType["enrollSwimmerByMemberCode"] = (payload) => {
+  const upsertLedgerInStateAndIdb = (ledger: SessionLedger) => {
+    setSessionLedgers((prev) => {
+      const exists = prev.some((l) => l.id === ledger.id);
+      return exists ? prev.map((l) => (l.id === ledger.id ? ledger : l)) : [ledger, ...prev];
+    });
+    if (ledger.facilityId) {
+      void upsertLedgerInOfflineShiftSnapshot(ledger.facilityId, ledger);
+    }
+  };
+
+  const buildEnrollmentState = (
+    payload: Parameters<CaptenlyContextType["enrollSwimmerByMemberCode"]>[0]
+  ) => {
     const {
       currentPersona: persona,
       allPersonas,
       memberRegistry,
-      setMemberRegistry,
       minorAthletes,
-      pushNotification,
     } = getDeps();
 
     const rawCode = payload.memberCode.trim().toUpperCase();
@@ -172,11 +211,48 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
       ],
     };
 
-    setSessionLedgers((prev) => [newLedger, ...prev]);
+    return {
+      persona,
+      normalizedCode,
+      regMatch,
+      personaMatch,
+      targetFacility,
+      athleteId,
+      athleteNameAr,
+      subscriptionCode,
+      trackLabelAr,
+      newLedger,
+    };
+  };
 
-    if (targetFacility && payload.promoCodeUsed) {
+  const commitLocalEnrollmentEffects = (
+    built: ReturnType<typeof buildEnrollmentState>,
+    promoCodeUsed?: string,
+    finalLedger?: SessionLedger
+  ) => {
+    const { setMemberRegistry, pushNotification } = getDeps();
+    const {
+      persona,
+      normalizedCode,
+      regMatch,
+      personaMatch,
+      targetFacility,
+      athleteId,
+      athleteNameAr,
+      subscriptionCode,
+      trackLabelAr,
+      newLedger,
+    } = built;
+    const savedLedger = finalLedger || newLedger;
+
+    setSessionLedgers((prev) => [savedLedger, ...prev]);
+    if (savedLedger.facilityId) {
+      void upsertLedgerInOfflineShiftSnapshot(savedLedger.facilityId, savedLedger);
+    }
+
+    if (targetFacility && promoCodeUsed) {
       const cfg = getFacilityPoolDeskConfig(targetFacility);
-      const promoCodeUpper = payload.promoCodeUsed.trim().toUpperCase();
+      const promoCodeUpper = promoCodeUsed.trim().toUpperCase();
       if (cfg.promoCodes.some((p) => p.code.toUpperCase() === promoCodeUpper)) {
         updateFacilityPoolDeskConfig(targetFacility.id, {
           promoCodes: cfg.promoCodes.map((p) =>
@@ -184,25 +260,6 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
           ),
         });
       }
-    }
-
-    if (!effectiveOffline) {
-      postSupabaseSync("/api/supabase/session-ledgers", { ledger: newLedger });
-    } else {
-      setOfflineQueue((prev) => [
-        {
-          id: `oq-enroll-${Date.now()}`,
-          kind: "enrollment",
-          ledgerId: newLedger.id,
-          athleteNameAr,
-          sessionNumber: 0,
-          method: "offline_sync",
-          coachNoteAr: `تفعيل اشتراك جديد (${subscriptionCode}) أوفلاين`,
-          queuedAtIso: new Date().toISOString(),
-          synced: false,
-        },
-        ...prev,
-      ]);
     }
 
     if (targetFacility) {
@@ -230,8 +287,8 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
           phone: personaMatch?.phone || "",
           city: targetFacility?.city || persona.city || "مصر",
           role: "adult_athlete",
-          isMinor: payload.isMinor,
-          parentNameAr: payload.parentNameAr,
+          isMinor: savedLedger.isMinor,
+          parentNameAr: savedLedger.parentNameAr,
         },
         ...prev,
       ]);
@@ -239,40 +296,170 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
 
     pushNotification({
       titleAr: `تم إصدار كود اشتراك جديد (${subscriptionCode}) لـ ${athleteNameAr}`,
-      messageAr: `الباقة (${payload.totalSessions} حصص — ${trackLabelAr}) مفعّلة الآن بكود اشتراك متجدد ${subscriptionCode} ينتهي تلقائياً بعد إتمام الـ ${payload.totalSessions} حصص.`,
+      messageAr: `الباقة (${savedLedger.totalSessions} حصص — ${trackLabelAr}) مفعّلة الآن بكود اشتراك متجدد ${subscriptionCode} ينتهي تلقائياً بعد إتمام الـ ${savedLedger.totalSessions} حصص.`,
       type: "session_reminder",
       actionLabelAr: "فتح سجل الاشتراكات",
       actionHref: "/dashboard/ledger",
     });
+  };
+
+  const enrollSwimmerByMemberCodeAsync: NonNullable<
+    CaptenlyContextType["enrollSwimmerByMemberCodeAsync"]
+  > = async (payload) => {
+    const built = buildEnrollmentState(payload);
+    const clientEventId = createClientEventId();
+
+    if (effectiveOffline) {
+      commitLocalEnrollmentEffects(built, payload.promoCodeUsed);
+      setOfflineQueue((prev) => [
+        {
+          id: `oq-enroll-${Date.now()}`,
+          clientEventId,
+          kind: "enrollment",
+          ledgerId: built.newLedger.id,
+          athleteNameAr: built.athleteNameAr,
+          sessionNumber: 0,
+          method: "offline_sync",
+          syncStatus: "pending",
+          retryCount: 0,
+          coachNoteAr: `تفعيل اشتراك جديد (${built.subscriptionCode}) أوفلاين`,
+          queuedAtIso: new Date().toISOString(),
+          synced: false,
+        },
+        ...prev,
+      ]);
+      return {
+        ok: true,
+        ledger: built.newLedger,
+        messageAr: `تم تسجيل ${built.athleteNameAr} (${built.trackLabelAr}) أوفلاين بكود (${built.subscriptionCode}) — سيتم الرفع تلقائياً عند عودة الشبكة.`,
+      };
+    }
+
+    const syncRes = await syncToSupabase("/api/supabase/session-ledgers", {
+      ledger: built.newLedger,
+      promoCodeUsed: payload.promoCodeUsed,
+      clientEventId,
+    });
+
+    if (!syncRes.ok) {
+      return {
+        ok: false,
+        messageAr: syncRes.messageAr || "تعذر تفعيل الاشتراك على السيرفر — لم يتم الخصم أو الحفظ.",
+        syncResult: syncRes,
+      };
+    }
+
+    const mergedLedger =
+      mergeServerLedgerPreservingPin(
+        built.newLedger,
+        syncRes.data?.ledger as SessionLedger | undefined
+      ) || built.newLedger;
+
+    commitLocalEnrollmentEffects(built, payload.promoCodeUsed, mergedLedger);
+
+    void syncToSupabase("/api/supabase/notifications", {
+      memberCode: built.normalizedCode,
+      titleAr: `تم تفعيل اشتراكك (${payload.totalSessions} حصص) — كود الاشتراك: ${built.subscriptionCode}`,
+      messageAr: `أهلاً ${built.athleteNameAr} — تم تفعيل باقتك (${built.trackLabelAr}) في ${built.targetFacility?.nameAr || built.persona.fullNameAr}. كود اشتراكك لهذه الباقة هو ${built.subscriptionCode}.`,
+      type: "session_reminder",
+      actionLabelAr: "عرض كود الاشتراك والـ QR",
+      actionHref: "/dashboard/ledger",
+    });
+
+    return {
+      ok: true,
+      ledger: mergedLedger,
+      syncResult: syncRes,
+      messageAr: `تم تسجيل ${built.athleteNameAr} (${built.trackLabelAr}) وتوليد كود اشتراك جديد (${built.subscriptionCode}) صالح لـ ${payload.totalSessions} حصص فقط!`,
+    };
+  };
+
+  const enrollSwimmerByMemberCode: CaptenlyContextType["enrollSwimmerByMemberCode"] = (payload) => {
+    const built = buildEnrollmentState(payload);
+    const clientEventId = createClientEventId();
+    commitLocalEnrollmentEffects(built, payload.promoCodeUsed);
 
     if (!effectiveOffline) {
-      postSupabaseSync("/api/supabase/notifications", {
-        memberCode: normalizedCode,
-        titleAr: `تم تفعيل اشتراكك (${payload.totalSessions} حصص) — كود الاشتراك: ${subscriptionCode}`,
-        messageAr: `أهلاً ${athleteNameAr} — تم تفعيل باقتك (${trackLabelAr}) في ${targetFacility?.nameAr || persona.fullNameAr}. كود اشتراكك لهذه الباقة هو ${subscriptionCode}.`,
-        type: "session_reminder",
-        actionLabelAr: "عرض كود الاشتراك والـ QR",
-        actionHref: "/dashboard/ledger",
+      void syncToSupabase("/api/supabase/session-ledgers", {
+        ledger: built.newLedger,
+        promoCodeUsed: payload.promoCodeUsed,
+        clientEventId,
+      }).then((syncRes) => {
+        if (syncRes.ok) {
+          const mergedLedger = mergeServerLedgerPreservingPin(
+            built.newLedger,
+            syncRes.data?.ledger as SessionLedger | undefined
+          );
+          if (mergedLedger) upsertLedgerInStateAndIdb(mergedLedger);
+          void syncToSupabase("/api/supabase/notifications", {
+            memberCode: built.normalizedCode,
+            titleAr: `تم تفعيل اشتراكك (${payload.totalSessions} حصص) — كود الاشتراك: ${built.subscriptionCode}`,
+            messageAr: `أهلاً ${built.athleteNameAr} — تم تفعيل باقتك (${built.trackLabelAr}) في ${built.targetFacility?.nameAr || built.persona.fullNameAr}. كود اشتراكك لهذه الباقة هو ${built.subscriptionCode}.`,
+            type: "session_reminder",
+            actionLabelAr: "عرض كود الاشتراك والـ QR",
+            actionHref: "/dashboard/ledger",
+          });
+        } else {
+          setOfflineQueue((prev) => [
+            {
+              id: `oq-enroll-${Date.now()}`,
+              clientEventId,
+              kind: "enrollment",
+              ledgerId: built.newLedger.id,
+              athleteNameAr: built.athleteNameAr,
+              sessionNumber: 0,
+              method: "offline_sync",
+              syncStatus: "failed",
+              retryCount: 1,
+              lastErrorCode: syncRes.errorCode,
+              lastErrorAr: syncRes.messageAr,
+              coachNoteAr: `تفعيل اشتراك جديد (${built.subscriptionCode})`,
+              queuedAtIso: new Date().toISOString(),
+              synced: false,
+            },
+            ...prev,
+          ]);
+        }
       });
+    } else {
+      setOfflineQueue((prev) => [
+        {
+          id: `oq-enroll-${Date.now()}`,
+          clientEventId,
+          kind: "enrollment",
+          ledgerId: built.newLedger.id,
+          athleteNameAr: built.athleteNameAr,
+          sessionNumber: 0,
+          method: "offline_sync",
+          syncStatus: "pending",
+          retryCount: 0,
+          coachNoteAr: `تفعيل اشتراك جديد (${built.subscriptionCode}) أوفلاين`,
+          queuedAtIso: new Date().toISOString(),
+          synced: false,
+        },
+        ...prev,
+      ]);
     }
 
     return {
       ok: true,
-      ledger: newLedger,
-      messageAr: `تم تسجيل ${athleteNameAr} (${trackLabelAr}) وتوليد كود اشتراك جديد (${subscriptionCode}) صالح لـ ${payload.totalSessions} حصص فقط!`,
+      ledger: built.newLedger,
+      messageAr: `تم تسجيل ${built.athleteNameAr} (${built.trackLabelAr}) وتوليد كود اشتراك جديد (${built.subscriptionCode}) صالح لـ ${payload.totalSessions} حصص فقط!`,
     };
   };
 
-  const checkInSession: CaptenlyContextType["checkInSession"] = (
-    ledgerId,
-    enteredPinOrQr,
-    method,
-    coachNoteAr,
-    options
+  const validateCheckinLocally = (
+    targetLedger: SessionLedger,
+    enteredPinOrQr: string,
+    method: "pin_4digit" | "qr_scan" | "offline_sync",
+    coachNoteAr?: string,
+    options?: {
+      overrideDuplicate3h?: boolean;
+      scanSource?: SessionCheckin["scanSource"];
+      allowServerPinVerification?: boolean;
+    }
   ) => {
     const { currentPersona: persona, activeStaffAssignment } = getDeps();
-    const targetLedger = sessionLedgers.find((l) => l.id === ledgerId);
-    if (!targetLedger) return { ok: false, messageAr: "دفتر الحصص غير موجود." };
     const subCode = targetLedger.subscriptionCode || targetLedger.ledgerCode;
 
     const isActingAsFacility =
@@ -298,7 +485,7 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
       });
       if (perm.isLinked && !perm.canScanGroupQr) {
         return {
-          ok: false,
+          ok: false as const,
           messageAr: `صلاحية مسح الـ QR لدى «${targetLedger.facilityNameAr}» مقصورة حالياً على بوابة المنشأة فقط — اطلب تفعيل تفويض الكابتن من إدارة النادي.`,
         };
       }
@@ -310,7 +497,7 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
         targetLedger.coachId !== myCoachId
       ) {
         return {
-          ok: false,
+          ok: false as const,
           messageAr: `لا يمكنك مسح سبّاح يتبع مجموعة أخرى داخل ${targetLedger.facilityNameAr}.`,
         };
       }
@@ -319,32 +506,36 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
     const gateEval = evaluateLedgerGateStatus(targetLedger);
     if (gateEval.verdict === "expired") {
       return {
-        ok: false,
+        ok: false as const,
+        expired: true,
         messageAr: `انتهت صلاحية كود الاشتراك (${subCode}) لاستنفاد جميع الحصص (${targetLedger.totalSessions}/${targetLedger.totalSessions})! يرجى تجديد الاشتراك لتوليد كود جديد.`,
       };
     }
     if (gateEval.verdict === "duplicate_3h" && !options?.overrideDuplicate3h) {
       return {
-        ok: false,
+        ok: false as const,
         duplicateBlocked: true,
         messageAr: `تم مسح حضور «${targetLedger.athleteNameAr}» مسبقاً قبل ${gateEval.minutesSinceLastScan || 1} دقيقة (خلال آخر 3 ساعات) — تم منع الخصم المزدوج لحماية رصيد السباح.`,
       };
     }
 
     const cleanInput = enteredPinOrQr.trim().toUpperCase();
+    const isFourDigitPin = /^\d{4}$/.test(cleanInput);
     const hasUnmaskedPin = Boolean(targetLedger.pinCode && targetLedger.pinCode !== "****");
     if (
       method === "pin_4digit" &&
+      !(options?.allowServerPinVerification && isFourDigitPin) &&
       !(hasUnmaskedPin && cleanInput === targetLedger.pinCode.toUpperCase()) &&
       cleanInput !== subCode.toUpperCase() &&
       cleanInput !== targetLedger.ledgerCode.toUpperCase()
     ) {
       return {
-        ok: false,
+        ok: false as const,
         messageAr: `كود الاشتراك أو الـ PIN غير صحيح! يرجى التحقق من كود الاشتراك الحالي (${subCode}) أو مسح رمز QR الخاص بالسباح.`,
       };
     }
 
+    const clientEventId = createClientEventId();
     const nextNum = targetLedger.completedSessions + 1;
     const remaining = targetLedger.totalSessions - nextNum;
     const isNowExpired = nextNum >= targetLedger.totalSessions;
@@ -378,6 +569,7 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
             : `${persona.fullNameAr} (كابتن)`,
           coachNoteAr: coachNoteAr || "حضور مؤكد وتمرين ممتاز",
           wasOffline: isOff,
+          clientEventId,
           scannedAtIso: now.toISOString(),
           scannedByNameAr: persona.fullNameAr,
           scannedByMemberCode: persona.memberCode,
@@ -387,44 +579,6 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
       ],
     };
 
-    setSessionLedgers((prev) => prev.map((l) => (l.id === ledgerId ? updatedLedger : l)));
-
-    if (!isOff) {
-      postSupabaseSync("/api/supabase/session-ledgers", {
-        ledger: updatedLedger,
-        overrideDuplicate3h: Boolean(options?.overrideDuplicate3h),
-      });
-      if (targetLedger.memberCode) {
-        postSupabaseSync("/api/supabase/notifications", {
-          memberCode: targetLedger.memberCode,
-          titleAr: isNowExpired
-            ? `اكتملت باقتك (${nextNum}/${targetLedger.totalSessions}) وانتهت صلاحية الكود ${subCode}`
-            : `تم تسجيل حضور الحصة رقم (${nextNum} من ${targetLedger.totalSessions}) ✓`,
-          messageAr: isNowExpired
-            ? `أتممت جميع حصص باقتك في ${targetLedger.facilityNameAr}. انتهت صلاحية كود الاشتراك ${subCode}، وعند التجديد سيتولد لك كود جديد.`
-            : `سجّل ${persona.fullNameAr} حضورك في ${targetLedger.facilityNameAr}. المتبقي: ${remaining} حصة.`,
-          type: "session_reminder",
-          actionLabelAr: "عرض سجل حصصي",
-          actionHref: "/dashboard/ledger",
-        });
-      }
-    } else {
-      setOfflineQueue((prev) => [
-        {
-          id: `oq-${Date.now()}`,
-          kind: "checkin",
-          ledgerId,
-          athleteNameAr: targetLedger.athleteNameAr,
-          sessionNumber: nextNum,
-          method: "offline_sync",
-          coachNoteAr: coachNoteAr || "حضور مؤكد بالمسبح",
-          queuedAtIso: now.toISOString(),
-          synced: false,
-        },
-        ...prev,
-      ]);
-    }
-
     const expiryOrRenewalMsg = isNowExpired
       ? ` — اكتملت الـ ${targetLedger.totalSessions} حصص وانتهت صلاحية كود الاشتراك (${subCode}) تلقائياً!`
       : remaining <= 2
@@ -432,10 +586,496 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
         : "";
 
     return {
+      ok: true as const,
+      persona,
+      subCode,
+      nextNum,
+      remaining,
+      isNowExpired,
+      isOff,
+      now,
+      clientEventId,
+      updatedLedger,
+      expiryOrRenewalMsg,
+    };
+  };
+
+  const checkInByPinAsync: NonNullable<
+    CaptenlyContextType["checkInByPinAsync"]
+  > = async (pinCode, options) => {
+    const { currentPersona: persona } = getDeps();
+    const cleanPin = pinCode.trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return {
+        ok: false,
+        messageAr: "يرجى إدخال رمز PIN صحيح مكوّن من 4 أرقام.",
+      };
+    }
+    if (effectiveOffline) {
+      return {
+        ok: false,
+        messageAr:
+          "التحقق برمز الـ PIN (4 أرقام) يتطلب اتصالاً بالإنترنت — استخدم مسح QR أو كود الاشتراك (CAP-SUB-...) في وضع الأوفلاين.",
+      };
+    }
+
+    const clientEventId = createClientEventId();
+    const syncRes = await syncToSupabase("/api/supabase/session-ledgers", {
+      action: "pin_checkin",
+      pinCode: cleanPin,
+      ledgerId: options?.ledgerId,
+      facilityId: options?.facilityId,
+      coachId: options?.coachId,
+      coachNoteAr: options?.coachNoteAr,
+      overrideDuplicate3h: Boolean(options?.overrideDuplicate3h),
+      clientEventId,
+      scanSource: options?.scanSource || "gate_kiosk",
+      operatorNameAr: persona.fullNameAr,
+    });
+
+    if (!syncRes.ok) {
+      const serverLedger = syncRes.data?.serverLedger as SessionLedger | undefined;
+      if (syncRes.status === 409 && serverLedger) {
+        const existingLocal = sessionLedgers.find((l) => l.id === serverLedger.id);
+        const merged = mergeServerLedgerPreservingPin(existingLocal, serverLedger);
+        if (merged) upsertLedgerInStateAndIdb(merged);
+      }
+      return {
+        ok: false,
+        expired: Boolean(syncRes.data?.expired),
+        duplicateBlocked: Boolean(syncRes.data?.duplicateBlocked),
+        ambiguousPin: syncRes.errorCode === "ambiguous_pin",
+        rateLimited: syncRes.status === 429 || syncRes.errorCode === "rate_limited",
+        ledger: syncRes.data?.ledger as SessionLedger | undefined,
+        messageAr:
+          syncRes.messageAr || "تعذر التحقق من رمز الـ PIN على السيرفر.",
+        syncResult: syncRes,
+      };
+    }
+
+    const remoteLedger = syncRes.data?.ledger as SessionLedger | undefined;
+    const localMatch = remoteLedger
+      ? sessionLedgers.find((l) => l.id === remoteLedger.id)
+      : undefined;
+    const savedLedger = mergeServerLedgerPreservingPin(localMatch, remoteLedger);
+    if (savedLedger) {
+      upsertLedgerInStateAndIdb(savedLedger);
+      if (savedLedger.memberCode) {
+        const subCode = savedLedger.subscriptionCode || savedLedger.ledgerCode;
+        const remaining = Math.max(
+          0,
+          savedLedger.totalSessions - savedLedger.completedSessions
+        );
+        const isNowExpired = savedLedger.completedSessions >= savedLedger.totalSessions;
+        void syncToSupabase("/api/supabase/notifications", {
+          memberCode: savedLedger.memberCode,
+          titleAr: isNowExpired
+            ? `اكتملت باقتك (${savedLedger.completedSessions}/${savedLedger.totalSessions}) وانتهت صلاحية الكود ${subCode}`
+            : `تم تسجيل حضور الحصة رقم (${savedLedger.completedSessions} من ${savedLedger.totalSessions}) ✓`,
+          messageAr: isNowExpired
+            ? `أتممت جميع حصص باقتك في ${savedLedger.facilityNameAr}. انتهت صلاحية كود الاشتراك ${subCode}.`
+            : `سجّل ${persona.fullNameAr} حضورك في ${savedLedger.facilityNameAr}. المتبقي: ${remaining} حصة.`,
+          type: "session_reminder",
+          actionLabelAr: "عرض سجل حصصي",
+          actionHref: "/dashboard/ledger",
+        });
+      }
+    }
+
+    return {
       ok: true,
-      messageAr: `تم خصم الحصة رقم (${nextNum} من ${targetLedger.totalSessions}) للمشترك ${targetLedger.athleteNameAr} ${
-        isOff ? "(محفوظ أوفلاين وسيتم رفعه تلقائياً فور عودة الإنترنت)" : "بنجاح"
-      }${expiryOrRenewalMsg}`,
+      ledger: savedLedger,
+      syncResult: syncRes,
+      messageAr:
+        syncRes.messageAr ||
+        (savedLedger
+          ? `تم خصم الحصة رقم (${savedLedger.completedSessions} من ${savedLedger.totalSessions}) للمشترك ${savedLedger.athleteNameAr} بنجاح.`
+          : "تم تسجيل الحضور بالـ PIN بنجاح."),
+    };
+  };
+
+  const checkInSessionAsyncInternal = async (
+    ledgerId: string,
+    enteredPinOrQr: string,
+    method: "pin_4digit" | "qr_scan" | "offline_sync",
+    coachNoteAr?: string,
+    options?: {
+      overrideDuplicate3h?: boolean;
+      scanSource?: SessionCheckin["scanSource"];
+    },
+    overrideTargetLedger?: SessionLedger
+  ): Promise<{
+    ok: boolean;
+    duplicateBlocked?: boolean;
+    expired?: boolean;
+    ledger?: SessionLedger;
+    messageAr: string;
+    syncResult?: SyncResult;
+  }> => {
+    const targetLedger =
+      overrideTargetLedger || sessionLedgers.find((l) => l.id === ledgerId);
+    if (!targetLedger) return { ok: false, messageAr: "دفتر الحصص غير موجود." };
+
+    const cleanInput = enteredPinOrQr.trim();
+    if (method === "pin_4digit" && /^\d{4}$/.test(cleanInput) && !effectiveOffline) {
+      return checkInByPinAsync(cleanInput, {
+        ledgerId: targetLedger.id,
+        facilityId: targetLedger.facilityId,
+        coachNoteAr,
+        overrideDuplicate3h: options?.overrideDuplicate3h,
+        scanSource: options?.scanSource || "dashboard_manual",
+      });
+    }
+
+    const prep = validateCheckinLocally(
+      targetLedger,
+      enteredPinOrQr,
+      method,
+      coachNoteAr,
+      { ...options, allowServerPinVerification: false }
+    );
+    if (!prep.ok) {
+      return {
+        ok: false,
+        duplicateBlocked: "duplicateBlocked" in prep ? prep.duplicateBlocked : undefined,
+        expired: "expired" in prep ? prep.expired : undefined,
+        messageAr: prep.messageAr,
+      };
+    }
+
+    if (prep.isOff) {
+      upsertLedgerInStateAndIdb(prep.updatedLedger);
+      setOfflineQueue((prev) => [
+        {
+          id: `oq-${Date.now()}`,
+          clientEventId: prep.clientEventId,
+          kind: "checkin",
+          ledgerId,
+          athleteNameAr: targetLedger.athleteNameAr,
+          sessionNumber: prep.nextNum,
+          method: "offline_sync",
+          syncStatus: "pending",
+          retryCount: 0,
+          coachNoteAr: coachNoteAr || "حضور مؤكد بالمسبح",
+          queuedAtIso: prep.now.toISOString(),
+          synced: false,
+        },
+        ...prev,
+      ]);
+      return {
+        ok: true,
+        ledger: prep.updatedLedger,
+        messageAr: `تم خصم الحصة رقم (${prep.nextNum} من ${targetLedger.totalSessions}) للمشترك ${targetLedger.athleteNameAr} (محفوظ أوفلاين وسيتم رفعه تلقائياً فور عودة الإنترنت)${prep.expiryOrRenewalMsg}`,
+      };
+    }
+
+    const syncRes = await syncToSupabase("/api/supabase/session-ledgers", {
+      ledger: prep.updatedLedger,
+      overrideDuplicate3h: Boolean(options?.overrideDuplicate3h),
+      clientEventId: prep.clientEventId,
+      expectedCompletedSessions: targetLedger.completedSessions,
+    });
+
+    if (!syncRes.ok) {
+      const serverLedger = syncRes.data?.serverLedger as SessionLedger | undefined;
+      if (syncRes.status === 409 && serverLedger) {
+        const merged = mergeServerLedgerPreservingPin(targetLedger, serverLedger);
+        if (merged) upsertLedgerInStateAndIdb(merged);
+      }
+      return {
+        ok: false,
+        duplicateBlocked: Boolean(syncRes.data?.duplicateBlocked),
+        expired: Boolean(syncRes.data?.expired),
+        ledger: serverLedger,
+        messageAr: syncRes.messageAr || "تعذر تسجيل الحضور على السيرفر.",
+        syncResult: syncRes,
+      };
+    }
+
+    const savedLedger =
+      mergeServerLedgerPreservingPin(
+        prep.updatedLedger,
+        syncRes.data?.ledger as SessionLedger | undefined
+      ) || prep.updatedLedger;
+    upsertLedgerInStateAndIdb(savedLedger);
+
+    if (targetLedger.memberCode) {
+      void syncToSupabase("/api/supabase/notifications", {
+        memberCode: targetLedger.memberCode,
+        titleAr: prep.isNowExpired
+          ? `اكتملت باقتك (${prep.nextNum}/${targetLedger.totalSessions}) وانتهت صلاحية الكود ${prep.subCode}`
+          : `تم تسجيل حضور الحصة رقم (${prep.nextNum} من ${targetLedger.totalSessions}) ✓`,
+        messageAr: prep.isNowExpired
+          ? `أتممت جميع حصص باقتك في ${targetLedger.facilityNameAr}. انتهت صلاحية كود الاشتراك ${prep.subCode}، وعند التجديد سيتولد لك كود جديد.`
+          : `سجّل ${prep.persona.fullNameAr} حضورك في ${targetLedger.facilityNameAr}. المتبقي: ${prep.remaining} حصة.`,
+        type: "session_reminder",
+        actionLabelAr: "عرض سجل حصصي",
+        actionHref: "/dashboard/ledger",
+      });
+    }
+
+    return {
+      ok: true,
+      ledger: savedLedger,
+      syncResult: syncRes,
+      messageAr: `تم خصم الحصة رقم (${prep.nextNum} من ${targetLedger.totalSessions}) للمشترك ${targetLedger.athleteNameAr} بنجاح${prep.expiryOrRenewalMsg}`,
+    };
+  };
+
+  const checkInSessionAsync: NonNullable<
+    CaptenlyContextType["checkInSessionAsync"]
+  > = async (ledgerId, enteredPinOrQr, method, coachNoteAr, options) =>
+    checkInSessionAsyncInternal(ledgerId, enteredPinOrQr, method, coachNoteAr, options);
+
+  const checkInSession: CaptenlyContextType["checkInSession"] = (
+    ledgerId,
+    enteredPinOrQr,
+    method,
+    coachNoteAr,
+    options
+  ) => {
+    const targetLedger = sessionLedgers.find((l) => l.id === ledgerId);
+    if (!targetLedger) return { ok: false, messageAr: "دفتر الحصص غير موجود." };
+
+    const prep = validateCheckinLocally(
+      targetLedger,
+      enteredPinOrQr,
+      method,
+      coachNoteAr,
+      { ...options, allowServerPinVerification: !effectiveOffline }
+    );
+    if (!prep.ok) {
+      return {
+        ok: false,
+        duplicateBlocked: "duplicateBlocked" in prep ? prep.duplicateBlocked : undefined,
+        messageAr: prep.messageAr,
+      };
+    }
+
+    upsertLedgerInStateAndIdb(prep.updatedLedger);
+
+    if (!prep.isOff) {
+      const cleanEntry = enteredPinOrQr.trim();
+      const usePinAction = method === "pin_4digit" && /^\d{4}$/.test(cleanEntry);
+      const syncPromise = usePinAction
+        ? syncToSupabase("/api/supabase/session-ledgers", {
+            action: "pin_checkin",
+            ledgerId: targetLedger.id,
+            pinCode: cleanEntry,
+            facilityId: targetLedger.facilityId,
+            coachNoteAr,
+            overrideDuplicate3h: Boolean(options?.overrideDuplicate3h),
+            clientEventId: prep.clientEventId,
+            scanSource: options?.scanSource || "dashboard_manual",
+            operatorNameAr: prep.persona.fullNameAr,
+          })
+        : syncToSupabase("/api/supabase/session-ledgers", {
+            ledger: prep.updatedLedger,
+            overrideDuplicate3h: Boolean(options?.overrideDuplicate3h),
+            clientEventId: prep.clientEventId,
+            expectedCompletedSessions: targetLedger.completedSessions,
+          });
+
+      void syncPromise.then((syncRes) => {
+        if (syncRes.ok) {
+          const merged = mergeServerLedgerPreservingPin(
+            prep.updatedLedger,
+            syncRes.data?.ledger as SessionLedger | undefined
+          );
+          if (merged) upsertLedgerInStateAndIdb(merged);
+          if (targetLedger.memberCode) {
+            void syncToSupabase("/api/supabase/notifications", {
+              memberCode: targetLedger.memberCode,
+              titleAr: prep.isNowExpired
+                ? `اكتملت باقتك (${prep.nextNum}/${targetLedger.totalSessions}) وانتهت صلاحية الكود ${prep.subCode}`
+                : `تم تسجيل حضور الحصة رقم (${prep.nextNum} من ${targetLedger.totalSessions}) ✓`,
+              messageAr: prep.isNowExpired
+                ? `أتممت جميع حصص باقتك في ${targetLedger.facilityNameAr}. انتهت صلاحية كود الاشتراك ${prep.subCode}، وعند التجديد سيتولد لك كود جديد.`
+                : `سجّل ${prep.persona.fullNameAr} حضورك في ${targetLedger.facilityNameAr}. المتبقي: ${prep.remaining} حصة.`,
+              type: "session_reminder",
+              actionLabelAr: "عرض سجل حصصي",
+              actionHref: "/dashboard/ledger",
+            });
+          }
+        } else {
+          // Roll back phantom local optimistic deduction on auth/forbidden/validation/conflict rejections
+          upsertLedgerInStateAndIdb(targetLedger);
+          if (syncRes.category === "network" || syncRes.category === "server" || syncRes.category === "offline") {
+            setOfflineQueue((prev) => [
+              {
+                id: `oq-${Date.now()}`,
+                clientEventId: prep.clientEventId,
+                kind: "checkin",
+                ledgerId,
+                athleteNameAr: targetLedger.athleteNameAr,
+                sessionNumber: prep.nextNum,
+                method: "offline_sync",
+                syncStatus: "failed",
+                retryCount: 1,
+                lastErrorCode: syncRes.errorCode,
+                lastErrorAr: syncRes.messageAr,
+                coachNoteAr: coachNoteAr || "حضور مؤكد بالمسبح",
+                queuedAtIso: prep.now.toISOString(),
+                synced: false,
+              },
+              ...prev,
+            ]);
+          }
+        }
+      });
+    } else {
+      setOfflineQueue((prev) => [
+        {
+          id: `oq-${Date.now()}`,
+          clientEventId: prep.clientEventId,
+          kind: "checkin",
+          ledgerId,
+          athleteNameAr: targetLedger.athleteNameAr,
+          sessionNumber: prep.nextNum,
+          method: "offline_sync",
+          syncStatus: "pending",
+          retryCount: 0,
+          coachNoteAr: coachNoteAr || "حضور مؤكد بالمسبح",
+          queuedAtIso: prep.now.toISOString(),
+          synced: false,
+        },
+        ...prev,
+      ]);
+    }
+
+    return {
+      ok: true,
+      messageAr: `تم خصم الحصة رقم (${prep.nextNum} من ${targetLedger.totalSessions}) للمشترك ${targetLedger.athleteNameAr} ${
+        prep.isOff ? "(محفوظ أوفلاين وسيتم رفعه تلقائياً فور عودة الإنترنت)" : "بنجاح"
+      }${prep.expiryOrRenewalMsg}`,
+    };
+  };
+
+  const checkInBySubscriptionCodeAsync: NonNullable<
+    CaptenlyContextType["checkInBySubscriptionCodeAsync"]
+  > = async (codeInput, facilityId, coachNoteAr, coachId, options) => {
+    const raw = codeInput.trim();
+    if (!raw) {
+      return { ok: false, messageAr: "يرجى إدخال كود الاشتراك (مثل SUB-XXXX-XX) أو رقم الـ PIN." };
+    }
+    let cleaned = raw.toUpperCase();
+    if (cleaned.startsWith("CAP-QR:") || cleaned.startsWith("CAP-SUB:")) {
+      cleaned = (cleaned.split(":")[1] || "").trim().toUpperCase();
+    }
+
+    // GAP-002: 4-digit PIN path goes strictly through server verification when online
+    if (/^\d{4}$/.test(cleaned)) {
+      return checkInByPinAsync(cleaned, {
+        facilityId,
+        coachId,
+        coachNoteAr,
+        overrideDuplicate3h: options?.overrideDuplicate3h,
+        scanSource: options?.scanSource || "gate_kiosk",
+      });
+    }
+
+    // GAP-006: Merge live sessionLedgers with IndexedDB shift_snapshots so offline QR/SUB-* works even if localStorage is empty
+    let idbLedgers: SessionLedger[] = [];
+    try {
+      if (facilityId) {
+        const snap = await readOfflineShiftSnapshot(facilityId);
+        if (snap?.ledgers?.length) idbLedgers = snap.ledgers;
+      }
+      if (idbLedgers.length === 0) {
+        const allSnaps = await readAllOfflineShiftSnapshots();
+        idbLedgers = allSnaps.flatMap((s) => (Array.isArray(s.ledgers) ? s.ledgers : []));
+      }
+    } catch {
+      // ignore IDB read failures
+    }
+
+    const canonicalPool = mergeSessionLedgers(sessionLedgers, idbLedgers, "higher_progress");
+    const filterByScope = (list: SessionLedger[]) =>
+      list.filter((l) => {
+        if (facilityId && l.facilityId !== facilityId) return false;
+        if (coachId) {
+          const matchesCoach = l.coachId === coachId;
+          const matchesGroup =
+            options?.allowedLinkedEntityId && l.linkedEntityId === options.allowedLinkedEntityId;
+          if (!matchesCoach && !matchesGroup) return false;
+        }
+        return true;
+      });
+
+    let searchPool = filterByScope(canonicalPool);
+    let exactMatch = searchPool.find(
+      (l) =>
+        (l.subscriptionCode || "").toUpperCase() === cleaned ||
+        l.ledgerCode.toUpperCase() === cleaned
+    );
+
+    if (!exactMatch && !effectiveOffline) {
+      try {
+        const params = new URLSearchParams({ ledgerCode: cleaned });
+        if (facilityId) params.set("facilityId", facilityId);
+        if (coachId) params.set("coachId", coachId);
+        const resp = await fetch(`/api/supabase/session-ledgers?${params.toString()}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          const remoteLedgers = Array.isArray(data?.ledgers)
+            ? (data.ledgers as SessionLedger[])
+            : [];
+          if (remoteLedgers.length > 0) {
+            searchPool = filterByScope(
+              mergeSessionLedgers(searchPool, remoteLedgers, "higher_progress")
+            );
+            exactMatch = searchPool.find(
+              (l) =>
+                (l.subscriptionCode || "").toUpperCase() === cleaned ||
+                l.ledgerCode.toUpperCase() === cleaned
+            );
+          }
+        }
+      } catch {
+        // fallback cleanly to not found
+      }
+    }
+
+    if (!exactMatch) {
+      return {
+        ok: false,
+        messageAr: `لم يتم العثور على اشتراك بالكود «${raw}». تأكد من مسح أو كتابة كود الاشتراك (CAP-SUB-...) الظاهر بجانب اسم المشترك.`,
+      };
+    }
+
+    const subCode = exactMatch.subscriptionCode || exactMatch.ledgerCode;
+    if (
+      exactMatch.completedSessions >= exactMatch.totalSessions ||
+      exactMatch.status === "completed" ||
+      exactMatch.isCodeExpired
+    ) {
+      return {
+        ok: false,
+        expired: true,
+        ledger: exactMatch,
+        messageAr: `كود الاشتراك (${subCode}) الخاص بـ «${exactMatch.athleteNameAr}» منتهي الصلاحية لإتمام الـ ${exactMatch.totalSessions} حصص بالكامل! يرجى تجديد الاشتراك لتوليد كود جديد.`,
+      };
+    }
+
+    const res = await checkInSessionAsyncInternal(
+      exactMatch.id,
+      exactMatch.pinCode,
+      "qr_scan",
+      coachNoteAr,
+      {
+        overrideDuplicate3h: options?.overrideDuplicate3h,
+        scanSource: options?.scanSource,
+      },
+      exactMatch
+    );
+
+    return {
+      ok: res.ok,
+      expired: res.expired,
+      duplicateBlocked: res.duplicateBlocked,
+      ledger: res.ledger || exactMatch,
+      messageAr: res.messageAr,
+      syncResult: res.syncResult,
     };
   };
 
@@ -536,8 +1176,12 @@ export function createPoolDeskCheckinActions(input: PoolDeskCheckinsInput) {
 
   return {
     enrollSwimmerByMemberCode,
+    enrollSwimmerByMemberCodeAsync,
     checkInSession,
+    checkInSessionAsync,
     checkInBySubscriptionCode,
+    checkInBySubscriptionCodeAsync,
+    checkInByPinAsync,
     ...renewalAndReceiptActions,
   };
 }

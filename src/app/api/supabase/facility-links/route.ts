@@ -7,6 +7,7 @@ import {
   sanitizeFilterToken,
 } from "@/lib/memberSession";
 import { getDeterministicCoachId } from "@/lib/coachProvisioning";
+import { hasFacilityCapability } from "@/lib/facilityPermissions";
 import {
   fetchFacilityLinksByFacilityId,
   rowToFacilityLink,
@@ -273,13 +274,15 @@ export async function POST(request: Request) {
 
     if (action === "add_direct") {
       const accessRole = await getCallerFacilityAccessRole(facilityId, caller);
-      if (
-        !caller.isAdmin &&
-        accessRole !== "owner" &&
-        accessRole !== "general_staff" &&
-        accessRole !== "accounts_manager"
-      ) {
-        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      if (!caller.isAdmin && !hasFacilityCapability(accessRole, "manage_linked_entities")) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "forbidden",
+            messageAr: "إضافة الأكاديميات أو الكباتن مقصورة على مالك المنشأة أو المشرف العام فقط.",
+          },
+          { status: 403 }
+        );
       }
 
       const displayNameAr = String(body?.displayNameAr || "").trim();
@@ -360,8 +363,21 @@ export async function PATCH(request: Request) {
     }
 
     const accessRole = await getCallerFacilityAccessRole(facilityId, caller);
-    if (!caller.isAdmin && accessRole !== "owner" && accessRole !== "general_staff") {
-      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    const requiresCollectionEdit = body?.collectedMonthlyEgp !== undefined;
+    const isAuthorizedPatch =
+      caller.isAdmin ||
+      (hasFacilityCapability(accessRole, "manage_linked_entities") &&
+        (!requiresCollectionEdit ||
+          hasFacilityCapability(accessRole, "edit_linked_entity_collections")));
+    if (!isAuthorizedPatch) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "forbidden",
+          messageAr: "تعديل ربط الأكاديميات أو التحصيل الشهري مقصور على مالك المنشأة أو المشرف العام.",
+        },
+        { status: 403 }
+      );
     }
 
     const existingList = await fetchFacilityLinksByFacilityId(facilityId);

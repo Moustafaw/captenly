@@ -9,7 +9,12 @@ export default function Desktop11() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string; hasGoogle?: boolean } | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{
+    ok: boolean;
+    text: string;
+    hasGoogle?: boolean;
+    unavailable?: boolean;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,16 +33,24 @@ export default function Desktop11() {
         setStatusMsg({ ok: true, text: data.messageAr || "تم إرسال رمز الاستعادة بنجاح." });
         setTimeout(() => router.push(`/auth/reset?q=${encodeURIComponent(clean)}`), 900);
       } else {
+        const isUnavailable = res.status === 503 || Boolean(data?.deliveryUnavailable);
         setStatusMsg({
           ok: false,
+          unavailable: isUnavailable,
           hasGoogle: Boolean(data?.hasGoogleOption),
           text:
             data?.messageAr ||
-            "تعذر إرسال رمز الاستعادة. تأكد من صحة البريد الإلكتروني أو رقم الهاتف المسجل.",
+            (isUnavailable
+              ? "خدمة إرسال رمز التحقق (OTP) غير متوفرة حالياً لعدم تفعيل مزود البريد أو الرسائل على الخادم."
+              : "تعذر إرسال رمز الاستعادة. تأكد من صحة البريد الإلكتروني أو رقم الهاتف المسجل."),
         });
       }
     } catch {
-      setStatusMsg({ ok: false, text: "تعذر الاتصال بالخادم حالياً." });
+      setStatusMsg({
+        ok: false,
+        unavailable: true,
+        text: "تعذر الاتصال بالخادم حالياً لإرسال رمز التحقق.",
+      });
     } finally {
       setLoading(false);
     }
@@ -58,13 +71,23 @@ export default function Desktop11() {
 
         {statusMsg && (
           <div
-            className={`p-4 rounded-xl text-xs sm:text-sm font-bold leading-relaxed ${
+            className={`p-4 rounded-xl text-xs sm:text-sm font-bold leading-relaxed flex flex-col gap-2 ${
               statusMsg.ok
                 ? "bg-lime-tint text-deep-olive"
                 : "bg-amber-50 border border-amber-200 text-amber-900"
             }`}
           >
-            {statusMsg.text}
+            <div>{statusMsg.text}</div>
+            {!statusMsg.ok && (statusMsg.unavailable || statusMsg.hasGoogle) && (
+              <div className="flex flex-wrap gap-3 pt-1 text-xs">
+                <Link href="/auth/reset" className="text-deep-olive underline">
+                  تعيين كلمة المرور عبر Google
+                </Link>
+                <Link href="/auth/login" className="text-dark-slate underline">
+                  العودة لتسجيل الدخول
+                </Link>
+              </div>
+            )}
           </div>
         )}
 

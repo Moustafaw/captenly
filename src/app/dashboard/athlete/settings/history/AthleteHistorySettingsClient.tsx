@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useCaptenly } from "@/context/CaptenlyContext";
 import { Icon } from "@/components/Icon";
 import { GuestAccountGateScreen } from "@/components/auth/GuestAccountGateScreen";
+import type { InstaPayReceipt, SessionLedger } from "@/types/captenly";
 
 export default function HistorySettingsPage() {
   const {
@@ -14,6 +15,10 @@ export default function HistorySettingsPage() {
     minorAthletes,
     activeStaffAssignment,
   } = useCaptenly();
+  const [selectedReceipt, setSelectedReceipt] = useState<{
+    ledger: SessionLedger;
+    receipt: InstaPayReceipt;
+  } | null>(null);
 
   if (!isAuthenticated) {
     return (
@@ -138,7 +143,7 @@ export default function HistorySettingsPage() {
                 {hasReceipt && receipt && (
                   <button
                     type="button"
-                    onClick={() => alert(`إيصال رسمي موثق:\nالمرجع: ${receipt.referenceNumber}\nالمبلغ: ${receipt.amountEgp} ج.م\nالقناة: ${receipt.channel}\nالتاريخ: ${receipt.uploadedDateAr}`)}
+                    onClick={() => setSelectedReceipt({ ledger, receipt })}
                     className="px-4 py-2 rounded-xl bg-dark-slate text-electric-volt text-micro-caption font-bold hover:bg-deep-carbon transition-colors"
                   >
                     عرض الإيصال
@@ -149,6 +154,77 @@ export default function HistorySettingsPage() {
           );
         })}
       </div>
+
+      {selectedReceipt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="receipt-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deep-carbon/60 backdrop-blur-sm animate-fade-in"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-surface-card border border-border-hairline shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border-hairline pb-3">
+              <div className="flex items-center gap-2">
+                <Icon name="verified" className="text-[20px] text-deep-olive" />
+                <h2 id="receipt-modal-title" className="font-bold text-card-title text-dark-slate">
+                  إيصال دفع موثق
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                aria-label="إغلاق تفاصيل الإيصال"
+                className="w-8 h-8 rounded-full bg-surface-snow text-text-muted hover:text-dark-slate flex items-center justify-center"
+              >
+                <Icon name="close" className="text-[18px]" />
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-surface-snow border border-border-hairline p-4 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">الباقة:</span>
+                <span className="font-bold text-dark-slate">{selectedReceipt.ledger.packageTitleAr}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">المنشأة:</span>
+                <span className="font-bold text-dark-slate">{selectedReceipt.ledger.facilityNameAr}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">السبّاح:</span>
+                <span className="font-bold text-dark-slate">{selectedReceipt.ledger.athleteNameAr}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border-hairline">
+                <span className="text-text-muted">المرجع:</span>
+                <span className="font-mono font-bold text-deep-olive" dir="ltr">
+                  {selectedReceipt.receipt.referenceNumber}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">المبلغ:</span>
+                <span className="font-black text-dark-slate">{selectedReceipt.receipt.amountEgp} ج.م</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">القناة:</span>
+                <span className="font-bold text-dark-slate">{selectedReceipt.receipt.channel}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">التاريخ:</span>
+                <span className="font-bold text-dark-slate">{selectedReceipt.receipt.uploadedDateAr}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                className="px-5 py-2.5 rounded-full bg-dark-slate text-electric-volt text-xs font-bold hover:bg-deep-carbon transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

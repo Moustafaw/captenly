@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   Coach,
   Facility,
@@ -12,9 +12,16 @@ import type {
   OfflineCheckinQueueItem,
   PersonaAccount,
   SessionLedger,
+  SyncStatusSummary,
 } from "@/types/captenly";
 import { INITIAL_SESSION_LEDGERS } from "@/data/seedData";
-import { postSupabaseSync } from "./storageHelpers";
+import {
+  mergeSessionLedgers,
+  readAllOfflineShiftSnapshots,
+  readOfflineShiftSnapshot,
+  upsertLedgerInOfflineShiftSnapshot,
+} from "@/lib/offlineShiftDb";
+import { syncToSupabase } from "./storageHelpers";
 import type { CaptenlyContextType } from "./types";
 import { createPoolDeskLinksAndConfigActions } from "./usePoolDeskLinksAndConfig";
 import { createPoolDeskCheckinActions } from "./usePoolDeskCheckins";
@@ -57,7 +64,18 @@ export function usePoolDeskDomain({
   const [sessionLedgers, setSessionLedgers] = useState<SessionLedger[]>(INITIAL_SESSION_LEDGERS);
   const [offlineQueue, setOfflineQueue] = useState<OfflineCheckinQueueItem[]>([]);
   const [facilityLinks, setFacilityLinks] = useState<FacilityLinkedEntity[]>([]);
+  const [lastSyncedAtIso, setLastSyncedAtIso] = useState<string | undefined>(undefined);
   const effectiveOffline = isBrowserOffline;
+
+  const isSyncingRef = useRef(false);
+  const hasServerSyncedRef = useRef(false);
+  const sessionLedgersRef = useRef<SessionLedger[]>(sessionLedgers);
+  sessionLedgersRef.current = sessionLedgers;
+  const offlineQueueRef = useRef<OfflineCheckinQueueItem[]>(offlineQueue);
+  offlineQueueRef.current = offlineQueue;
+  const effectiveOfflineRef = useRef<boolean>(effectiveOffline);
+  effectiveOfflineRef.current = effectiveOffline;
+  const wasOfflineRef = useRef<boolean>(effectiveOffline);
 
   // Real PWA Service Worker registration (deferred to browser idle) + online/offline network listener
   useEffect(() => {
@@ -109,11 +127,37 @@ export function usePoolDeskDomain({
         } else {
           const localProgress = local.completedSessions + local.receipts.length;
           const remoteProgress = remote.completedSessions + remote.receipts.length;
-          byId.set(remote.id, localProgress > remoteProgress ? local : remote);
+          const resolved =
+            localProgress > remoteProgress
+              ? local
+              : {
+                  ...remote,
+                  pinCode:
+                    remote.pinCode === "****" && local.pinCode && local.pinCode !== "****"
+                      ? local.pinCode
+                      : remote.pinCode,
+                };
+          byId.set(remote.id, resolved);
         }
       }
       return Array.from(byId.values());
     });
+
+    // Keep any existing IndexedDB shift snapshot aligned with canonical server ledgers
+    void (async () => {
+      const checkedFacilities = new Map<string, boolean>();
+      for (const remote of incoming) {
+        if (!remote?.facilityId) continue;
+        let hasSnap = checkedFacilities.get(remote.facilityId);
+        if (hasSnap === undefined) {
+          hasSnap = Boolean(await readOfflineShiftSnapshot(remote.facilityId));
+          checkedFacilities.set(remote.facilityId, hasSnap);
+        }
+        if (hasSnap) {
+          await upsertLedgerInOfflineShiftSnapshot(remote.facilityId, remote);
+        }
+      }
+    })();
   };
 
   const lookupRemoteLedgersOrProfile: CaptenlyContextType["lookupRemoteLedgersOrProfile"] = async (
@@ -127,32 +171,59 @@ export function usePoolDeskDomain({
     if (!params.toString()) return { ledgers: [], profile: null };
 
     try {
-      const res = await fetch(`/api/supabase/session-ledgers?${params.toString()}`);
-      if (!res.ok) return { ledgers: [], profile: null };
-      const data = await res.json();
-      const ledgers = Array.isArray(data?.ledgers) ? (data.ledgers as SessionLedger[]) : [];
-      if (ledgers.length > 0) mergeRemoteLedgers(ledgers);
+      const collected: SessionLedger[] = [];
+      let profile: {
+        memberCode: string;
+        fullNameAr: string;
+        phone: string;
+        city: string;
+        role: string;
+        avatarUrl?: string;
+      } | null = null;
+      let offset = 0;
+      const limit = 200;
 
-      const profile = data?.profile || null;
+      for (let page = 0; page < 5; page += 1) {
+        const pagedParams = new URLSearchParams(params);
+        pagedParams.set("limit", String(limit));
+        if (offset > 0) pagedParams.set("offset", String(offset));
+        const res = await fetch(`/api/supabase/session-ledgers?${pagedParams.toString()}`);
+        if (!res.ok) break;
+        const data = await res.json();
+        const pageLedgers = Array.isArray(data?.ledgers) ? (data.ledgers as SessionLedger[]) : [];
+        if (pageLedgers.length > 0) {
+          collected.push(...pageLedgers);
+        }
+        if (!profile && data?.profile) {
+          profile = data.profile;
+        }
+        if (!data?.hasMore || typeof data?.nextOffset !== "number" || data.nextOffset <= offset) {
+          break;
+        }
+        offset = data.nextOffset;
+      }
+
+      if (collected.length > 0) mergeRemoteLedgers(collected);
+
       if (profile?.memberCode && profile?.fullNameAr) {
         depsRef.current.setMemberRegistry((prev) => {
-          if (prev.some((m) => m.memberCode.toUpperCase() === profile.memberCode.toUpperCase())) {
+          if (prev.some((m) => m.memberCode.toUpperCase() === profile!.memberCode.toUpperCase())) {
             return prev;
           }
           return [
             {
-              memberCode: profile.memberCode,
-              athleteId: `member-${profile.memberCode}`,
-              fullNameAr: profile.fullNameAr,
-              phone: profile.phone || "",
-              city: profile.city || "مصر",
-              role: profile.role === "parent" ? "parent" : "adult_athlete",
+              memberCode: profile!.memberCode,
+              athleteId: `member-${profile!.memberCode}`,
+              fullNameAr: profile!.fullNameAr,
+              phone: profile!.phone || "",
+              city: profile!.city || "مصر",
+              role: profile!.role === "parent" ? "parent" : "adult_athlete",
             },
             ...prev,
           ];
         });
       }
-      return { ledgers, profile };
+      return { ledgers: collected, profile };
     } catch {
       return { ledgers: [], profile: null };
     }
@@ -164,13 +235,69 @@ export function usePoolDeskDomain({
       currentPersona: persona,
       resolvedActiveStaffFacilityId: staffFacId,
     } = depsRef.current;
-    if (!authed || effectiveOffline) return;
+    if (!authed || effectiveOfflineRef.current) return;
+    hasServerSyncedRef.current = true;
     await lookupRemoteLedgersOrProfile({
       memberCode: persona.memberCode || undefined,
       coachId: persona.linkedCoachId || (persona.role === "coach" ? persona.id : undefined),
       facilityId: persona.linkedFacilityId || staffFacId || undefined,
     });
   };
+
+  // GAP-006: Hydrate sessionLedgers from IndexedDB on mount when localStorage sessionLedgers is empty
+  // (skipped for unauthenticated guests on public catalog routes to keep public TBT fast).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = window.location.pathname || "/";
+    if (!isAuthenticated && !p.startsWith("/dashboard")) {
+      return;
+    }
+    let cancelled = false;
+    void readAllOfflineShiftSnapshots().then((snapshots) => {
+      if (cancelled || snapshots.length === 0) return;
+      const idbLedgers = snapshots.flatMap((s) => (Array.isArray(s.ledgers) ? s.ledgers : []));
+      if (idbLedgers.length === 0) return;
+
+      setSessionLedgers((prev) => {
+        if (prev.length === 0) {
+          return mergeSessionLedgers([], idbLedgers, "higher_progress");
+        }
+        if (hasServerSyncedRef.current && !effectiveOfflineRef.current) {
+          // Only add ledgers that aren't present on server yet (e.g. unsynced offline enrollments)
+          const existingIds = new Set(prev.map((l) => l.id));
+          const missing = idbLedgers.filter((l) => !existingIds.has(l.id));
+          return missing.length > 0 ? [...prev, ...missing] : prev;
+        }
+        return mergeSessionLedgers(prev, idbLedgers, "higher_progress");
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  // Normalize any queue items interrupted mid-sync before a reload
+  useEffect(() => {
+    if (!isSyncingRef.current && offlineQueue.some((q) => q.syncStatus === "syncing")) {
+      setOfflineQueue((prev) =>
+        prev.map((q) => (q.syncStatus === "syncing" ? { ...q, syncStatus: "pending" } : q))
+      );
+    }
+  }, [offlineQueue]);
+
+  // GAP-006: Keep IndexedDB shift snapshot synchronized whenever offline check-ins/enrollments occur
+  useEffect(() => {
+    const unsyncedLedgerIds = new Set(
+      offlineQueue.filter((q) => !q.synced).map((q) => q.ledgerId)
+    );
+    if (unsyncedLedgerIds.size === 0) return;
+    for (const ledgerId of unsyncedLedgerIds) {
+      const ledger = sessionLedgers.find((l) => l.id === ledgerId);
+      if (ledger?.facilityId) {
+        void upsertLedgerInOfflineShiftSnapshot(ledger.facilityId, ledger);
+      }
+    }
+  }, [offlineQueue, sessionLedgers]);
 
   const linksActions = createPoolDeskLinksAndConfigActions({
     facilities,
@@ -223,59 +350,367 @@ export function usePoolDeskDomain({
     effectiveOffline,
   ]);
 
-  const syncOfflineQueue = () => {
-    const pendingItems = offlineQueue.filter((q) => !q.synced);
-    const pendingCount = pendingItems.length;
-    if (pendingCount === 0) return 0;
-
-    const syncedIds = new Set(pendingItems.map((q) => q.ledgerId));
-    setOfflineQueue((prev) => prev.map((q) => ({ ...q, synced: true })));
-    setSessionLedgers((prev) =>
-      prev.map((l) => {
-        const updatedLedger: SessionLedger = {
-          ...l,
-          startedDateAr: l.startedDateAr.includes("محفوظ أوفلاين")
-            ? l.startedDateAr.replace(
-                "اليوم — محفوظ أوفلاين (سيتم المزامنة تلقائياً)",
-                "اليوم — تمت المزامنة سحابياً ✓"
-              )
-            : l.startedDateAr,
-          checkins: l.checkins.map((c) =>
-            c.wasOffline && c.dateAr.includes("محفوظ أوفلاين")
-              ? {
-                  ...c,
-                  dateAr: c.dateAr.replace(
-                    "محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً",
-                    "تمت المزامنة سحابياً بنجاح ✓"
-                  ),
-                }
-              : c
-          ),
-        };
-        if (syncedIds.has(l.id)) {
-          postSupabaseSync("/api/supabase/session-ledgers", { ledger: updatedLedger });
+  const buildCloudCandidateLedger = (
+    ledger: SessionLedger,
+    item: OfflineCheckinQueueItem
+  ): SessionLedger => {
+    const eventId = item.clientEventId || item.id;
+    return {
+      ...ledger,
+      startedDateAr: ledger.startedDateAr.includes("محفوظ أوفلاين")
+        ? ledger.startedDateAr
+            .replace("اليوم — محفوظ أوفلاين (سيتم المزامنة تلقائياً)", "اليوم — تمت المزامنة سحابياً ✓")
+            .replace("اليوم — محفوظ أوفلاين (سيتم الرفع عند عودة النت)", "اليوم — تمت المزامنة سحابياً ✓")
+        : ledger.startedDateAr,
+      checkins: ledger.checkins.map((c) => {
+        const matchesItem = item.kind !== "enrollment" && c.sessionNumber === item.sessionNumber;
+        const nextCheckin =
+          matchesItem && !c.clientEventId ? { ...c, clientEventId: eventId } : c;
+        if (nextCheckin.wasOffline && nextCheckin.dateAr.includes("محفوظ أوفلاين")) {
+          return {
+            ...nextCheckin,
+            dateAr: nextCheckin.dateAr.replace(
+              "محفوظ أوفلاين بجوار المسبح — سيتم المزامنة تلقائياً",
+              "تمت المزامنة سحابياً بنجاح ✓"
+            ),
+          };
         }
-        return updatedLedger;
-      })
-    );
-
-    depsRef.current.pushNotification({
-      titleAr: `مزامنة ${pendingCount} حصة أوفلاين بنجاح`,
-      messageAr: "تم رفع بصمات الحضور المحفوظة محلياً دون فقدان أي حصة بمجرد استقرار الاتصال.",
-      type: "session_reminder",
-      actionLabelAr: "عرض دفتر الحصص",
-      actionHref: "/dashboard/ledger",
-    });
-
-    return pendingCount;
+        return nextCheckin;
+      }),
+    };
   };
 
+  const replayOfflineQueue = async (forceRetryFailed: boolean) => {
+    if (isSyncingRef.current) {
+      return { attempted: 0, syncedCount: 0, failedCount: 0 };
+    }
+    if (effectiveOfflineRef.current) {
+      return {
+        attempted: 0,
+        syncedCount: 0,
+        failedCount: 0,
+        stoppedReason: "offline" as const,
+        lastErrorAr: "الجهاز غير متصل بالإنترنت — ستبدأ المزامنة عند استقرار الاتصال.",
+      };
+    }
+
+    if (forceRetryFailed) {
+      setOfflineQueue((prev) =>
+        prev.map((q) =>
+          !q.synced
+            ? {
+                ...q,
+                syncStatus: "pending",
+                retryCount: 0,
+                lastErrorCode: undefined,
+                lastErrorAr: undefined,
+              }
+            : q
+        )
+      );
+    }
+
+    const eligible = offlineQueueRef.current.filter(
+      (q) => !q.synced && (forceRetryFailed || (q.retryCount ?? 0) < 5)
+    );
+    if (eligible.length === 0) {
+      return { attempted: 0, syncedCount: 0, failedCount: 0 };
+    }
+
+    // Replay oldest queued events first to preserve session check-in ordering
+    const orderedItems = [...eligible].reverse();
+    isSyncingRef.current = true;
+    let syncedCount = 0;
+    let failedCount = 0;
+    let stoppedReason: "offline" | "auth" | "forbidden" | "conflict" | undefined;
+    let lastErrorAr: string | undefined;
+    let notifiedAuthStop = false;
+
+    try {
+      for (const item of orderedItems) {
+        if (effectiveOfflineRef.current) {
+          stoppedReason = "offline";
+          lastErrorAr = "انقطع الاتصال بالإنترنت أثناء المزامنة.";
+          break;
+        }
+
+        const eventId = item.clientEventId || item.id;
+        setOfflineQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id ? { ...q, clientEventId: eventId, syncStatus: "syncing" } : q
+          )
+        );
+
+        const targetLedger = sessionLedgersRef.current.find((l) => l.id === item.ledgerId);
+        if (!targetLedger) {
+          const msg = "تعذر العثور على دفتر الحصص المرتبط بالعملية المحفوظة.";
+          lastErrorAr = msg;
+          failedCount += 1;
+          setOfflineQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    synced: false,
+                    syncStatus: "failed",
+                    retryCount: Math.min(5, (q.retryCount ?? 0) + 1),
+                    lastErrorCode: "ledger_not_found",
+                    lastErrorAr: msg,
+                  }
+                : q
+            )
+          );
+          continue;
+        }
+
+        const candidateLedger = buildCloudCandidateLedger(targetLedger, item);
+        const res = await syncToSupabase("/api/supabase/session-ledgers", {
+          ledger: candidateLedger,
+          clientEventId: eventId,
+        });
+
+        const persistedOk = res.ok && res.data?.persisted === true;
+        if (persistedOk) {
+          const remoteLedger = res.data?.ledger as SessionLedger | undefined;
+          const resolvedLedger: SessionLedger =
+            remoteLedger && typeof remoteLedger === "object"
+              ? {
+                  ...remoteLedger,
+                  pinCode:
+                    remoteLedger.pinCode === "****" &&
+                    candidateLedger.pinCode &&
+                    candidateLedger.pinCode !== "****"
+                      ? candidateLedger.pinCode
+                      : remoteLedger.pinCode,
+                }
+              : candidateLedger;
+
+          setSessionLedgers((prev) =>
+            prev.map((l) => (l.id === resolvedLedger.id ? resolvedLedger : l))
+          );
+          setOfflineQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    clientEventId: eventId,
+                    synced: true,
+                    syncStatus: "synced",
+                    lastErrorCode: undefined,
+                    lastErrorAr: undefined,
+                  }
+                : q
+            )
+          );
+          void upsertLedgerInOfflineShiftSnapshot(resolvedLedger.facilityId, resolvedLedger);
+          syncedCount += 1;
+          setLastSyncedAtIso(new Date().toISOString());
+          continue;
+        }
+
+        if (res.category === "auth" || res.category === "forbidden") {
+          const errMsg =
+            res.messageAr ||
+            (res.category === "auth"
+              ? "انتهت جلسة تسجيل الدخول — يرجى إعادة تسجيل الدخول لإكمال المزامنة."
+              : "لا تملك صلاحية مزامنة هذه الحصة — تحقق من صلاحيات الحساب.");
+          stoppedReason = res.category;
+          lastErrorAr = errMsg;
+          failedCount += 1;
+          setOfflineQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    clientEventId: eventId,
+                    synced: false,
+                    syncStatus: "failed",
+                    lastErrorCode: res.errorCode || String(res.status),
+                    lastErrorAr: errMsg,
+                  }
+                : q
+            )
+          );
+          depsRef.current.pushNotification({
+            titleAr:
+              res.category === "auth"
+                ? "مزامنة أوفلاين متوقفة: يلزم إعادة تسجيل الدخول"
+                : "مزامنة أوفلاين متوقفة: نقص في الصلاحيات",
+            messageAr: errMsg,
+            type: "system",
+            actionLabelAr: res.category === "auth" ? "تسجيل الدخول" : "مراجعة الصلاحيات",
+            actionHref: res.category === "auth" ? "/auth" : "/dashboard/ledger",
+          });
+          notifiedAuthStop = true;
+          break;
+        }
+
+        if (res.category === "conflict") {
+          await syncLedgersFromServer();
+          const isIdempotent =
+            res.errorCode === "idempotent_replay" || res.data?.idempotent === true;
+          if (isIdempotent) {
+            setOfflineQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? {
+                      ...q,
+                      clientEventId: eventId,
+                      synced: true,
+                      syncStatus: "synced",
+                      lastErrorCode: undefined,
+                      lastErrorAr: undefined,
+                    }
+                  : q
+              )
+            );
+            syncedCount += 1;
+            setLastSyncedAtIso(new Date().toISOString());
+          } else {
+            const errMsg =
+              res.messageAr ||
+              "تعارض مع نسخة السيرفر أو تكرار حضور خلال 3 ساعات — تم تحديث البيانات من السيرفر.";
+            stoppedReason = stoppedReason || "conflict";
+            lastErrorAr = errMsg;
+            failedCount += 1;
+            setOfflineQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? {
+                      ...q,
+                      clientEventId: eventId,
+                      synced: false,
+                      syncStatus: "failed",
+                      lastErrorCode: res.errorCode || "conflict_409",
+                      lastErrorAr: errMsg,
+                    }
+                  : q
+              )
+            );
+          }
+          continue;
+        }
+
+        // Validation / Server 5xx / Network timeout / Offline
+        const errMsg =
+          res.messageAr || "تعذر رفع العملية للسيرفر — تم الإبقاء عليها لإعادة المحاولة.";
+        lastErrorAr = errMsg;
+        failedCount += 1;
+        setOfflineQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id
+              ? {
+                  ...q,
+                  clientEventId: eventId,
+                  synced: false,
+                  syncStatus: "failed",
+                  retryCount: Math.min(5, (q.retryCount ?? 0) + 1),
+                  lastErrorCode: res.errorCode || `http_${res.status}`,
+                  lastErrorAr: errMsg,
+                }
+              : q
+          )
+        );
+        if (res.category === "offline") {
+          stoppedReason = "offline";
+          break;
+        }
+      }
+    } finally {
+      isSyncingRef.current = false;
+    }
+
+    if (syncedCount > 0 && failedCount === 0 && !stoppedReason) {
+      depsRef.current.pushNotification({
+        titleAr: `مزامنة ${syncedCount} حصة أوفلاين بنجاح`,
+        messageAr: "تم تأكيد حفظ بصمات الحضور على السيرفر دون فقدان أي حصة.",
+        type: "session_reminder",
+        actionLabelAr: "عرض دفتر الحصص",
+        actionHref: "/dashboard/ledger",
+      });
+    } else if (syncedCount > 0 && failedCount > 0 && !notifiedAuthStop) {
+      depsRef.current.pushNotification({
+        titleAr: `مزامنة جزئية: نجحت ${syncedCount} وفشلت ${failedCount}`,
+        messageAr: lastErrorAr || "بعض العمليات لم يتم تأكيدها من السيرفر وبقيت في قائمة الانتظار.",
+        type: "system",
+        actionLabelAr: "مراجعة دفتر الحصص",
+        actionHref: "/dashboard/ledger",
+      });
+    } else if (syncedCount === 0 && failedCount > 0 && !notifiedAuthStop) {
+      depsRef.current.pushNotification({
+        titleAr: `تعذر مزامنة ${failedCount} عملية أوفلاين`,
+        messageAr: lastErrorAr || "لم يتم تأكيد الحفظ على السيرفر — بقيت العمليات محفوظة محلياً.",
+        type: "system",
+        actionLabelAr: "عرض دفتر الحصص",
+        actionHref: "/dashboard/ledger",
+      });
+    }
+
+    return {
+      attempted: orderedItems.length,
+      syncedCount,
+      failedCount,
+      stoppedReason,
+      lastErrorAr,
+    };
+  };
+
+  const syncOfflineQueueAsync: NonNullable<
+    CaptenlyContextType["syncOfflineQueueAsync"]
+  > = async () => replayOfflineQueue(false);
+
+  const retryFailedOfflineQueue: NonNullable<
+    CaptenlyContextType["retryFailedOfflineQueue"]
+  > = async () => replayOfflineQueue(true);
+
+  const syncOfflineQueue = () => {
+    const eligibleCount = offlineQueueRef.current.filter(
+      (q) => !q.synced && (q.retryCount ?? 0) < 5
+    ).length;
+    if (eligibleCount > 0 && !effectiveOfflineRef.current && !isSyncingRef.current) {
+      void syncOfflineQueueAsync();
+    }
+    return eligibleCount;
+  };
+
+  const syncStatusSummary: SyncStatusSummary = useMemo(() => {
+    let pendingCount = 0;
+    let syncingCount = 0;
+    let failedCount = 0;
+    let lastErrorAr: string | undefined;
+    for (const q of offlineQueue) {
+      if (q.synced || q.syncStatus === "synced") continue;
+      if (q.syncStatus === "syncing") syncingCount += 1;
+      else if (q.syncStatus === "failed") {
+        failedCount += 1;
+        if (!lastErrorAr && q.lastErrorAr) lastErrorAr = q.lastErrorAr;
+      } else {
+        pendingCount += 1;
+      }
+    }
+    return {
+      pendingCount,
+      syncingCount,
+      failedCount,
+      lastErrorAr,
+      lastSyncedAtIso,
+    };
+  }, [offlineQueue, lastSyncedAtIso]);
+
   useEffect(() => {
-    if (!effectiveOffline && offlineQueue.some((q) => !q.synced)) {
-      syncOfflineQueue();
+    const transitionedOnline = wasOfflineRef.current && !effectiveOffline;
+    wasOfflineRef.current = effectiveOffline;
+    if (effectiveOffline || !isAuthenticated) return;
+    const hasPending = offlineQueue.some(
+      (q) => !q.synced && q.syncStatus !== "failed" && (q.retryCount ?? 0) < 5
+    );
+    const hasRetryableOnReconnect =
+      transitionedOnline && offlineQueue.some((q) => !q.synced && (q.retryCount ?? 0) < 5);
+    if (hasPending || hasRetryableOnReconnect) {
+      void syncOfflineQueueAsync();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveOffline]);
+  }, [effectiveOffline, isAuthenticated, offlineQueue.length]);
 
   return {
     isOfflineSimulated,
@@ -286,9 +721,12 @@ export function usePoolDeskDomain({
     setSessionLedgers,
     offlineQueue,
     setOfflineQueue,
+    syncStatusSummary,
     facilityLinks,
     setFacilityLinks,
     syncOfflineQueue,
+    syncOfflineQueueAsync,
+    retryFailedOfflineQueue,
     lookupRemoteLedgersOrProfile,
     syncLedgersFromServer,
     ...linksActions,

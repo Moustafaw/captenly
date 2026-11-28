@@ -9,6 +9,9 @@ interface CachedPhotoEntry {
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const NEGATIVE_TTL_MS = 60 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 200;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_CACHED_IMAGE_BYTES = 200_000;
 const PHOTO_CACHE = new Map<string, CachedPhotoEntry>();
 
 interface CachedImageBytes {
@@ -18,8 +21,66 @@ interface CachedImageBytes {
 }
 
 const IMAGE_BYTES_CACHE = new Map<string, CachedImageBytes>();
-const MAX_CACHED_IMAGES = 48;
-const MAX_IMAGE_BYTES = 1_500_000;
+
+function setLruCacheEntry<T>(cache: Map<string, T>, key: string, value: T, maxEntries: number): void {
+  if (cache.has(key)) {
+    cache.delete(key);
+  }
+  while (cache.size >= maxEntries) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, value);
+}
+
+function getLruCacheEntry<T>(cache: Map<string, T>, key: string): T | undefined {
+  const entry = cache.get(key);
+  if (entry === undefined) return undefined;
+  cache.delete(key);
+  cache.set(key, entry);
+  return entry;
+}
+
+async function readBoundedResponseBytes(res: Response, maxBytes: number): Promise<ArrayBuffer | null> {
+  const contentLengthHeader = res.headers.get("content-length");
+  if (contentLengthHeader) {
+    const declared = Number(contentLengthHeader);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      return null;
+    }
+  }
+  if (!res.body) {
+    const buf = await res.arrayBuffer();
+    return buf.byteLength > 0 && buf.byteLength <= maxBytes ? buf : null;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || value.byteLength === 0) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  }
+  if (total === 0) return null;
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged.buffer;
+}
 
 // 1x1 transparent PNG so missing directory photos return 200 OK instead of 404 console errors;
 // FacilityImageOrFallback checks naturalWidth < 24 and renders the branded fallback card.
@@ -54,9 +115,12 @@ async function fetchSafeImageBytes(
   startUrl: string
 ): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
   const now = Date.now();
-  const cachedBytes = IMAGE_BYTES_CACHE.get(startUrl);
+  const cachedBytes = getLruCacheEntry(IMAGE_BYTES_CACHE, startUrl);
   if (cachedBytes && now - cachedBytes.ts < CACHE_TTL_MS) {
     return { bytes: cachedBytes.bytes, contentType: cachedBytes.contentType };
+  }
+  if (cachedBytes) {
+    IMAGE_BYTES_CACHE.delete(startUrl);
   }
 
   let currentUrl = isSafePublicHttpUrl(startUrl);
@@ -90,15 +154,16 @@ async function fetchSafeImageBytes(
     const rawContentType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
     if (!ALLOWED_IMAGE_TYPES.has(rawContentType)) return null;
 
-    const bytes = await res.arrayBuffer();
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) return null;
+    const bytes = await readBoundedResponseBytes(res, MAX_IMAGE_BYTES);
+    if (!bytes) return null;
 
-    if (bytes.byteLength <= 200_000) {
-      if (IMAGE_BYTES_CACHE.size >= MAX_CACHED_IMAGES) {
-        const firstKey = IMAGE_BYTES_CACHE.keys().next().value;
-        if (firstKey) IMAGE_BYTES_CACHE.delete(firstKey);
-      }
-      IMAGE_BYTES_CACHE.set(startUrl, { bytes, contentType: rawContentType, ts: now });
+    if (bytes.byteLength <= MAX_CACHED_IMAGE_BYTES) {
+      setLruCacheEntry(
+        IMAGE_BYTES_CACHE,
+        startUrl,
+        { bytes, contentType: rawContentType, ts: now },
+        MAX_CACHE_ENTRIES
+      );
     }
     return { bytes, contentType: rawContentType };
   } catch {
@@ -431,7 +496,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const cached = PHOTO_CACHE.get(cacheKey);
+  const cached = getLruCacheEntry(PHOTO_CACHE, cacheKey);
   const now = Date.now();
   if (cached) {
     const ttl = cached.url ? CACHE_TTL_MS : NEGATIVE_TTL_MS;
@@ -441,6 +506,7 @@ export async function GET(request: Request) {
       }
       return emptyTransparentImageResponse(3600);
     }
+    PHOTO_CACHE.delete(cacheKey);
   }
 
   let resolvedUrl: string | null = null;
@@ -481,7 +547,7 @@ export async function GET(request: Request) {
     resolvedUrl = await resolveWebsiteImageOrLogo(website);
   }
 
-  PHOTO_CACHE.set(cacheKey, { url: resolvedUrl, ts: now });
+  setLruCacheEntry(PHOTO_CACHE, cacheKey, { url: resolvedUrl, ts: now }, MAX_CACHE_ENTRIES);
 
   if (resolvedUrl) {
     return respondWithProxiedImage(resolvedUrl);

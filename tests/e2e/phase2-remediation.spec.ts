@@ -767,6 +767,38 @@ test.describe("Phase 2 Remediation Verification (F-010..F-014, F-016, F-017)", (
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/api/supabase/session-ledgers*", async (route) => {
+      if (route.request().method() === "POST") {
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = (route.request().postDataJSON() as Record<string, unknown>) || {};
+        } catch {
+          parsed = {};
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            persisted: true,
+            ledger: parsed.ledger || null,
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ persisted: true, ledgers: [], hasMore: false }),
+      });
+    });
+    await page.route("**/api/supabase/notifications*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, persisted: true, notifications: [] }),
+      });
+    });
     await page.addInitScript(() => {
       const fac1 = {
         id: "fac-gate-p2",

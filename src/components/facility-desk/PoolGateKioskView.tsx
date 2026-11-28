@@ -3,9 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
 import { parseCaptenlyQr } from "@/lib/qrPayload";
 import {
   loadOfflineShiftSnapshot,
+  mergeSessionLedgers,
   saveOfflineShiftSnapshot,
   type OfflineShiftSnapshot,
 } from "@/lib/offlineShiftDb";
@@ -54,6 +56,7 @@ type GateResultBanner = {
   messageAr: string;
   ledger?: SessionLedger;
   subscriptionCodeTried?: string;
+  pinTried?: string;
   duplicateBlocked?: boolean;
   expired?: boolean;
   scannedAtTimeAr?: string;
@@ -105,14 +108,26 @@ export function PoolGateKioskView({
   onSyncOffline,
   onMarkShiftPrepped,
 }: PoolGateKioskViewProps) {
+  const {
+    checkInBySubscriptionCodeAsync,
+    checkInByPinAsync,
+    syncOfflineQueueAsync,
+    retryFailedOfflineQueue,
+    syncStatusSummary,
+    effectiveOffline,
+    memberRegistry,
+  } = useCaptenly();
   const poolConfig = useMemo(() => getFacilityPoolDeskConfig(facility), [facility]);
 
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
+  const effectiveOnline = isOnline && !effectiveOffline;
   const [shiftSnapshot, setShiftSnapshot] = useState<OfflineShiftSnapshot | null>(null);
   const [prepFeedbackAr, setPrepFeedbackAr] = useState<string | null>(null);
-  const [syncFeedbackAr, setSyncFeedbackAr] = useState<string | null>(null);
+  const [syncFeedbackAr, setSyncFeedbackAr] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
 
   // Camera state
   const [cameraActive, setCameraActive] = useState(false);
@@ -160,10 +175,10 @@ export function PoolGateKioskView({
   }, [facility.id]);
 
   // Combine live ledgers with IndexedDB snapshot ledgers so gate works reliably offline
-  const effectiveLedgers = useMemo(() => {
-    if (ledgers.length > 0) return ledgers;
-    return shiftSnapshot?.ledgers || [];
-  }, [ledgers, shiftSnapshot]);
+  const effectiveLedgers = useMemo(
+    () => mergeSessionLedgers(ledgers, shiftSnapshot?.ledgers || [], "higher_progress"),
+    [ledgers, shiftSnapshot]
+  );
 
   const activeLedgers = useMemo(() => {
     const base = effectiveLedgers.filter((l) => l.status !== "completed" && !l.isCodeExpired);
@@ -207,68 +222,192 @@ export function PoolGateKioskView({
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const executeSubscriptionScan = useCallback(
-    (subCode: string, overrideDuplicate3h = false) => {
+    async (subCode: string, overrideDuplicate3h = false) => {
       const normalizedCode = subCode.trim().toUpperCase();
-      if (!normalizedCode) return;
+      if (!normalizedCode || isCheckingIn) return;
+      setIsCheckingIn(true);
 
-      const res = onCheckInByCode(
-        normalizedCode,
-        facility.id,
-        gateNoteDraft.trim() || "دخول من بوابة المنشأة",
-        undefined,
-        {
-          overrideDuplicate3h,
-          scanSource: "gate_kiosk",
+      try {
+        const res = checkInBySubscriptionCodeAsync
+          ? await checkInBySubscriptionCodeAsync(
+              normalizedCode,
+              facility.id,
+              gateNoteDraft.trim() || "دخول من بوابة المنشأة",
+              undefined,
+              {
+                overrideDuplicate3h,
+                scanSource: "gate_kiosk",
+              }
+            )
+          : onCheckInByCode(
+              normalizedCode,
+              facility.id,
+              gateNoteDraft.trim() || "دخول من بوابة المنشأة",
+              undefined,
+              {
+                overrideDuplicate3h,
+                scanSource: "gate_kiosk",
+              }
+            );
+
+        const nowTimeAr = new Date().toLocaleTimeString("ar-EG", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        if (res.ok && res.ledger) {
+          const remainingAfter = Math.max(
+            0,
+            res.ledger.totalSessions - res.ledger.completedSessions
+          );
+          const isLastOrDone = remainingAfter <= 1 || res.ledger.status === "renewal_due";
+          const tone = isLastOrDone ? "amber" : "emerald";
+          playFeedbackTone(tone);
+          setCandidateLedgers([]);
+          setResultBanner({
+            tone,
+            titleAr:
+              remainingAfter === 0
+                ? "تمت الحصة الأخيرة في الباقة — مطلوب تجديد"
+                : isLastOrDone
+                  ? "تم التسجيل (متبقي حصة واحدة — تنبيه تجديد)"
+                  : "دخول مسموح — تم خصم الحصة بنجاح",
+            messageAr: res.messageAr,
+            ledger: res.ledger,
+            subscriptionCodeTried: normalizedCode,
+            scannedAtTimeAr: nowTimeAr,
+          });
+          return;
         }
-      );
+
+        playFeedbackTone("rose");
+        setResultBanner({
+          tone: "rose",
+          titleAr: res.duplicateBlocked
+            ? "تنبيه تكرار المسح (حماية 3 ساعات)"
+            : res.expired
+              ? "رصيد الحصص منتهي — يتطلب تجديد"
+              : "تعذر إتمام تسجيل الدخول",
+          messageAr: res.messageAr,
+          ledger: res.ledger,
+          subscriptionCodeTried: normalizedCode,
+          duplicateBlocked: Boolean(res.duplicateBlocked),
+          expired: Boolean(res.expired),
+          scannedAtTimeAr: nowTimeAr,
+        });
+      } finally {
+        setIsCheckingIn(false);
+      }
+    },
+    [checkInBySubscriptionCodeAsync, facility.id, gateNoteDraft, isCheckingIn, onCheckInByCode]
+  );
+
+  const executePinScan = useCallback(
+    async (pinCode: string, overrideDuplicate3h = false) => {
+      const cleanPin = pinCode.trim();
+      if (!/^\d{4}$/.test(cleanPin) || isCheckingIn) return;
 
       const nowTimeAr = new Date().toLocaleTimeString("ar-EG", {
         hour: "2-digit",
         minute: "2-digit",
       });
 
-      if (res.ok && res.ledger) {
-        const remainingAfter = Math.max(
-          0,
-          res.ledger.totalSessions - res.ledger.completedSessions
-        );
-        const isLastOrDone = remainingAfter <= 1 || res.ledger.status === "renewal_due";
-        const tone = isLastOrDone ? "amber" : "emerald";
-        playFeedbackTone(tone);
-        setCandidateLedgers([]);
+      if (!effectiveOnline) {
+        playFeedbackTone("amber");
         setResultBanner({
-          tone,
-          titleAr:
-            remainingAfter === 0
-              ? "تمت الحصة الأخيرة في الباقة — مطلوب تجديد"
-              : isLastOrDone
-                ? "تم التسجيل (متبقي حصة واحدة — تنبيه تجديد)"
-                : "دخول مسموح — تم خصم الحصة بنجاح",
-          messageAr: res.messageAr,
-          ledger: res.ledger,
-          subscriptionCodeTried: normalizedCode,
+          tone: "amber",
+          titleAr: "التحقق برمز الـ PIN يتطلب اتصالاً بالإنترنت",
+          messageAr:
+            "لأمان السباحين لا تُخزّن رموز الـ PIN في وضع الأوفلاين. استخدم مسح QR أو كود الاشتراك (CAP-SUB-...) بدلاً من الـ PIN عند انقطاع الشبكة.",
           scannedAtTimeAr: nowTimeAr,
         });
         return;
       }
 
-      playFeedbackTone("rose");
-      setResultBanner({
-        tone: "rose",
-        titleAr: res.duplicateBlocked
-          ? "تنبيه تكرار المسح (حماية 3 ساعات)"
-          : res.expired
-            ? "رصيد الحصص منتهي — يتطلب تجديد"
-            : "تعذر إتمام تسجيل الدخول",
-        messageAr: res.messageAr,
-        ledger: res.ledger,
-        subscriptionCodeTried: normalizedCode,
-        duplicateBlocked: Boolean(res.duplicateBlocked),
-        expired: Boolean(res.expired),
-        scannedAtTimeAr: nowTimeAr,
-      });
+      setIsCheckingIn(true);
+      try {
+        const res = checkInByPinAsync
+          ? await checkInByPinAsync(cleanPin, {
+              facilityId: facility.id,
+              coachNoteAr: gateNoteDraft.trim() || "دخول من بوابة المنشأة (PIN)",
+              overrideDuplicate3h,
+              scanSource: "gate_kiosk",
+            })
+          : checkInBySubscriptionCodeAsync
+            ? await checkInBySubscriptionCodeAsync(
+                cleanPin,
+                facility.id,
+                gateNoteDraft.trim() || "دخول من بوابة المنشأة (PIN)",
+                undefined,
+                { overrideDuplicate3h, scanSource: "gate_kiosk" }
+              )
+            : onCheckInByCode(
+                cleanPin,
+                facility.id,
+                gateNoteDraft.trim() || "دخول من بوابة المنشأة (PIN)",
+                undefined,
+                { overrideDuplicate3h, scanSource: "gate_kiosk" }
+              );
+
+        if (res.ok && res.ledger) {
+          const remainingAfter = Math.max(
+            0,
+            res.ledger.totalSessions - res.ledger.completedSessions
+          );
+          const isLastOrDone = remainingAfter <= 1 || res.ledger.status === "renewal_due";
+          const tone = isLastOrDone ? "amber" : "emerald";
+          playFeedbackTone(tone);
+          setCandidateLedgers([]);
+          setResultBanner({
+            tone,
+            titleAr:
+              remainingAfter === 0
+                ? "تمت الحصة الأخيرة في الباقة — مطلوب تجديد"
+                : isLastOrDone
+                  ? "تم التسجيل بالـ PIN (متبقي حصة واحدة — تنبيه تجديد)"
+                  : "دخول مسموح — تم خصم الحصة بالـ PIN بنجاح",
+            messageAr: res.messageAr,
+            ledger: res.ledger,
+            pinTried: cleanPin,
+            scannedAtTimeAr: nowTimeAr,
+          });
+          return;
+        }
+
+        const isAmbiguous = "ambiguousPin" in res && Boolean(res.ambiguousPin);
+        const isRateLimited = "rateLimited" in res && Boolean(res.rateLimited);
+        playFeedbackTone(isAmbiguous ? "amber" : "rose");
+        setResultBanner({
+          tone: isAmbiguous ? "amber" : "rose",
+          titleAr: res.duplicateBlocked
+            ? "تنبيه تكرار المسح (حماية 3 ساعات)"
+            : res.expired
+              ? "رصيد الحصص منتهي — يتطلب تجديد"
+              : isRateLimited
+                ? "تم إيقاف محاولات الـ PIN مؤقتاً"
+                : isAmbiguous
+                  ? "تشابه في رمز الـ PIN — يرجى تحديد السباح"
+                  : "تعذر إتمام تسجيل الدخول بالـ PIN",
+          messageAr: res.messageAr,
+          ledger: res.ledger,
+          pinTried: cleanPin,
+          duplicateBlocked: Boolean(res.duplicateBlocked),
+          expired: Boolean(res.expired),
+          scannedAtTimeAr: nowTimeAr,
+        });
+      } finally {
+        setIsCheckingIn(false);
+      }
     },
-    [facility.id, gateNoteDraft, onCheckInByCode]
+    [
+      checkInByPinAsync,
+      checkInBySubscriptionCodeAsync,
+      effectiveOnline,
+      facility.id,
+      gateNoteDraft,
+      isCheckingIn,
+      onCheckInByCode,
+    ]
   );
 
   const handleDecodedPayload = useCallback(
@@ -276,21 +415,26 @@ export function PoolGateKioskView({
       const trimmed = rawText.trim();
       if (!trimmed) return;
 
+      if (/^\d{4}$/.test(trimmed)) {
+        void executePinScan(trimmed);
+        return;
+      }
+
       const parsed = parseCaptenlyQr(trimmed);
 
       if (parsed.kind === "subscription_qr" && parsed.subscriptionCode) {
-        executeSubscriptionScan(parsed.subscriptionCode);
+        void executeSubscriptionScan(parsed.subscriptionCode);
         return;
       }
 
       if (parsed.kind === "ledger_qr" && parsed.ledgerCode) {
-        executeSubscriptionScan(parsed.ledgerCode);
+        void executeSubscriptionScan(parsed.ledgerCode);
         return;
       }
 
       const subRegex = trimmed.toUpperCase().match(/(?:CAP-)?SUB-[A-Z0-9-]+/);
       if (subRegex?.[0]) {
-        executeSubscriptionScan(subRegex[0]);
+        void executeSubscriptionScan(subRegex[0]);
         return;
       }
 
@@ -302,7 +446,7 @@ export function PoolGateKioskView({
           (l) => (l.memberCode || "").toUpperCase() === memCode.toUpperCase()
         );
         if (matches.length === 1) {
-          executeSubscriptionScan(matches[0].subscriptionCode || matches[0].ledgerCode);
+          void executeSubscriptionScan(matches[0].subscriptionCode || matches[0].ledgerCode);
           return;
         }
         if (matches.length > 1) {
@@ -319,11 +463,11 @@ export function PoolGateKioskView({
       playFeedbackTone("rose");
       setResultBanner({
         tone: "rose",
-        titleAr: "رمز QR غير مطابق لاشتراكات هذه المنشأة",
-        messageAr: `النص المقروء (${trimmed.slice(0, 42)}) لا يحتوي على كود اشتراك SUB-XXXX أو CAP-SUB-XXXX أو كود عضو صالح داخل منشأتك.`,
+        titleAr: "رمز غير مطابق لاشتراكات هذه المنشأة",
+        messageAr: `النص المقروء (${trimmed.slice(0, 42)}) لا يحتوي على كود اشتراك SUB-XXXX / CAP-SUB-XXXX أو كود عضو أو رمز PIN من 4 أرقام.`,
       });
     },
-    [effectiveLedgers, executeSubscriptionScan]
+    [effectiveLedgers, executePinScan, executeSubscriptionScan]
   );
 
   const scanVideoFrame = useCallback(() => {
@@ -527,13 +671,17 @@ export function PoolGateKioskView({
   const waRenewalHref = useMemo(() => {
     const ledger = resultBanner?.ledger;
     if (!ledger) return null;
-    const rawPhone = (ledger as SessionLedger & { parentPhone?: string }).parentPhone;
-    const phone = formatEgyptWaPhone(rawPhone);
+    const matchedMember = ledger.memberCode
+      ? memberRegistry.find(
+          (m) => m.memberCode.toUpperCase() === ledger.memberCode!.toUpperCase()
+        )
+      : undefined;
+    const phone = formatEgyptWaPhone(matchedMember?.phone);
     const msg = encodeURIComponent(
       `أهلاً بولي أمر البطل/ة ${ledger.athleteNameAr} — تنبيه من ${facility.nameAr}: تم استخدام الحصة (${ledger.completedSessions}/${ledger.totalSessions}) في كود الاشتراك ${ledger.subscriptionCode || ledger.ledgerCode}. يُرجى تجديد الباقة قبل الحصة القادمة لضمان استمرار الدخول.`
     );
     return phone ? `https://wa.me/${phone}?text=${msg}` : `https://wa.me/?text=${msg}`;
-  }, [resultBanner, facility.nameAr]);
+  }, [resultBanner, facility.nameAr, memberRegistry]);
 
   return (
     <div data-testid="pool-gate-kiosk" className="min-h-screen bg-[#F7F9FA] pb-24" dir="rtl">
@@ -552,17 +700,17 @@ export function PoolGateKioskView({
                 </Link>
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black ${
-                    isOnline
+                    effectiveOnline
                       ? "bg-emerald-500/20 text-emerald-200 border border-emerald-300/30"
                       : "bg-amber-500/20 text-amber-100 border border-amber-300/30"
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isOnline ? "bg-emerald-400" : "bg-amber-300 animate-pulse"
+                      effectiveOnline ? "bg-emerald-400" : "bg-amber-300 animate-pulse"
                     }`}
                   />
-                  {isOnline ? "متصل بالسحابة — مزامنة لحظية" : "وضع البوابة أوفلاين (IndexedDB)"}
+                  {effectiveOnline ? "متصل بالسحابة — مزامنة لحظية" : "وضع البوابة أوفلاين (IndexedDB)"}
                 </span>
               </div>
               <h1 className="text-xl md:text-2xl font-black text-white">
@@ -584,17 +732,55 @@ export function PoolGateKioskView({
                 تجهيز شيفت اليوم (أوفلاين)
               </button>
 
-              {offlineQueue.length > 0 && (
+              {(offlineQueue.some((q) => !q.synced) ||
+                (syncStatusSummary?.failedCount ?? 0) > 0) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const synced = onSyncOffline();
-                    setSyncFeedbackAr(`تمت مزامنة ${synced} عملية حضور مسجلة أثناء انقطاع الشبكة.`);
+                  disabled={isSyncingQueue}
+                  onClick={async () => {
+                    setIsSyncingQueue(true);
+                    try {
+                      if (retryFailedOfflineQueue && (syncStatusSummary?.failedCount ?? 0) > 0) {
+                        const r = await retryFailedOfflineQueue();
+                        setSyncFeedbackAr({
+                          ok: r.failedCount === 0 && !r.stoppedReason,
+                          msg:
+                            r.failedCount === 0 && !r.stoppedReason
+                              ? `تمت مزامنة ${r.syncedCount} عملية مع السيرفر بنجاح ✓`
+                              : r.lastErrorAr ||
+                                `نجحت ${r.syncedCount} وفشلت ${r.failedCount} عمليات في المزامنة.`,
+                        });
+                      } else if (syncOfflineQueueAsync) {
+                        const r = await syncOfflineQueueAsync();
+                        setSyncFeedbackAr({
+                          ok: r.failedCount === 0 && !r.stoppedReason,
+                          msg:
+                            r.failedCount === 0 && !r.stoppedReason
+                              ? `تمت مزامنة ${r.syncedCount} عملية حضور مسجلة أثناء انقطاع الشبكة ✓`
+                              : r.lastErrorAr ||
+                                `تمت مزامنة ${r.syncedCount} وتعثرت ${r.failedCount} عمليات.`,
+                        });
+                      } else {
+                        const count = onSyncOffline();
+                        setSyncFeedbackAr({
+                          ok: true,
+                          msg: `بدأت مزامنة ${count} عملية حضور مسجلة أثناء انقطاع الشبكة.`,
+                        });
+                      }
+                    } finally {
+                      setIsSyncingQueue(false);
+                    }
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[48px] rounded-xl bg-amber-400 text-[#0F4C5C] font-black text-xs hover:bg-amber-300 transition-all cursor-pointer"
+                  className={`inline-flex items-center gap-2 px-4 py-3 min-h-[48px] rounded-xl font-black text-xs transition-all cursor-pointer disabled:opacity-60 ${
+                    (syncStatusSummary?.failedCount ?? 0) > 0
+                      ? "bg-rose-500 text-white hover:bg-rose-600"
+                      : "bg-amber-400 text-[#0F4C5C] hover:bg-amber-300"
+                  }`}
                 >
                   <Icon name="cloud_sync" size={17} />
-                  مزامنة ({offlineQueue.length}) عملية معلّقة
+                  {(syncStatusSummary?.failedCount ?? 0) > 0
+                    ? `إعادة محاولة (${syncStatusSummary?.failedCount}) عملية متعثرة`
+                    : `مزامنة (${offlineQueue.filter((q) => !q.synced).length}) عملية معلّقة`}
                 </button>
               )}
             </div>
@@ -631,11 +817,29 @@ export function PoolGateKioskView({
       </section>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 pt-6 space-y-6">
-        {(prepFeedbackAr || syncFeedbackAr) && (
-          <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-xs font-black text-emerald-800 flex items-center justify-between gap-2">
+        {(prepFeedbackAr || syncFeedbackAr || (syncStatusSummary?.failedCount ?? 0) > 0) && (
+          <div
+            className={`rounded-2xl px-4 py-3 text-xs font-black flex items-center justify-between gap-2 border ${
+              (syncFeedbackAr && !syncFeedbackAr.ok) ||
+              (!prepFeedbackAr && !syncFeedbackAr && (syncStatusSummary?.failedCount ?? 0) > 0)
+                ? "bg-rose-50 border-rose-200 text-rose-900"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+            }`}
+          >
             <span className="flex items-center gap-2">
-              <Icon name="check_circle" size={17} />
-              {prepFeedbackAr || syncFeedbackAr}
+              <Icon
+                name={
+                  (syncFeedbackAr && !syncFeedbackAr.ok) ||
+                  (!prepFeedbackAr && !syncFeedbackAr && (syncStatusSummary?.failedCount ?? 0) > 0)
+                    ? "warning"
+                    : "check_circle"
+                }
+                size={17}
+              />
+              {prepFeedbackAr ||
+                syncFeedbackAr?.msg ||
+                syncStatusSummary?.lastErrorAr ||
+                `توجد ${syncStatusSummary?.failedCount} عملية لم تتم مزامنتها مع السيرفر بعد.`}
             </span>
             <button
               type="button"
@@ -643,7 +847,7 @@ export function PoolGateKioskView({
                 setPrepFeedbackAr(null);
                 setSyncFeedbackAr(null);
               }}
-              className="min-h-[48px] px-3 inline-flex items-center text-emerald-700 hover:underline cursor-pointer"
+              className="min-h-[48px] px-3 inline-flex items-center hover:underline cursor-pointer"
             >
               إخفاء
             </button>
@@ -783,14 +987,15 @@ export function PoolGateKioskView({
                     type="text"
                     value={manualQuery}
                     onChange={(e) => setManualQuery(e.target.value)}
-                    placeholder="اكتب كود الاشتراك (SUB-...) أو اسم السباح / كود العضو..."
+                    placeholder="اكتب كود الاشتراك (SUB-...) أو PIN (4 أرقام) أو اسم السباح..."
                     className="flex-1 rounded-xl border border-sand-border bg-white px-4 py-3 text-sm font-bold"
                   />
                   <button
                     type="submit"
-                    className="px-6 py-3 min-h-[48px] rounded-xl bg-[#1D6E7D] text-white text-xs font-black hover:bg-[#0F4C5C] cursor-pointer shrink-0"
+                    disabled={isCheckingIn}
+                    className="px-6 py-3 min-h-[48px] rounded-xl bg-[#1D6E7D] text-white text-xs font-black hover:bg-[#0F4C5C] disabled:opacity-60 cursor-pointer shrink-0"
                   >
-                    فحص وتسجيل دخول
+                    {isCheckingIn ? "جاري التحقق..." : "فحص وتسجيل دخول"}
                   </button>
                 </div>
 
@@ -972,17 +1177,23 @@ export function PoolGateKioskView({
                     </a>
                   )}
 
-                  {resultBanner.duplicateBlocked && resultBanner.subscriptionCodeTried && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        executeSubscriptionScan(resultBanner.subscriptionCodeTried!, true)
-                      }
-                      className="flex-1 min-h-[48px] py-2.5 px-4 rounded-xl bg-rose-700 text-white text-xs font-black hover:bg-rose-800 cursor-pointer"
-                    >
-                      تسجيل استثنائي وتجاوز قفل الـ 3 ساعات
-                    </button>
-                  )}
+                  {resultBanner.duplicateBlocked &&
+                    (resultBanner.subscriptionCodeTried || resultBanner.pinTried) && (
+                      <button
+                        type="button"
+                        disabled={isCheckingIn}
+                        onClick={() => {
+                          if (resultBanner.pinTried) {
+                            void executePinScan(resultBanner.pinTried, true);
+                          } else if (resultBanner.subscriptionCodeTried) {
+                            void executeSubscriptionScan(resultBanner.subscriptionCodeTried, true);
+                          }
+                        }}
+                        className="flex-1 min-h-[48px] py-2.5 px-4 rounded-xl bg-rose-700 text-white text-xs font-black hover:bg-rose-800 disabled:opacity-60 cursor-pointer"
+                      >
+                        تسجيل استثنائي وتجاوز قفل الـ 3 ساعات
+                      </button>
+                    )}
 
                   {resultBanner.expired && (
                     <Link

@@ -1,0 +1,186 @@
+{
+  "auditedAt": "2026-11-28T14:06:54.171Z",
+  "baseUrl": "http://127.0.0.1:3197",
+  "runs": [
+    {
+      "route": "home",
+      "path": "/",
+      "formFactor": "mobile",
+      "scores": {
+        "performance": 41,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 1581,
+        "lcpMs": 5736,
+        "cls": 0.0457,
+        "tbtMs": 4972,
+        "siMs": 7600
+      }
+    },
+    {
+      "route": "home",
+      "path": "/",
+      "formFactor": "desktop",
+      "scores": {
+        "performance": 87,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 469,
+        "lcpMs": 877,
+        "cls": 0.0534,
+        "tbtMs": 289,
+        "siMs": 1099
+      }
+    },
+    {
+      "route": "explore",
+      "path": "/explore",
+      "formFactor": "mobile",
+      "scores": {
+        "performance": 55,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 92
+      },
+      "metrics": {
+        "fcpMs": 1182,
+        "lcpMs": 4944,
+        "cls": 0.0005,
+        "tbtMs": 1561,
+        "siMs": 3595
+      }
+    },
+    {
+      "route": "explore",
+      "path": "/explore",
+      "formFactor": "desktop",
+      "scores": {
+        "performance": 74,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92
+      },
+      "metrics": {
+        "fcpMs": 500,
+        "lcpMs": 2831,
+        "cls": 0.0031,
+        "tbtMs": 209,
+        "siMs": 1906
+      }
+    },
+    {
+      "route": "coaches",
+      "path": "/coaches",
+      "formFactor": "mobile",
+      "scores": {
+        "performance": 70,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 1265,
+        "lcpMs": 1265,
+        "cls": 0.2115,
+        "tbtMs": 828,
+        "siMs": 2041
+      }
+    },
+    {
+      "route": "coaches",
+      "path": "/coaches",
+      "formFactor": "desktop",
+      "scores": {
+        "performance": 98,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 395,
+        "lcpMs": 395,
+        "cls": 0.013,
+        "tbtMs": 114,
+        "siMs": 876
+      }
+    },
+    {
+      "route": "pools",
+      "path": "/pools",
+      "formFactor": "mobile",
+      "scores": {
+        "performance": 56,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 1161,
+        "lcpMs": 4271,
+        "cls": 0,
+        "tbtMs": 2333,
+        "siMs": 2695
+      }
+    },
+    {
+      "route": "pools",
+      "path": "/pools",
+      "formFactor": "desktop",
+      "scores": {
+        "performance": 91,
+        "accessibility": 98,
+        "bestPractices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 529,
+        "lcpMs": 1524,
+        "cls": 0.0037,
+        "tbtMs": 109,
+        "siMs": 1772
+      }
+    },
+    {
+      "route": "facility-gate",
+      "path": "/dashboard/facility/gate",
+      "formFactor": "mobile",
+      "scores": {
+        "performance": 66,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 69
+      },
+      "metrics": {
+        "fcpMs": 1254,
+        "lcpMs": 4335,
+        "cls": 0.0009,
+        "tbtMs": 803,
+        "siMs": 2391
+      }
+    },
+    {
+      "route": "facility-gate",
+      "path": "/dashboard/facility/gate",
+      "formFactor": "desktop",
+      "scores": {
+        "performance": 97,
+        "accessibility": 100,
+        "bestPractices": 100,
+        "seo": 69
+      },
+      "metrics": {
+        "fcpMs": 403,
+        "lcpMs": 1174,
+        "cls": 0.0039,
+        "tbtMs": 38,
+        "siMs": 1168
+      }
+    }
+  ]
+}

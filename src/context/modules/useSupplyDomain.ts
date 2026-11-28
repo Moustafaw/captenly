@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import type {
   Coach,
   EditorialArticle,
@@ -44,6 +45,27 @@ export interface SupplyDomainDeps {
   }>;
 }
 
+const CLIENT_PROHIBITED_MEDICAL_KEYWORDS = [
+  ...PROHIBITED_MEDICAL_KEYWORDS,
+  "علاج طبي",
+  "تأهيل طبي",
+  "تشخيص",
+  "وصفة طبية",
+  "علاج الديسك",
+  "علاج العمود الفقري",
+  "rehabilitation therapy",
+  "medical therapy",
+  "physical therapy",
+  "physiotherapy",
+  "medical rehab",
+  "medical diagnosis",
+];
+
+function findProhibitedMedicalKeyword(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  return CLIENT_PROHIBITED_MEDICAL_KEYWORDS.find((kw) => lower.includes(kw.toLowerCase()));
+}
+
 export function useSupplyDomain({
   initialPublicSupply,
   depsRef,
@@ -51,6 +73,7 @@ export function useSupplyDomain({
   initialPublicSupply?: InitialPublicSupply;
   depsRef: React.MutableRefObject<SupplyDomainDeps>;
 }) {
+  const pathname = usePathname() || "/";
   const [facilities, setFacilities] = useState<Facility[]>(
     initialPublicSupply?.facilities?.length ? initialPublicSupply.facilities : INITIAL_FACILITIES
   );
@@ -64,16 +87,22 @@ export function useSupplyDomain({
     Boolean(initialPublicSupply?.facilities?.length || initialPublicSupply?.coaches?.length)
   );
   const pendingFacilityHeroRef = useRef<Set<string>>(new Set());
+  const supplyFetchedRef = useRef<boolean>(false);
+  const facilitiesRef = useRef(facilities);
+  facilitiesRef.current = facilities;
+  const coachesRef = useRef(coaches);
+  coachesRef.current = coaches;
 
   // Hydrate real registered Captenly academies/coaches from Supabase on mount (deferred on non-directory routes)
   useEffect(() => {
+    if (supplyFetchedRef.current) return;
+
     let cancelled = false;
     let idleHandle: number | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
-    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
     let hasSavedSession = false;
-    if (typeof window !== "undefined" && currentPath.startsWith("/dashboard/facility/gate")) {
+    if (typeof window !== "undefined" && pathname.startsWith("/dashboard/facility/gate")) {
       try {
         hasSavedSession = Boolean(window.localStorage.getItem("captenly_platform_state_v6"));
       } catch {
@@ -81,15 +110,21 @@ export function useSupplyDomain({
       }
     }
     const shouldDeferSupply =
-      currentPath.startsWith("/auth") ||
-      currentPath === "/privacy" ||
-      currentPath === "/terms" ||
-      currentPath === "/badges" ||
-      currentPath === "/about" ||
-      (currentPath.startsWith("/dashboard/facility/gate") && !depsRef.current.isAuthenticated && !hasSavedSession);
+      pathname === "/" ||
+      pathname.startsWith("/auth") ||
+      pathname === "/welcome" ||
+      pathname === "/privacy" ||
+      pathname === "/terms" ||
+      pathname === "/badges" ||
+      pathname === "/about" ||
+      pathname.startsWith("/notifications") ||
+      (pathname.startsWith("/dashboard/facility/gate") &&
+        !depsRef.current.isAuthenticated &&
+        !hasSavedSession);
 
     const runSupplyFetch = () => {
-      if (cancelled) return;
+      if (cancelled || supplyFetchedRef.current) return;
+      supplyFetchedRef.current = true;
       fetch("/api/supabase/public-supply", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -147,7 +182,9 @@ export function useSupplyDomain({
             });
           }
         })
-        .catch(() => undefined)
+        .catch(() => {
+          supplyFetchedRef.current = false;
+        })
         .finally(() => {
           if (!cancelled) setPublicSupplyHydrated(true);
         });
@@ -160,9 +197,9 @@ export function useSupplyDomain({
         window as unknown as {
           requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number;
         }
-      ).requestIdleCallback(runSupplyFetch, { timeout: 2800 });
+      ).requestIdleCallback(runSupplyFetch, { timeout: 3500 });
     } else {
-      timeoutHandle = setTimeout(runSupplyFetch, 2000);
+      timeoutHandle = setTimeout(runSupplyFetch, 2500);
     }
 
     return () => {
@@ -174,31 +211,37 @@ export function useSupplyDomain({
       }
       if (timeoutHandle !== null) clearTimeout(timeoutHandle);
     };
-  }, [depsRef]);
+  }, [depsRef, pathname]);
 
-  const syncFacilityToSupabase = (fac: Facility) => {
+  const syncFacilityToSupabase = useCallback((fac: Facility) => {
     postSupabaseSync("/api/supabase/public-supply", { facility: fac });
-  };
+  }, []);
 
-  const syncCoachToSupabase = (coach: Coach) => {
+  const syncCoachToSupabase = useCallback((coach: Coach) => {
     postSupabaseSync("/api/supabase/public-supply", { coach });
-  };
+  }, []);
 
-  const updateCoachAndSync = (coachId: string, updater: (c: Coach) => Coach) => {
-    const existing = coaches.find((c) => c.id === coachId);
-    if (!existing) return;
-    const next = updater(existing);
-    setCoaches((prev) => prev.map((c) => (c.id === coachId ? next : c)));
-    syncCoachToSupabase(next);
-  };
+  const updateCoachAndSync = useCallback(
+    (coachId: string, updater: (c: Coach) => Coach) => {
+      const existing = coachesRef.current.find((c) => c.id === coachId);
+      if (!existing) return;
+      const next = updater(existing);
+      setCoaches((prev) => prev.map((c) => (c.id === coachId ? next : c)));
+      syncCoachToSupabase(next);
+    },
+    [syncCoachToSupabase]
+  );
 
-  const updateFacilityAndSync = (facilityId: string, updater: (f: Facility) => Facility) => {
-    const existing = facilities.find((f) => f.id === facilityId);
-    if (!existing) return;
-    const next = updater(existing);
-    setFacilities((prev) => prev.map((f) => (f.id === facilityId ? next : f)));
-    syncFacilityToSupabase(next);
-  };
+  const updateFacilityAndSync = useCallback(
+    (facilityId: string, updater: (f: Facility) => Facility) => {
+      const existing = facilitiesRef.current.find((f) => f.id === facilityId);
+      if (!existing) return;
+      const next = updater(existing);
+      setFacilities((prev) => prev.map((f) => (f.id === facilityId ? next : f)));
+      syncFacilityToSupabase(next);
+    },
+    [syncFacilityToSupabase]
+  );
 
   const updateFacilityHeroImage: CaptenlyContextType["updateFacilityHeroImage"] = async (
     facilityId,
@@ -326,59 +369,65 @@ export function useSupplyDomain({
     }
   };
 
-  const registerAndVerifyCoach: CaptenlyContextType["registerAndVerifyCoach"] = (payload) => {
-    const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
-    const cleanFb = (payload.facebookUrl || payload.socialLinks?.facebook || "").trim();
-    const cleanIg = (payload.instagramUrl || payload.socialLinks?.instagram || "").trim();
-    if (!cleanWa && !cleanFb && !cleanIg) {
-      return {
-        ok: false,
-        messageAr: "يرجى إدخال وسيلة تواصل واحدة على الأقل (رقم واتساب أو رابط فيسبوك أو إنستاجرام).",
-      };
-    }
-    const detected = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => payload.bioAr.includes(kw));
-    if (detected) {
-      return {
-        ok: false,
-        detectedKeyword: detected,
-        messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): يرجى إزالة مصطلح «${detected}» لغير الأطباء المرخصين.`,
-      };
-    }
-    void depsRef.current.submitRoleClaimApplication({
-      ...payload,
-      claimType: "coach",
-      affiliatedFacilityId: payload.facilityId,
-      targetFacilityId: payload.facilityId,
-      sportSector: "swimming",
-      proofNotesAr: `قيد نقابي/شهادة: ${payload.syndicateCardRef}${payload.edlfCertRef ? ` | إنقاذ: ${payload.edlfCertRef}` : ""}`,
-    });
-    return {
-      ok: true,
-      messageAr:
-        "تم استلام طلب التوثيق ككابتن للمراجعة الإدارية بنجاح — سيبقى حسابك الحالي فعالاً حتى اعتماد الطلب من إدارة كابتنلي.",
-    };
-  };
-
-  const validateAndSaveCoachBio: CaptenlyContextType["validateAndSaveCoachBio"] = (coachId, newBioAr) => {
-    const targetCoach = coaches.find((c) => c.id === coachId);
-    const hasMedicalLicenseBadge = targetCoach?.badges.some(
-      (b) => b.code === "BADGE_06_MEDICAL_PT" && b.status === "active"
-    );
-    if (!hasMedicalLicenseBadge) {
-      const detected = PROHIBITED_MEDICAL_KEYWORDS.find((kw) => newBioAr.includes(kw));
+  const registerAndVerifyCoach: CaptenlyContextType["registerAndVerifyCoach"] = useCallback(
+    (payload) => {
+      const cleanWa = (payload.whatsappNumber || "").replace(/\D/g, "");
+      const cleanFb = (payload.facebookUrl || payload.socialLinks?.facebook || "").trim();
+      const cleanIg = (payload.instagramUrl || payload.socialLinks?.instagram || "").trim();
+      if (!cleanWa && !cleanFb && !cleanIg) {
+        return {
+          ok: false,
+          messageAr: "يرجى إدخال وسيلة تواصل واحدة على الأقل (رقم واتساب أو رابط فيسبوك أو إنستاجرام).",
+        };
+      }
+      const detected = findProhibitedMedicalKeyword(payload.bioAr);
       if (detected) {
         return {
           ok: false,
           detectedKeyword: detected,
-          messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): غير مسموح باستخدام مصطلح «${detected}» لغير الأطباء المرخصين بالشارة السادسة.`,
+          messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): يرجى إزالة مصطلح «${detected}» لغير الأطباء المرخصين.`,
         };
       }
-    }
-    updateCoachAndSync(coachId, (c) => ({ ...c, bioAr: newBioAr }));
-    return { ok: true, messageAr: "تم حفظ السيرة المهنية بعد اجتياز فحص المعايير بنجاح!" };
-  };
+      void depsRef.current.submitRoleClaimApplication({
+        ...payload,
+        claimType: "coach",
+        affiliatedFacilityId: payload.facilityId,
+        targetFacilityId: payload.facilityId,
+        sportSector: "swimming",
+        proofNotesAr: `قيد نقابي/شهادة: ${payload.syndicateCardRef}${payload.edlfCertRef ? ` | إنقاذ: ${payload.edlfCertRef}` : ""}`,
+      });
+      return {
+        ok: true,
+        messageAr:
+          "تم استلام طلب التوثيق ككابتن للمراجعة الإدارية بنجاح — سيبقى حسابك الحالي فعالاً حتى اعتماد الطلب من إدارة كابتنلي.",
+      };
+    },
+    [depsRef]
+  );
 
-  const mergeExternalPlacesFacilities = (externalPlaces: Facility[]) => {
+  const validateAndSaveCoachBio: CaptenlyContextType["validateAndSaveCoachBio"] = useCallback(
+    (coachId, newBioAr) => {
+      const targetCoach = coachesRef.current.find((c) => c.id === coachId);
+      const hasMedicalLicenseBadge = targetCoach?.badges.some(
+        (b) => b.code === "BADGE_06_MEDICAL_PT" && b.status === "active"
+      );
+      if (!hasMedicalLicenseBadge) {
+        const detected = findProhibitedMedicalKeyword(newBioAr);
+        if (detected) {
+          return {
+            ok: false,
+            detectedKeyword: detected,
+            messageAr: `حظر قانوني تلقائي (قانون مزاولة مهنة العلاج الطبيعي رقم 3 لسنة 1985): غير مسموح باستخدام مصطلح «${detected}» لغير الأطباء المرخصين بالشارة السادسة.`,
+          };
+        }
+      }
+      updateCoachAndSync(coachId, (c) => ({ ...c, bioAr: newBioAr }));
+      return { ok: true, messageAr: "تم حفظ السيرة المهنية بعد اجتياز فحص المعايير بنجاح!" };
+    },
+    [updateCoachAndSync]
+  );
+
+  const mergeExternalPlacesFacilities = useCallback((externalPlaces: Facility[]) => {
     if (!externalPlaces.length) return;
     setFacilities((prev) => {
       const existingPlaceIds = new Set(prev.map((f) => f.googlePlaceId).filter(Boolean));
@@ -389,7 +438,7 @@ export function useSupplyDomain({
       );
       return fresh.length === 0 ? prev : [...prev, ...fresh];
     });
-  };
+  }, []);
 
   const claimFacilityAndVerify: CaptenlyContextType["claimFacilityAndVerify"] = (
     facilityId,
@@ -515,15 +564,19 @@ export function useSupplyDomain({
     return created;
   };
 
-  const catalogActions = createSupplyCatalogActions({
-    facilities,
-    coaches,
-    setArticles,
-    updateCoachAndSync,
-    updateFacilityAndSync,
-    getCurrentPersona: () => depsRef.current.currentPersona,
-    pushNotification: (n) => depsRef.current.pushNotification(n),
-  });
+  const catalogActions = useMemo(
+    () =>
+      createSupplyCatalogActions({
+        facilities,
+        coaches,
+        setArticles,
+        updateCoachAndSync,
+        updateFacilityAndSync,
+        getCurrentPersona: () => depsRef.current.currentPersona,
+        pushNotification: (n) => depsRef.current.pushNotification(n),
+      }),
+    [facilities, coaches, updateCoachAndSync, updateFacilityAndSync, depsRef]
+  );
 
   return {
     facilities,

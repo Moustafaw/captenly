@@ -187,7 +187,7 @@ export default function SettingsHubPage() {
               href="/auth"
               className="flex-1 sm:flex-none px-4 py-2 rounded-full bg-[#F7F9FA] hover:bg-[#EAF4F8] text-[#0F172A] hover:text-[#1D6E7D] border border-[#0F172A]/10 font-bold text-body-compact text-center transition-colors"
             >
-              تبديل الحساب
+              تسجيل الدخول بحساب آخر
             </Link>
           </div>
         </div>

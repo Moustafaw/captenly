@@ -37,6 +37,38 @@ function getEffectiveHostname(req: NextRequest): string {
   return raw.split(",")[0].trim().replace(/:\d+$/, "").toLowerCase();
 }
 
+function getEffectiveOrigin(req: NextRequest): string {
+  const rawHost = (
+    req.headers.get("x-forwarded-host") ||
+    req.headers.get("host") ||
+    ""
+  )
+    .split(",")[0]
+    ?.trim();
+  const rawProto = (req.headers.get("x-forwarded-proto") || "")
+    .split(",")[0]
+    ?.trim();
+  if (rawHost) {
+    const hostOnly = rawHost.replace(/:\d+$/, "").toLowerCase();
+    const proto = rawProto || (isLocalHostname(hostOnly) ? "http" : "https");
+    return `${proto}://${rawHost}`;
+  }
+  return req.nextUrl.origin;
+}
+
+const STATIC_ASSET_EXT_RE =
+  /\.(?:png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|eot|css|js|mjs|map|json|txt|xml|webmanifest)$/i;
+
+function isStaticAssetPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/fonts/") ||
+    pathname.startsWith("/images/") ||
+    pathname.startsWith("/screens/") ||
+    STATIC_ASSET_EXT_RE.test(pathname)
+  );
+}
+
 function isAllowedOrigin(originHeader: string, req: NextRequest): boolean {
   if (!originHeader) return true;
   const effectiveHost = getEffectiveHostname(req);
@@ -120,6 +152,12 @@ export function middleware(req: NextRequest) {
   }
 
   const res = NextResponse.next();
+  if (!isStaticAssetPath(pathname)) {
+    const allowedOrigin =
+      origin && isAllowedOrigin(origin, req) ? origin : getEffectiveOrigin(req);
+    res.headers.set("Access-Control-Allow-Origin", allowedOrigin);
+    res.headers.set("Vary", "Origin");
+  }
   applyHstsIfProductionHttps(req, res);
   return res;
 }

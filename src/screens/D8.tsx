@@ -21,14 +21,23 @@ export default function Desktop8() {
     memberRegistry,
     sessionLedgers,
     enrollSwimmerByMemberCode,
+    enrollSwimmerByMemberCodeAsync,
     checkInSession,
+    checkInSessionAsync,
     checkInBySubscriptionCode,
+    checkInBySubscriptionCodeAsync,
     renewSwimmerSubscription,
+    renewSwimmerSubscriptionAsync,
     uploadInstaPayReceipt,
+    uploadInstaPayReceiptAsync,
     confirmReceiptByProvider,
+    confirmReceiptByProviderAsync,
     effectiveOffline,
     offlineQueue,
+    syncStatusSummary,
     syncOfflineQueue,
+    syncOfflineQueueAsync,
+    retryFailedOfflineQueue,
     syncLedgersFromServer,
     activeStaffAssignment,
     minorAthletes,
@@ -142,7 +151,8 @@ export default function Desktop8() {
     "إنستاباي (InstaPay)" | "فودافون كاش (Vodafone Cash)"
   >("إنستاباي (InstaPay)");
   const [receiptAmount, setReceiptAmount] = useState("");
-  const [receiptSaved, setReceiptSaved] = useState(false);
+  const [receiptFeedback, setReceiptFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const memberCode = currentPersona.memberCode || "";
   const pendingOfflineCount = offlineQueue.filter((q) => !q.synced).length;
@@ -172,22 +182,31 @@ export default function Desktop8() {
     setTimeout(() => setCopiedCode(false), 1800);
   };
 
-  const handleQuickEnroll = (e: React.FormEvent) => {
+  const handleQuickEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = enrollSwimmerByMemberCode({
-      memberCode: newMemberCode,
-      athleteNameAr: newAthleteName.trim() || matchedEnrollMember?.fullNameAr,
-      facilityId: newFacilityId || linkedFacilityId,
-      coachId: isCoach ? currentPersona.id : undefined,
-      packageTitleAr: newPkgTitle,
-      totalSessions: newSessionsCount,
-      amountEgp: Number(newFeeEgp) || 0,
-    });
-    setEnrollMsg({ ok: res.ok, msg: res.messageAr });
-    if (res.ok && res.ledger) {
-      setSelectedLedgerId(res.ledger.id);
-      setNewAthleteName("");
-      setShowEnrollForm(false);
+    if (busyAction === "enroll") return;
+    setBusyAction("enroll");
+    try {
+      const enrollPayload = {
+        memberCode: newMemberCode,
+        athleteNameAr: newAthleteName.trim() || matchedEnrollMember?.fullNameAr,
+        facilityId: newFacilityId || linkedFacilityId,
+        coachId: isCoach ? currentPersona.id : undefined,
+        packageTitleAr: newPkgTitle,
+        totalSessions: newSessionsCount,
+        amountEgp: Number(newFeeEgp) || 0,
+      };
+      const res = enrollSwimmerByMemberCodeAsync
+        ? await enrollSwimmerByMemberCodeAsync(enrollPayload)
+        : enrollSwimmerByMemberCode(enrollPayload);
+      setEnrollMsg({ ok: res.ok, msg: res.messageAr });
+      if (res.ok && res.ledger) {
+        setSelectedLedgerId(res.ledger.id);
+        setNewAthleteName("");
+        setShowEnrollForm(false);
+      }
+    } finally {
+      setBusyAction(null);
     }
   };
 
@@ -238,17 +257,60 @@ export default function Desktop8() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {pendingOfflineCount > 0 && (
+            {(pendingOfflineCount > 0 || (syncStatusSummary?.failedCount ?? 0) > 0) && (
               <button
                 type="button"
-                onClick={() => syncOfflineQueue()}
-                className="px-4 py-2 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-xs font-bold shadow-sm transition-colors"
+                disabled={busyAction === "sync_queue"}
+                onClick={async () => {
+                  setBusyAction("sync_queue");
+                  try {
+                    if ((syncStatusSummary?.failedCount ?? 0) > 0 && retryFailedOfflineQueue) {
+                      const r = await retryFailedOfflineQueue();
+                      setCheckinMsg({
+                        ok: r.failedCount === 0 && !r.stoppedReason,
+                        msg:
+                          r.failedCount === 0 && !r.stoppedReason
+                            ? `تمت مزامنة ${r.syncedCount} عملية محفوظة أوفلاين بنجاح ✓`
+                            : r.lastErrorAr || `نجحت ${r.syncedCount} وفشلت ${r.failedCount} عمليات.`,
+                      });
+                    } else if (syncOfflineQueueAsync) {
+                      const r = await syncOfflineQueueAsync();
+                      setCheckinMsg({
+                        ok: r.failedCount === 0 && !r.stoppedReason,
+                        msg:
+                          r.failedCount === 0 && !r.stoppedReason
+                            ? `تمت مزامنة ${r.syncedCount} حصة محفوظة أوفلاين بنجاح ✓`
+                            : r.lastErrorAr || `نجحت ${r.syncedCount} وفشلت ${r.failedCount} عمليات.`,
+                      });
+                    } else {
+                      syncOfflineQueue();
+                    }
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
+                className={`px-4 py-2 rounded-full text-xs font-bold shadow-sm disabled:opacity-60 transition-colors ${
+                  (syncStatusSummary?.failedCount ?? 0) > 0
+                    ? "bg-rose-600 hover:bg-rose-700 text-white"
+                    : "bg-[#1D6E7D] hover:bg-[#155460] text-white"
+                }`}
               >
-                مزامنة {pendingOfflineCount} حصة محفوظة أوفلاين ↻
+                {(syncStatusSummary?.failedCount ?? 0) > 0
+                  ? `إعادة محاولة (${syncStatusSummary?.failedCount}) عملية متعثرة ↻`
+                  : `مزامنة ${pendingOfflineCount} حصة محفوظة أوفلاين ↻`}
               </button>
             )}
           </div>
         </section>
+
+        {(syncStatusSummary?.failedCount ?? 0) > 0 && syncStatusSummary?.lastErrorAr && (
+          <div className="rounded-2xl px-4 py-3 text-xs font-bold bg-rose-50 text-rose-900 border border-rose-200 flex items-center justify-between gap-2 shadow-sm">
+            <span className="flex items-center gap-2">
+              <Icon name="warning" className="text-[16px] shrink-0" />
+              <span>{syncStatusSummary.lastErrorAr}</span>
+            </span>
+          </div>
+        )}
 
         {/* Top System-Scan Status Banner (visible in all ledger states) */}
         {(checkinMsg || enrollMsg) && (
@@ -439,21 +501,33 @@ export default function Desktop8() {
               {/* Manual Subscription Code Entry Bar for Facility / Coach / Staff */}
               {canScanAndEnroll && (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    if (!manualSubCodeInput.trim()) return;
-                    const res = checkInBySubscriptionCode(
-                      manualSubCodeInput.trim(),
-                      isFacility ? linkedFacilityId : undefined,
-                      manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً",
-                      isCoach ? linkedCoachId : undefined
-                    );
-                    setEnrollMsg({ ok: res.ok, msg: res.messageAr });
-                    setCheckinMsg({ ok: res.ok, msg: res.messageAr });
-                    if (res.ok && res.ledger) {
-                      setSelectedLedgerId(res.ledger.id);
-                      setManualSubCodeInput("");
-                      setManualSubCodeNote("");
+                    if (!manualSubCodeInput.trim() || busyAction === "manual_sub") return;
+                    setBusyAction("manual_sub");
+                    try {
+                      const res = checkInBySubscriptionCodeAsync
+                        ? await checkInBySubscriptionCodeAsync(
+                            manualSubCodeInput.trim(),
+                            isFacility ? linkedFacilityId : undefined,
+                            manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً",
+                            isCoach ? linkedCoachId : undefined
+                          )
+                        : checkInBySubscriptionCode(
+                            manualSubCodeInput.trim(),
+                            isFacility ? linkedFacilityId : undefined,
+                            manualSubCodeNote.trim() || "خصم حصة بإدخال كود الاشتراك يدوياً",
+                            isCoach ? linkedCoachId : undefined
+                          );
+                      setEnrollMsg({ ok: res.ok, msg: res.messageAr });
+                      setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                      if (res.ok && res.ledger) {
+                        setSelectedLedgerId(res.ledger.id);
+                        setManualSubCodeInput("");
+                        setManualSubCodeNote("");
+                      }
+                    } finally {
+                      setBusyAction(null);
                     }
                   }}
                   className="rounded-2xl bg-gradient-to-l from-[#EAF4F8] to-[#F7F9FA] text-[#0F172A] p-4 border border-[#1D6E7D]/20 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
@@ -847,8 +921,11 @@ export default function Desktop8() {
                           />
                           <button
                             type="button"
-                            disabled={activeLedger.completedSessions >= activeLedger.totalSessions}
-                            onClick={() => {
+                            disabled={
+                              activeLedger.completedSessions >= activeLedger.totalSessions ||
+                              busyAction === "checkin"
+                            }
+                            onClick={async () => {
                               const cleanEntry = pinInput.trim();
                               if (!cleanEntry) {
                                 setCheckinMsg({
@@ -857,21 +934,33 @@ export default function Desktop8() {
                                 });
                                 return;
                               }
-                              const res = checkInSession(
-                                activeLedger.id,
-                                cleanEntry,
-                                "pin_4digit",
-                                coachNote
-                              );
-                              setCheckinMsg({ ok: res.ok, msg: res.messageAr });
-                              if (res.ok) {
-                                setPinInput("");
-                                setCoachNote("");
+                              setBusyAction("checkin");
+                              try {
+                                const res = checkInSessionAsync
+                                  ? await checkInSessionAsync(
+                                      activeLedger.id,
+                                      cleanEntry,
+                                      "pin_4digit",
+                                      coachNote
+                                    )
+                                  : checkInSession(
+                                      activeLedger.id,
+                                      cleanEntry,
+                                      "pin_4digit",
+                                      coachNote
+                                    );
+                                setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                                if (res.ok) {
+                                  setPinInput("");
+                                  setCoachNote("");
+                                }
+                              } finally {
+                                setBusyAction(null);
                               }
                             }}
                             className="py-2.5 px-4 rounded-xl bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm disabled:opacity-40 transition-colors"
                           >
-                            خصم حصة بالـ QR / PIN ✓
+                            {busyAction === "checkin" ? "جاري التحقق..." : "خصم حصة بالـ QR / PIN ✓"}
                           </button>
                         </div>
                       </div>
@@ -990,15 +1079,24 @@ export default function Desktop8() {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          const res = renewSwimmerSubscription({
-                            ledgerId: activeLedger.id,
-                            totalSessions: activeLedger.totalSessions,
-                            packageTitleAr: activeLedger.packageTitleAr,
-                          });
-                          setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                        disabled={busyAction === "renew"}
+                        onClick={async () => {
+                          setBusyAction("renew");
+                          try {
+                            const renewPayload = {
+                              ledgerId: activeLedger.id,
+                              totalSessions: activeLedger.totalSessions,
+                              packageTitleAr: activeLedger.packageTitleAr,
+                            };
+                            const res = renewSwimmerSubscriptionAsync
+                              ? await renewSwimmerSubscriptionAsync(renewPayload)
+                              : renewSwimmerSubscription(renewPayload);
+                            setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                          } finally {
+                            setBusyAction(null);
+                          }
                         }}
-                        className="w-full py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#1D6E7D] text-[#1D6E7D] hover:text-white border border-[#1D6E7D]/25 text-xs font-bold transition-colors"
+                        className="w-full py-2.5 rounded-full bg-[#EAF4F8] hover:bg-[#1D6E7D] text-[#1D6E7D] hover:text-white border border-[#1D6E7D]/25 text-xs font-bold disabled:opacity-60 transition-colors"
                       >
                         تجديد الاشتراك وتوليد كود اشتراك جديد ({activeLedger.totalSessions} حصص) ↻
                       </button>
@@ -1074,8 +1172,19 @@ export default function Desktop8() {
                               {!r.confirmedByProvider && canConfirmReceipt && (
                                 <button
                                   type="button"
-                                  onClick={() => confirmReceiptByProvider(activeLedger.id, r.id)}
-                                  className="px-3 py-1 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-[10px] font-bold transition-colors"
+                                  disabled={busyAction === r.id}
+                                  onClick={async () => {
+                                    setBusyAction(r.id);
+                                    try {
+                                      const res = confirmReceiptByProviderAsync
+                                        ? await confirmReceiptByProviderAsync(activeLedger.id, r.id)
+                                        : confirmReceiptByProvider(activeLedger.id, r.id);
+                                      setCheckinMsg({ ok: res.ok, msg: res.messageAr });
+                                    } finally {
+                                      setBusyAction(null);
+                                    }
+                                  }}
+                                  className="px-3 py-1 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white text-[10px] font-bold disabled:opacity-60 transition-colors"
                                 >
                                   تأكيد الاستلام ✓
                                 </button>
@@ -1087,18 +1196,33 @@ export default function Desktop8() {
                     </div>
 
                     <form
-                      onSubmit={(e) => {
+                      onSubmit={async (e) => {
                         e.preventDefault();
-                        if (!receiptRef.trim()) return;
-                        uploadInstaPayReceipt(activeLedger.id, {
-                          referenceNumber: receiptRef.trim(),
-                          channel: receiptChannel,
-                          amountEgp: Number(receiptAmount) || 0,
-                          packageTitleAr: activeLedger.packageTitleAr,
-                        });
-                        setReceiptRef("");
-                        setReceiptSaved(true);
-                        setTimeout(() => setReceiptSaved(false), 2500);
+                        if (!receiptRef.trim() || busyAction === "receipt") return;
+                        setBusyAction("receipt");
+                        setReceiptFeedback(null);
+                        try {
+                          const payload = {
+                            referenceNumber: receiptRef.trim(),
+                            channel: receiptChannel,
+                            amountEgp: Number(receiptAmount) || 0,
+                            packageTitleAr: activeLedger.packageTitleAr,
+                          };
+                          if (uploadInstaPayReceiptAsync) {
+                            const res = await uploadInstaPayReceiptAsync(activeLedger.id, payload);
+                            setReceiptFeedback({ ok: res.ok, msg: res.messageAr });
+                            if (res.ok) setReceiptRef("");
+                          } else {
+                            uploadInstaPayReceipt(activeLedger.id, payload);
+                            setReceiptRef("");
+                            setReceiptFeedback({
+                              ok: true,
+                              msg: "تم إرفاق مرجع الإيصال — بانتظار المزامنة والمراجعة.",
+                            });
+                          }
+                        } finally {
+                          setBusyAction(null);
+                        }
                       }}
                       className="flex flex-col gap-2.5 pt-2 border-t border-[#0F172A]/8"
                     >
@@ -1134,13 +1258,18 @@ export default function Desktop8() {
                       </div>
                       <button
                         type="submit"
-                        className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm transition-colors"
+                        disabled={busyAction === "receipt"}
+                        className="w-full py-2.5 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm disabled:opacity-60 transition-colors"
                       >
-                        حفظ الإيصال في السجل الدائم
+                        {busyAction === "receipt" ? "جاري الحفظ..." : "حفظ الإيصال في السجل الدائم"}
                       </button>
-                      {receiptSaved && (
-                        <span className="text-xs font-bold text-[#1D6E7D] text-center">
-                          ✓ تم توثيق الإيصال في أرشيفك بنجاح
+                      {receiptFeedback && (
+                        <span
+                          className={`text-xs font-bold text-center ${
+                            receiptFeedback.ok ? "text-[#1D6E7D]" : "text-red-700"
+                          }`}
+                        >
+                          {receiptFeedback.msg}
                         </span>
                       )}
                     </form>

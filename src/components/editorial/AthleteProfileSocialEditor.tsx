@@ -46,7 +46,7 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
   const [instagram, setInstagram] = useState(currentPersona.socialLinks?.instagram || "");
   const [xHandle, setXHandle] = useState(currentPersona.socialLinks?.x || "");
   const [threads, setThreads] = useState(currentPersona.socialLinks?.threads || "");
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     setBio(currentPersona.bioAr || "");
@@ -58,7 +58,7 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateCurrentPersonaProfile({
+    const res = updateCurrentPersonaProfile({
       bioAr: bio.trim(),
       socialLinks: {
         facebook: normalizeSocialUrl(facebook, "facebook") || "",
@@ -67,8 +67,17 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
         threads: normalizeSocialUrl(threads, "threads") || "",
       },
     });
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    if (!res.ok) {
+      setFeedback({
+        ok: false,
+        text: res.messageAr || "تعذر حفظ البيانات لمخالفتها شروط النشر المهني.",
+      });
+      return;
+    }
+    setFeedback({ ok: true, text: "تم الحفظ ✓" });
+    setTimeout(() => {
+      setFeedback((prev) => (prev?.ok ? null : prev));
+    }, 3000);
   };
 
   return (
@@ -90,12 +99,28 @@ export function AthleteProfileSocialEditor({ compact = false }: { compact?: bool
             تظهر هذه الروابط في بطاقة حسابك لتسهيل التعارف داخل مجتمع السباحة
           </p>
         </div>
-        {savedNotice && (
+        {feedback?.ok && (
           <span className="px-3 py-1 rounded-full bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/20 text-xs font-bold">
-            تم الحفظ ✓
+            {feedback.text}
           </span>
         )}
       </div>
+
+      {feedback && !feedback.ok && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs font-bold text-red-800 flex items-center justify-between gap-2"
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="text-[11px] underline shrink-0"
+          >
+            إغلاق
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-bold text-[#0F172A]">النبذة التعريفية (Bio)</label>

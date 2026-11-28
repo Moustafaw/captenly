@@ -48,8 +48,6 @@ export function AuthorArticlesManager({
   const [takeawaysText, setTakeawaysText] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveProgress, setSaveProgress] = useState(0);
   const [localMsg, setLocalMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,7 +112,6 @@ export function AuthorArticlesManager({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
 
     const cleanParagraphs = bodyText
       .split(/\n+/)
@@ -132,43 +129,27 @@ export function AuthorArticlesManager({
       return;
     }
 
-    setIsSaving(true);
-    setSaveProgress(18);
-    setLocalMsg(null);
-    const t1 = setTimeout(() => setSaveProgress(56), 500);
-    const t2 = setTimeout(() => setSaveProgress(86), 1100);
+    const res = saveEditorialArticle({
+      id: editingId || undefined,
+      titleAr: titleAr.trim(),
+      categoryAr,
+      excerptAr: excerptAr.trim(),
+      keyTakeawaysAr: cleanTakeaways,
+      bodyParagraphsAr: cleanParagraphs,
+      // إذا لم يرفع الكاتب صورة، يتم حفظ المقال بدون أي صورة افتراضية نهائياً
+      imageUrl: imageUrl.trim() || undefined,
+      authorNameAr,
+      authorRoleAr,
+      authorType,
+      authorEntityId,
+      authorSlug,
+    });
 
-    setTimeout(() => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      setSaveProgress(100);
-
-      const res = saveEditorialArticle({
-        id: editingId || undefined,
-        titleAr: titleAr.trim(),
-        categoryAr,
-        excerptAr: excerptAr.trim(),
-        keyTakeawaysAr: cleanTakeaways,
-        bodyParagraphsAr: cleanParagraphs,
-        // إذا لم يرفع الكاتب صورة، يتم حفظ المقال بدون أي صورة افتراضية نهائياً
-        imageUrl: imageUrl.trim() || undefined,
-        authorNameAr,
-        authorRoleAr,
-        authorType,
-        authorEntityId,
-        authorSlug,
-      });
-
-      setTimeout(() => {
-        setIsSaving(false);
-        setSaveProgress(0);
-        setLocalMsg({ ok: res.ok, text: res.messageAr });
-        onFeedback?.({ ok: res.ok, msg: res.messageAr });
-        if (res.ok) {
-          resetForm();
-        }
-      }, 220);
-    }, 1650);
+    setLocalMsg({ ok: res.ok, text: res.messageAr });
+    onFeedback?.({ ok: res.ok, msg: res.messageAr });
+    if (res.ok) {
+      resetForm();
+    }
   };
 
   return (
@@ -426,41 +407,13 @@ export function AuthorArticlesManager({
           )}
         </div>
 
-        {isSaving && (
-          <div className="rounded-2xl bg-[#EAF4F8] border border-[#00ACC1]/30 p-3.5 flex flex-col gap-2 animate-captenly-enter">
-            <div className="flex items-center justify-between text-xs font-extrabold text-[#1D6E7D]">
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-[#1D6E7D] border-t-transparent animate-spin" />
-                {editingId ? "جاري حفظ تعديلات المقال..." : "جاري رفع ونشر المقال في المجلة والبروفايل..."}
-              </span>
-              <span dir="ltr">{saveProgress}%</span>
-            </div>
-            <div className="w-full h-2 rounded-full bg-white overflow-hidden">
-              <div
-                className="h-full bg-[#1D6E7D] rounded-full transition-all duration-300"
-                style={{ width: `${saveProgress}%` }}
-              />
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center gap-3 flex-wrap">
           <button
             type="submit"
-            disabled={isSaving}
-            className="px-6 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm disabled:opacity-60 flex items-center gap-2 transition cursor-pointer"
+            className="px-6 py-3 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-bold text-xs shadow-sm flex items-center gap-2 transition cursor-pointer"
           >
-            {isSaving ? (
-              <>
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                <span>جاري الحفظ ({saveProgress}%)...</span>
-              </>
-            ) : (
-              <>
-                <Icon name="publish" className="text-[16px]" />
-                <span>{editingId ? "حفظ تعديلات المقال ✓" : "نشر المقال الآن ✓"}</span>
-              </>
-            )}
+            <Icon name="publish" className="text-[16px]" />
+            <span>{editingId ? "حفظ تعديلات المقال ✓" : "نشر المقال الآن ✓"}</span>
           </button>
           <span className="text-[11px] text-[#64748B]">
             الكاتب: <strong className="text-[#0B1C2E]">{authorNameAr}</strong> ({authorRoleAr})

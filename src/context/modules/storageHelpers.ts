@@ -20,7 +20,7 @@ import type {
   WorkspaceContextMode,
 } from "@/types/captenly";
 import { GUEST_PERSONA, PERSONA_ACCOUNTS } from "@/data/seedData";
-import type { AccountActivitySnapshot, UserSettingsState } from "./types";
+import type { AccountActivitySnapshot, UserSettingsState } from "./payloadTypes";
 
 export const STORAGE_KEY = "captenly_platform_state_v6";
 export const LEGACY_STORAGE_KEY_V5 = "captenly_platform_state_v5";
@@ -173,14 +173,182 @@ export function formatEgyptianWhatsapp(raw?: string): string | undefined {
   return cleanWa.startsWith("20") ? cleanWa : cleanWa.startsWith("0") ? `2${cleanWa}` : `20${cleanWa}`;
 }
 
-/** Fire-and-forget background sync to Supabase API routes (offline/optimistic UX preserved). */
-export function postSupabaseSync(path: string, body: Record<string, unknown>): void {
+export type SyncFailureCategory =
+  | "ok"
+  | "offline"
+  | "auth"
+  | "forbidden"
+  | "validation"
+  | "conflict"
+  | "server"
+  | "network";
+
+export interface SyncResult {
+  ok: boolean;
+  status: number;
+  category: SyncFailureCategory;
+  data?: Record<string, unknown>;
+  errorCode?: string;
+  messageAr?: string;
+}
+
+function classifyHttpStatus(status: number): SyncFailureCategory {
+  if (status === 401) return "auth";
+  if (status === 403) return "forbidden";
+  if (status === 400 || status === 422) return "validation";
+  if (status === 409) return "conflict";
+  if (status >= 500) return "server";
+  return status >= 200 && status < 300 ? "ok" : "validation";
+}
+
+function defaultArabicErrorForCategory(category: SyncFailureCategory): string {
+  switch (category) {
+    case "offline":
+      return "الجهاز غير متصل بالإنترنت — تم الاحتفاظ بالعملية للمزامنة لاحقاً.";
+    case "auth":
+      return "انتهت جلسة تسجيل الدخول أو غير مصرح — يرجى إعادة تسجيل الدخول لإكمال المزامنة.";
+    case "forbidden":
+      return "لا تملك صلاحية تنفيذ هذه العملية على السيرفر.";
+    case "validation":
+      return "بيانات الطلب غير مكتملة أو غير صالحة.";
+    case "conflict":
+      return "تعارض مع بيانات السيرفر أو تسجيل مكرر خلال نافذة الحماية.";
+    case "server":
+      return "تعذر حفظ البيانات على السيرفر حالياً — يرجى المحاولة مرة أخرى.";
+    case "network":
+      return "تعذر الاتصال بالسيرفر — تحقق من اتصال الإنترنت.";
+    default:
+      return "";
+  }
+}
+
+/**
+ * Transactional cloud sync helper with HTTP status classification, timeout abort,
+ * and explicit failure reporting (never swallows HTTP or network errors silently).
+ */
+export async function syncToSupabase(
+  path: string,
+  body: Record<string, unknown>,
+  options?: { method?: "POST" | "PATCH"; timeoutMs?: number }
+): Promise<SyncResult> {
+  if (typeof window === "undefined") {
+    return {
+      ok: false,
+      status: 0,
+      category: "offline",
+      errorCode: "ssr_unavailable",
+      messageAr: defaultArabicErrorForCategory("offline"),
+    };
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return {
+      ok: false,
+      status: 0,
+      category: "offline",
+      errorCode: "browser_offline",
+      messageAr: defaultArabicErrorForCategory("offline"),
+    };
+  }
+
+  const method = options?.method ?? "POST";
+  const timeoutMs = Math.max(1000, options?.timeoutMs ?? 15000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    let data: Record<string, unknown> | undefined;
+    try {
+      const parsed: unknown = await res.json();
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        data = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Non-JSON response body
+    }
+
+    const serverErrorCode =
+      typeof data?.error === "string"
+        ? data.error
+        : typeof data?.reason === "string"
+          ? data.reason
+          : undefined;
+    const serverMessageAr =
+      typeof data?.messageAr === "string" && data.messageAr.trim()
+        ? data.messageAr
+        : undefined;
+
+    if (!res.ok) {
+      const category = classifyHttpStatus(res.status);
+      return {
+        ok: false,
+        status: res.status,
+        category,
+        data,
+        errorCode: serverErrorCode || `http_${res.status}`,
+        messageAr: serverMessageAr || defaultArabicErrorForCategory(category),
+      };
+    }
+
+    // Backend routes may return HTTP 200 with { persisted: false, reason } when DB persistence fails
+    if (data?.persisted === false || data?.ok === false) {
+      return {
+        ok: false,
+        status: res.status,
+        category: "server",
+        data,
+        errorCode: serverErrorCode || "not_persisted",
+        messageAr: serverMessageAr || defaultArabicErrorForCategory("server"),
+      };
+    }
+
+    return {
+      ok: true,
+      status: res.status,
+      category: "ok",
+      data,
+      messageAr: serverMessageAr,
+    };
+  } catch (err) {
+    const isAbort = err instanceof Error && err.name === "AbortError";
+    return {
+      ok: false,
+      status: 0,
+      category: "network",
+      errorCode: isAbort ? "timeout" : "network_error",
+      messageAr: isAbort
+        ? "انتهت مهلة الاتصال بالسيرفر — تم الإبقاء على العملية لإعادة المحاولة."
+        : defaultArabicErrorForCategory("network"),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Transitional wrapper for legacy callers not yet migrated to `await syncToSupabase(...)`.
+ * Logs failures visibly instead of swallowing rejections silently.
+ */
+export function postSupabaseSync(
+  path: string,
+  body: Record<string, unknown>,
+  onResult?: (result: SyncResult) => void
+): void {
   if (typeof window === "undefined") return;
-  fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).catch(() => {});
+  void syncToSupabase(path, body).then((result) => {
+    if (!result.ok) {
+      console.warn(
+        `[CAPTENLY sync failure] ${path} -> ${result.category} (${result.status}) ${result.errorCode || ""}`
+      );
+    }
+    onResult?.(result);
+  });
 }
 
 export interface PersistedPayload {

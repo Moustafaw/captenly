@@ -249,8 +249,21 @@ export function createPoolDeskLinksAndConfigActions(input: PoolDeskLinksInput) {
           syncEntityLinkIntoFacilityState(saved);
           return { ok: true, link: saved, messageAr: data.messageAr };
         }
+        return {
+          ok: false,
+          messageAr:
+            data?.messageAr ||
+            (res.status === 403
+              ? "ليس لديك صلاحية إضافة أكاديميات أو كباتن لهذه المنشأة."
+              : res.status === 401
+                ? "يرجى تسجيل الدخول أولاً لإتمام هذا الإجراء."
+                : "تعذر حفظ بيانات الأكاديمية أو الكابتن على الخادم حالياً."),
+        };
       } catch {
-        // Fallback optimistic update
+        return {
+          ok: false,
+          messageAr: "تعذر الاتصال بالخادم لحفظ ربط الأكاديمية أو الكابتن. حاول مرة أخرى.",
+        };
       }
     }
 
@@ -383,8 +396,23 @@ export function createPoolDeskLinksAndConfigActions(input: PoolDeskLinksInput) {
           }
           return { ok: true, link: saved, messageAr: data.messageAr };
         }
+        return {
+          ok: false,
+          messageAr:
+            data?.messageAr ||
+            (res.status === 403
+              ? "ليس لديك صلاحية تعديل ربط الأكاديميات أو التحصيل الشهري."
+              : res.status === 401
+                ? "يرجى تسجيل الدخول أولاً لإتمام هذا التعديل."
+                : res.status === 404
+                  ? "لم يتم العثور على سجل الربط على الخادم."
+                  : "تعذر حفظ التعديل على الخادم حالياً."),
+        };
       } catch {
-        // Fallback local update
+        return {
+          ok: false,
+          messageAr: "تعذر الاتصال بالخادم لتحديث بيانات الربط. حاول مرة أخرى.",
+        };
       }
     }
 

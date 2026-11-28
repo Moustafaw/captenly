@@ -11,6 +11,7 @@ import { DemandRadarFallback } from "@/components/editorial/DemandRadarFallback"
 import { CaptenlyGoogleMap } from "@/components/maps/CaptenlyGoogleMap";
 import {
   EGYPT_CITY_PRESETS,
+  cleanPublicAddressAr,
   facilityMatchesCity,
   facilityMatchesSearch,
   getFacilityDistanceKm,
@@ -495,7 +496,10 @@ function Desktop23Inner() {
                       />
                       <div className="min-w-0">
                         <div className="text-[11px] font-bold text-[#1D6E7D]">
-                          {activeMapFacility.city} • {activeMapFacility.district}
+                          {cleanPublicAddressAr(activeMapFacility.city)}
+                          {cleanPublicAddressAr(activeMapFacility.district)
+                            ? ` • ${cleanPublicAddressAr(activeMapFacility.district)}`
+                            : ""}
                         </div>
                         <h3 className="font-card-title-sm text-[#0F172A] truncate">
                           {activeMapFacility.nameAr}

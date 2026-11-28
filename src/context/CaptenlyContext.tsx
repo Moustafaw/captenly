@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   GUEST_PERSONA,
   INITIAL_ARTICLES,
@@ -225,7 +225,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     if (!storageHydrated) return;
     if (skipInitialPersistRef.current) {
       skipInitialPersistRef.current = false;
-      if (!hadSavedStateRef.current && !auth.isAuthenticated) return;
+      return;
     }
     const hasGuestUserPrefs =
       discovery.savedFavoriteIds.length > 0 ||
@@ -300,7 +300,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     roleStaff.activeWorkspaceContext,
   ]);
 
-  const resetDemoData = () => {
+  const resetDemoData = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     auth.setAllPersonas(PERSONA_ACCOUNTS);
     auth.setCurrentPersona(GUEST_PERSONA);
@@ -321,7 +321,8 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
     telemetry.setNotifications(INITIAL_NOTIFICATIONS);
     supply.setArticles(INITIAL_ARTICLES);
     roleStaff.setActiveStaffAssignmentId(null);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo<CaptenlyContextType>(
     () => ({
@@ -378,6 +379,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
       saveEditorialArticle: supply.saveEditorialArticle,
       deleteEditorialArticle: supply.deleteEditorialArticle,
       subscribeNewsletter: telemetry.subscribeNewsletter,
+      subscribeNewsletterAsync: telemetry.subscribeNewsletterAsync,
       userSettings: telemetry.userSettings,
       updateUserSettings: telemetry.updateUserSettings,
       subscribeDemandRadar: telemetry.subscribeDemandRadar,
@@ -393,7 +395,10 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
       verifiedLeads: telemetry.verifiedLeads,
       demandRadar: telemetry.demandRadar,
       offlineQueue: poolDesk.offlineQueue,
+      syncStatusSummary: poolDesk.syncStatusSummary,
       syncOfflineQueue: poolDesk.syncOfflineQueue,
+      syncOfflineQueueAsync: poolDesk.syncOfflineQueueAsync,
+      retryFailedOfflineQueue: poolDesk.retryFailedOfflineQueue,
       compareFacilityIds: discovery.compareFacilityIds,
       toggleCompareFacility: discovery.toggleCompareFacility,
       clearComparison: discovery.clearComparison,
@@ -408,11 +413,18 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
       requestCoachHostClubLink: poolDesk.requestCoachHostClubLink,
       reviewFacilityLinkedEntity: poolDesk.reviewFacilityLinkedEntity,
       enrollSwimmerByMemberCode: poolDesk.enrollSwimmerByMemberCode,
+      enrollSwimmerByMemberCodeAsync: poolDesk.enrollSwimmerByMemberCodeAsync,
       checkInSession: poolDesk.checkInSession,
+      checkInSessionAsync: poolDesk.checkInSessionAsync,
       checkInBySubscriptionCode: poolDesk.checkInBySubscriptionCode,
+      checkInBySubscriptionCodeAsync: poolDesk.checkInBySubscriptionCodeAsync,
+      checkInByPinAsync: poolDesk.checkInByPinAsync,
       renewSwimmerSubscription: poolDesk.renewSwimmerSubscription,
+      renewSwimmerSubscriptionAsync: poolDesk.renewSwimmerSubscriptionAsync,
       uploadInstaPayReceipt: poolDesk.uploadInstaPayReceipt,
+      uploadInstaPayReceiptAsync: poolDesk.uploadInstaPayReceiptAsync,
       confirmReceiptByProvider: poolDesk.confirmReceiptByProvider,
+      confirmReceiptByProviderAsync: poolDesk.confirmReceiptByProviderAsync,
       lookupRemoteLedgersOrProfile: poolDesk.lookupRemoteLedgersOrProfile,
       syncLedgersFromServer: poolDesk.syncLedgersFromServer,
       addNewPBRecord: telemetry.addNewPBRecord,
@@ -485,6 +497,7 @@ export function CaptenlyProvider({ children, initialPublicSupply }: CaptenlyProv
       poolDesk.isBrowserOffline,
       poolDesk.sessionLedgers,
       poolDesk.offlineQueue,
+      poolDesk.syncStatusSummary,
       poolDesk.facilityLinks,
       storageHydrated,
     ]

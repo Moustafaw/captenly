@@ -4,7 +4,100 @@ import { withPgClient } from "@/lib/supabase/pgFallback";
 import { getServerCaller } from "@/lib/memberSession";
 import { enforceRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/server/rateLimit";
 
+export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 const ALLOWED_SPORTS = new Set(["swimming", "fitness", "both", "other"]);
+
+interface DemandRadarAdminRow {
+  id: string;
+  fullNameAr: string;
+  phone: string;
+  city: string;
+  governorate: string;
+  targetSport: string;
+  targetFacilityId: string | null;
+  targetFacilityNameAr: string | null;
+  createdAt: string | null;
+}
+
+function mapDemandRadarRow(row: Record<string, unknown>): DemandRadarAdminRow {
+  return {
+    id: String(row.id || ""),
+    fullNameAr: String(row.full_name_ar || ""),
+    phone: String(row.phone || ""),
+    city: String(row.city || ""),
+    governorate: String(row.governorate || "مصر"),
+    targetSport: String(row.target_sport || "swimming"),
+    targetFacilityId:
+      typeof row.target_facility_id === "string" && row.target_facility_id
+        ? row.target_facility_id
+        : null,
+    targetFacilityNameAr:
+      typeof row.target_facility_name_ar === "string" && row.target_facility_name_ar
+        ? row.target_facility_name_ar
+        : null,
+    createdAt: row.created_at ? String(row.created_at) : null,
+  };
+}
+
+export async function GET() {
+  const caller = await getServerCaller();
+  if (!caller.authenticated) {
+    return NextResponse.json(
+      { ok: false, items: [], error: "unauthorized" },
+      { status: 401, headers: NO_STORE_HEADERS }
+    );
+  }
+  if (!caller.isAdmin) {
+    return NextResponse.json(
+      { ok: false, items: [], error: "forbidden" },
+      { status: 403, headers: NO_STORE_HEADERS }
+    );
+  }
+
+  const admin = getSupabaseAdminClient();
+  if (admin) {
+    try {
+      const { data, error } = await admin
+        .from("captenly_demand_radar")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (!error && Array.isArray(data)) {
+        const items = data.map((r) => mapDemandRadarRow(r as Record<string, unknown>));
+        return NextResponse.json(
+          { ok: true, items, totalCount: items.length, source: "supabase" },
+          { headers: NO_STORE_HEADERS }
+        );
+      }
+    } catch {
+      // fall through to pg fallback
+    }
+  }
+
+  const pgRes = await withPgClient(async (client) => {
+    const { rows } = await client.query(
+      `select id, full_name_ar, phone, city, governorate, target_sport, target_facility_id, target_facility_name_ar, created_at
+       from public.captenly_demand_radar
+       order by created_at desc
+       limit 200`
+    );
+    return rows.map((r) => mapDemandRadarRow(r as Record<string, unknown>));
+  });
+
+  if (pgRes.ok) {
+    return NextResponse.json(
+      { ok: true, items: pgRes.value, totalCount: pgRes.value.length, source: "pg" },
+      { headers: NO_STORE_HEADERS }
+    );
+  }
+
+  return NextResponse.json(
+    { ok: false, items: [], totalCount: 0, source: "unavailable", error: pgRes.errorCode || "db_unavailable" },
+    { status: 503, headers: NO_STORE_HEADERS }
+  );
+}
 
 export async function POST(request: Request) {
   const rl = await enforceRateLimit({

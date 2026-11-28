@@ -652,9 +652,10 @@ export default function Phone2() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!childName.trim()) return;
+              const clampedAge = Math.min(17, Math.max(3, Number(childAge) || 8));
               addMinorAthlete({
                 fullNameAr: childName.trim(),
-                age: Number(childAge) || 8,
+                age: clampedAge,
                 gender: "male",
                 primarySport: "swimming",
               });
@@ -670,8 +671,8 @@ export default function Phone2() {
             />
             <input
               type="number"
-              min={4}
-              max={14}
+              min={3}
+              max={17}
               value={childAge}
               onChange={(e) => setChildAge(e.target.value)}
               className="w-14 rounded-2xl bg-[#F7F9FA] px-2 py-2.5 text-xs font-bold text-[#0B1C2E] text-center outline-none border border-[#E2E8F0] focus:border-[#00ACC1]"

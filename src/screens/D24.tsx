@@ -16,11 +16,13 @@ type HomeCategoryKey = "all" | "swimming" | "ladies" | "kids" | "heated";
 interface Desktop24Props {
   initialFacilities?: Facility[];
   initialCoaches?: Coach[];
+  omitHero?: boolean;
 }
 
 export default function Desktop24({
   initialFacilities = [],
   initialCoaches = [],
+  omitHero = false,
 }: Desktop24Props = {}) {
   const {
     facilities,
@@ -169,95 +171,103 @@ export default function Desktop24({
   };
 
   return (
-    <div className="screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased selection:bg-[#EAF4F8] selection:text-[#1D6E7D]">
-      <div className="w-full bg-[#F7F9FA] min-h-screen pt-6">
+    <div
+      className={
+        omitHero
+          ? "font-body-default text-body-default text-[#0F172A] selection:bg-[#EAF4F8] selection:text-[#1D6E7D]"
+          : "screen-root bg-[#F7F9FA] font-body-default text-body-default text-[#0F172A] antialiased selection:bg-[#EAF4F8] selection:text-[#1D6E7D]"
+      }
+    >
+      <div className={omitHero ? "w-full bg-[#F7F9FA]" : "w-full bg-[#F7F9FA] min-h-screen pt-6"}>
         <div className="flex flex-col w-full">
-          <div className="max-w-[1280px] w-full mx-auto px-margin lg:px-margin-desktop py-space-lg flex flex-col gap-space-xl">
+          <div className={omitHero ? "max-w-[1280px] w-full mx-auto px-margin lg:px-margin-desktop pb-space-lg flex flex-col gap-space-xl" : "max-w-[1280px] w-full mx-auto px-margin lg:px-margin-desktop py-space-lg flex flex-col gap-space-xl"}>
             {/* Hero — Option B Deep Ocean Teal & Ice Aqua Luxury Bright Architecture */}
-            <section className="relative w-full rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_12px_40px_rgba(15,23,42,0.05)] p-5 lg:p-7">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#EAF4F8]/80 blur-3xl"
-              />
-              <div className="relative z-10 grid grid-cols-12 gap-6 lg:gap-8 min-h-[340px] items-center">
-                <div className="col-span-12 lg:col-span-7 flex flex-col justify-center gap-5 p-2 lg:p-4">
-                  <h1 className="font-hero-headline text-hero-headline text-[#0F172A] leading-tight max-w-xl">
-                    اكتشف أفضل الأندية والمدارس الرياضية الموثقة حولك في مصر
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-2.5 text-[#0F172A] font-body-compact text-[12.5px]">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
-                      <Icon name="check_circle" className="text-[16px] text-[#1D6E7D]" />
-                      <span>أسعار واضحة دون عمولات وساطة</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
-                      <Icon name="workspace_premium" className="text-[16px] text-[#1D6E7D]" />
-                      <span>كباتن مسجلون وموثقون بالشارات</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
-                      <Icon name="qr_code_2" className="text-[16px] text-[#1D6E7D]" />
-                      <span>دفتر حصص QR أوفلاين</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
-                    <Link
-                      className="inline-flex items-center justify-center gap-2 px-7 h-12 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title text-card-title transition-all shadow-[0_8px_20px_rgba(29,110,125,0.22)]"
-                      href="/explore"
-                    >
-                      <span>استكشف المنشآت القريبة منك</span>
-                      <Icon name="arrow_back" className="text-[20px]" />
-                    </Link>
-                    <Link
-                      href={
-                        isFacilityManager
-                          ? "/dashboard/facility"
-                          : isCoachRole
-                          ? "/dashboard/coach"
-                          : isAthleteOrParent
-                          ? "/dashboard/athlete"
-                          : "/claim"
-                      }
-                      className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] hover:border-[#1D6E7D] hover:text-[#1D6E7D] font-card-title-sm transition-all"
-                    >
-                      <span>
-                        {isFacilityManager
-                          ? "إدارة منشأتك والمشتركين"
-                          : isCoachRole
-                          ? "لوحة الكابتن والشهادات"
-                          : isAthleteOrParent
-                          ? "حسابي ودفتر الحصص"
-                          : "وثّق ناديك أو سجّل ككابتن"}
+            {!omitHero && (
+              <section className="relative w-full rounded-[24px] bg-white border border-[#0F172A]/6 overflow-hidden shadow-[0_12px_40px_rgba(15,23,42,0.05)] p-5 lg:p-7">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#EAF4F8]/80 blur-3xl"
+                />
+                <div className="relative z-10 grid grid-cols-12 gap-6 lg:gap-8 min-h-[340px] items-center">
+                  <div className="col-span-12 lg:col-span-7 flex flex-col justify-center gap-5 p-2 lg:p-4">
+                    <h1 className="font-hero-headline text-hero-headline text-[#0F172A] leading-tight max-w-xl">
+                      اكتشف أفضل الأندية والمدارس الرياضية الموثقة حولك في مصر
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-2.5 text-[#0F172A] font-body-compact text-[12.5px]">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                        <Icon name="check_circle" className="text-[16px] text-[#1D6E7D]" />
+                        <span>أسعار واضحة دون عمولات وساطة</span>
                       </span>
-                    </Link>
-                  </div>
-                </div>
-                <div className="col-span-12 lg:col-span-5 h-[340px] rounded-[20px] relative overflow-hidden hidden lg:block border border-[#0F172A]/6">
-                  <CaptenlyImage
-                    src="/screens/2c0d763d9374.jpg"
-                    alt="حوض سباحة أولمبي معتمد"
-                    fill
-                    priority
-                    sizes="(max-width: 1024px) 100vw, 520px"
-                    className="object-cover object-center"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/45 via-transparent to-transparent pointer-events-none" />
-                  <div className="absolute top-3.5 right-3.5 z-20 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md shadow-sm text-[11px] font-bold text-[#1D6E7D] flex items-center gap-1.5">
-                    <Icon name="pool" className="text-[14px]" />
-                    <span>حوض أولمبي معتمد</span>
-                  </div>
-                  <div className="absolute bottom-3.5 left-3.5 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md shadow-md border border-[#0F172A]/5">
-                    <Icon name="thermostat" className="text-[18px] text-[#1D6E7D]" />
-                    <div className="flex flex-col">
-                      <span className="font-micro-caption text-[10px] text-[#64748B]">
-                        معايير التدفئة والأمان
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                        <Icon name="workspace_premium" className="text-[16px] text-[#1D6E7D]" />
+                        <span>كباتن مسجلون وموثقون بالشارات</span>
                       </span>
-                      <span className="font-badge-label text-xs font-extrabold text-[#0F172A]">
-                        فحص 28.5°C شتاءً
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F9FA] border border-[#0F172A]/6 font-bold">
+                        <Icon name="qr_code_2" className="text-[16px] text-[#1D6E7D]" />
+                        <span>دفتر حصص QR أوفلاين</span>
                       </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <Link
+                        className="inline-flex items-center justify-center gap-2 px-7 h-12 rounded-full bg-[#1D6E7D] hover:bg-[#155460] text-white font-card-title text-card-title transition-all shadow-[0_8px_20px_rgba(29,110,125,0.22)]"
+                        href="/explore"
+                      >
+                        <span>استكشف المنشآت القريبة منك</span>
+                        <Icon name="arrow_back" className="text-[20px]" />
+                      </Link>
+                      <Link
+                        href={
+                          isFacilityManager
+                            ? "/dashboard/facility"
+                            : isCoachRole
+                            ? "/dashboard/coach"
+                            : isAthleteOrParent
+                            ? "/dashboard/athlete"
+                            : "/claim"
+                        }
+                        className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-white border border-[#0F172A]/12 text-[#0F172A] hover:border-[#1D6E7D] hover:text-[#1D6E7D] font-card-title-sm transition-all"
+                      >
+                        <span>
+                          {isFacilityManager
+                            ? "إدارة منشأتك والمشتركين"
+                            : isCoachRole
+                            ? "لوحة الكابتن والشهادات"
+                            : isAthleteOrParent
+                            ? "حسابي ودفتر الحصص"
+                            : "وثّق ناديك أو سجّل ككابتن"}
+                        </span>
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="col-span-12 lg:col-span-5 h-[340px] rounded-[20px] relative overflow-hidden hidden lg:block border border-[#0F172A]/6">
+                    <CaptenlyImage
+                      src="/screens/2c0d763d9374.jpg"
+                      alt="حوض سباحة أولمبي معتمد"
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 520px"
+                      className="object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/45 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute top-3.5 right-3.5 z-20 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md shadow-sm text-[11px] font-bold text-[#1D6E7D] flex items-center gap-1.5">
+                      <Icon name="pool" className="text-[14px]" />
+                      <span>حوض أولمبي معتمد</span>
+                    </div>
+                    <div className="absolute bottom-3.5 left-3.5 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md shadow-md border border-[#0F172A]/5">
+                      <Icon name="thermostat" className="text-[18px] text-[#1D6E7D]" />
+                      <div className="flex flex-col">
+                        <span className="font-micro-caption text-[10px] text-[#64748B]">
+                          معايير التدفئة والأمان
+                        </span>
+                        <span className="font-badge-label text-xs font-extrabold text-[#0F172A]">
+                          فحص 28.5°C شتاءً
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* Category Filters */}
             <section className="flex flex-col gap-space-sm">

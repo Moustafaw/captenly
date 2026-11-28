@@ -3,18 +3,25 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useCaptenly } from "@/context/CaptenlyContext";
 import {
   buildAcademySettlementSummary,
   evaluateLedgerGateStatus,
   getFacilityPoolDeskConfig,
   isSameLocalCalendarDay,
 } from "@/lib/poolDeskPricing";
-import type { Facility, OfflineCheckinQueueItem, SessionLedger } from "@/types/captenly";
+import type {
+  Facility,
+  FacilityStaffRole,
+  OfflineCheckinQueueItem,
+  SessionLedger,
+} from "@/types/captenly";
 
 interface FacilityOpsAuditTabProps {
   facility: Facility;
   ledgers: SessionLedger[];
   offlineQueue: OfflineCheckinQueueItem[];
+  staffRole?: FacilityStaffRole | null;
   onSyncOffline: () => number;
   onExceptionalCheckin: (ledgerId: string, noteAr: string) => void;
   onOpenGateKiosk?: () => void;
@@ -33,13 +40,21 @@ export function FacilityOpsAuditTab({
   facility,
   ledgers,
   offlineQueue,
+  staffRole,
   onSyncOffline,
   onExceptionalCheckin,
 }: FacilityOpsAuditTabProps) {
+  const { activeStaffAssignment } = useCaptenly();
+  const effectiveStaffRole = staffRole ?? activeStaffAssignment?.role ?? null;
+  const isGeneralStaff = effectiveStaffRole === "general_staff";
   const poolConfig = getFacilityPoolDeskConfig(facility);
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [scannerFilter, setScannerFilter] = useState<"all" | "facility_gate" | "delegated_coach">("all");
   const [searchQ, setSearchQ] = useState("");
+  const [sendingWaLedgerId, setSendingWaLedgerId] = useState<string | null>(null);
+  const [waFeedbackByLedger, setWaFeedbackByLedger] = useState<
+    Record<string, { ok: boolean; text: string }>
+  >({});
 
   const activeLedgers = useMemo(
     () => ledgers.filter((l) => l.status !== "completed" && !l.isCodeExpired),
@@ -129,6 +144,42 @@ export function FacilityOpsAuditTab({
     const remaining = Math.max(0, ledger.totalSessions - ledger.completedSessions);
     const msg = `مرحباً ولي أمر السبّاح (${ledger.athleteNameAr}) — تذكير ودي من ${facility.nameAr}: لم يتم تسجيل حضور حصة اليوم حتى الآن. الرصيد المتبقي: ${remaining} من ${ledger.totalSessions} حصص.`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const dispatchServerAbsentReminder = async (ledger: SessionLedger) => {
+    setSendingWaLedgerId(ledger.id);
+    try {
+      const res = await fetch("/api/notifications/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_absence_alert",
+          ledgerId: ledger.id,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      setWaFeedbackByLedger((prev) => ({
+        ...prev,
+        [ledger.id]: {
+          ok: Boolean(res.ok && data?.ok),
+          text:
+            data?.messageAr ||
+            (res.ok
+              ? "تم توثيق تنبيه الغياب بالنظام."
+              : "تعذر إرسال تنبيه الخادم — يمكنك استخدام زر واتساب اليدوي."),
+        },
+      }));
+    } catch {
+      setWaFeedbackByLedger((prev) => ({
+        ...prev,
+        [ledger.id]: {
+          ok: false,
+          text: "تعذر الاتصال بالخادم — يمكنك استخدام واتساب اليدوي.",
+        },
+      }));
+    } finally {
+      setSendingWaLedgerId(null);
+    }
   };
 
   return (
@@ -447,44 +498,80 @@ export function FacilityOpsAuditTab({
               <div className="flex flex-col gap-2">
                 {notCheckedInToday.slice(0, 6).map((l) => {
                   const gateStat = evaluateLedgerGateStatus(l);
+                  const waStatus = waFeedbackByLedger[l.id];
+                  const waBusy = sendingWaLedgerId === l.id;
                   return (
                     <div
                       key={l.id}
-                      className="rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0] p-3 flex items-center justify-between gap-2"
+                      className="rounded-2xl bg-[#F7F9FA] border border-[#E2E8F0] p-3 flex flex-col gap-2"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] font-bold text-[11px] flex items-center justify-center shrink-0">
-                          {getInitials(l.athleteNameAr)}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-white border border-[#E2E8F0] text-[#0F172A] font-bold text-[11px] flex items-center justify-center shrink-0">
+                            {getInitials(l.athleteNameAr)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-xs text-[#0F172A] truncate">
+                              {l.athleteNameAr}
+                            </div>
+                            <div className="text-[10px] text-[#64748B] truncate">
+                              {l.linkedEntityNameAr || l.trackLabelAr || "النادي"} • متبقي{" "}
+                              {gateStat.remainingSessions}
+                            </div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-bold text-xs text-[#0F172A] truncate">
-                            {l.athleteNameAr}
-                          </div>
-                          <div className="text-[10px] text-[#64748B] truncate">
-                            {l.linkedEntityNameAr || l.trackLabelAr || "النادي"} • متبقي{" "}
-                            {gateStat.remainingSessions}
-                          </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={waBusy}
+                            onClick={() => void dispatchServerAbsentReminder(l)}
+                            title="إرسال تنبيه واتساب عبر الخادم"
+                            className="px-2 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-bold"
+                          >
+                            {waBusy ? "..." : "إرسال"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sendWhatsappAbsentReminder(l)}
+                            title="تنبيه يدوي عبر واتساب"
+                            className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center hover:bg-emerald-100"
+                          >
+                            <Icon name="chat" className="text-[15px]" />
+                          </button>
+                          {!isGeneralStaff ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onExceptionalCheckin(l.id, "تسجيل حضور استثنائي من غرفة العمليات")
+                              }
+                              className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/25 text-[10px] font-bold"
+                            >
+                              تحضير
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              aria-disabled="true"
+                              title="التحضير الاستثنائي (تجاوز حد الـ 3 ساعات) متاح للمالك أو مسؤول الاشتراكات فقط"
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold cursor-not-allowed"
+                            >
+                              تحضير مقيّد
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => sendWhatsappAbsentReminder(l)}
-                          title="تنبيه ولي الأمر عبر واتساب"
-                          className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center hover:bg-emerald-100"
+                      {waStatus && (
+                        <div
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${
+                            waStatus.ok
+                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              : "bg-amber-50 text-amber-900 border border-amber-200"
+                          }`}
                         >
-                          <Icon name="chat" className="text-[15px]" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onExceptionalCheckin(l.id, "تسجيل حضور استثنائي من غرفة العمليات")
-                          }
-                          className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#EAF4F8] text-[#1D6E7D] border border-[#1D6E7D]/25 text-[10px] font-bold"
-                        >
-                          تحضير
-                        </button>
-                      </div>
+                          {waStatus.text}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
